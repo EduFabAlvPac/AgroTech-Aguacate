@@ -1,8 +1,8 @@
 "use client";
 
 import { useChat } from "ai/react";
-import { useEffect, useRef, useState } from "react";
-import { Bot, Send, RotateCcw, Leaf } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { Bot, Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { ChatMessage } from "@prisma/client";
 
@@ -11,19 +11,9 @@ interface ChatInterfaceProps {
   initialQuery?: string;
 }
 
-const QUICK_PROMPTS = [
-  "¿Cómo prevenir la antracnosis en aguacate Hass recién sembrado?",
-  "Plan de riego para las primeras 4 semanas post-siembra",
-  "¿Cuándo debo aplicar el primer abono y qué tipo?",
-  "Síntomas de helada en plántulas de aguacate y cómo actuar",
-  "¿Qué plagas debo vigilar en Norte de Santander en época de siembra?",
-  "Costo aproximado de insumos para 2 hectáreas en establecimiento",
-];
-
 export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [started, setStarted] = useState(historial.length > 0 || !!initialQuery);
 
   const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, setInput } =
     useChat({
@@ -40,24 +30,33 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Handle initial query from URL
+  // Handle initial query from URL — auto-submit
   useEffect(() => {
-    if (initialQuery && !started) {
+    if (initialQuery && messages.length === 0) {
       setInput(initialQuery);
-      setStarted(true);
-      setTimeout(() => inputRef.current?.focus(), 100);
+      setTimeout(() => {
+        const form = document.querySelector("form");
+        if (form) {
+          const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
+          form.dispatchEvent(submitEvent);
+        }
+      }, 300);
     }
   }, [initialQuery]);
 
   const handleQuickPrompt = (prompt: string) => {
     setInput(prompt);
-    setStarted(true);
-    setTimeout(() => inputRef.current?.focus(), 100);
+    setTimeout(() => {
+      const form = document.querySelector("form");
+      if (form) {
+        const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
+        form.dispatchEvent(submitEvent);
+      }
+    }, 100);
   };
 
   const handleClear = () => {
     setMessages([]);
-    setStarted(false);
   };
 
   return (
