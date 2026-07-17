@@ -1,9 +1,9 @@
 import { anthropic } from "@ai-sdk/anthropic";
 import { streamText } from "ai";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { db } from "@/lib/db";
-import { retrieveContext, formatContextForPrompt, buildFarmContextString } from "@/lib/rag";
+import { retrieveContext, formatContextForPrompt } from "@/lib/rag";
+
+export const runtime = "edge";
+export const maxDuration = 30;
 
 const BASE_SYSTEM_PROMPT = `Eres AgroIA, un asistente especializado en cultivo de aguacate Hass en Colombia, con enfoque en la región Andina y Norte de Santander entre 1.500 y 2.200 msnm.
 
@@ -21,110 +21,47 @@ REGLAS DE RESPUESTA:
 - Menciona marcas comerciales disponibles en Colombia (Mancozeb 80, Ridomil Gold, Previcur, Fosetil-aluminio, Aliette, Tracer, Vertimec)
 - Al detectar síntomas: diagnóstico + tratamiento + prevención
 - Máximo 3–4 párrafos salvo que pidan más detalle
-- Prioriza métodos de bajo costo apropiados para pequeños productores`;
+- Prioriza métodos de bajo costo apropiados para pequeños productores
+
+`;
+
+const FARM_CONTEXT = `
+CONTEXTO DE LA FINCA DEL USUARIO:
+- Nombre: Finca Álvarez Pacheco
+- Ubicación: Norte de Santander, Colombia
+- Área total: 2 hectáreas
+- Lote A: 1 ha, 1.850 msnm, Aguacate Hass, etapa Siembra
+- Lote B: 1 ha, 1.820 msnm, Aguacate Hass, etapa Siembra
+- Siembra: julio 2026, 320 plantas totales (160/lote, distancia 8x8m)
+- Portainjerto: Criollo antillano
+- Clima: Tropical de montaña, 18-24°C promedio, lluvias bimodales
+
+`;
 
 export async function POST(req: Request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401 });
-    }
-
     const { messages } = await req.json();
-    const lastUserMsg = messages[messages.length - 1];
-    const userQuery = lastUserMsg?.content ?? "";
+    const userQuery = messages[messages.length - 1]?.content ?? "";
 
-    // ── 1. Fetch live farm context ─────────────────────────────────────────
-    const [farmData, activeAlerts] = await Promise.all([
-      db.finca.findFirst({
-        where: { userId: session.user.id },
-        include: {
-          lotes: {
-            include: {
-              cultivos: {
-                where: { estado: "ACTIVO" },
-                select: {
-                  variedad: true,
-                  etapa: true,
-                  fechaSiembra: true,
-                  cantidadPlantas: true,
-                },
-                take: 1,
-              },
-            },
-          },
-        },
-      }),
-      db.alertaClimatica.findMany({
-        where: { activa: true, leida: false },
-        select: { titulo: true, tipo: true },
-        take: 3,
-      }),
-    ]);
-
-    // ── 2. Build farm context string ───────────────────────────────────────
-    const farmContext = buildFarmContextString({
-      fincaNombre: farmData?.nombre,
-      municipio: farmData?.municipio,
-      totalHa: farmData?.lotes.reduce((s, l) => s + l.areaHa, 0),
-      lotes: farmData?.lotes.map((l) => ({
-        nombre: l.nombre,
-        altitud: l.altitud ?? undefined,
-        areaHa: l.areaHa,
-      })),
-      cultivos: farmData?.lotes.flatMap((l) =>
-        l.cultivos.map((c) => ({
-          variedad: c.variedad,
-          etapa: c.etapa,
-          fechaSiembra: c.fechaSiembra,
-          cantidadPlantas: c.cantidadPlantas,
-        }))
-      ),
-      alertasActivas: activeAlerts,
-    });
-
-    // ── 3. RAG retrieval ───────────────────────────────────────────────────
+    // RAG retrieval — knowledge base sobre aguacate Hass
     const ragChunks = retrieveContext(userQuery, 3);
     const ragContext = formatContextForPrompt(ragChunks);
 
-    // ── 4. Build final system prompt ───────────────────────────────────────
-    const systemPrompt = `${BASE_SYSTEM_PROMPT}${farmContext}${ragContext}`;
+    const systemPrompt = BASE_SYSTEM_PROMPT + FARM_CONTEXT + ragContext;
 
-    // ── 5. Save user message (non-blocking) ───────────────────────────────
-    if (lastUserMsg?.role === "user") {
-      db.chatMessage
-        .create({
-          data: {
-            userId: session.user.id,
-            role: "USER",
-            content: userQuery,
-          },
-        })
-        .catch(() => {});
-    }
-
-    // ── 6. Stream response ─────────────────────────────────────────────────
     const result = await streamText({
       model: anthropic("claude-sonnet-4-6"),
       system: systemPrompt,
       messages,
-      maxTokens: 1200,
-      onFinish: async ({ text }) => {
-        db.chatMessage
-          .create({
-            data: {
-              userId: session.user.id,
-              role: "ASSISTANT",
-              content: text,
-            },
-          })
-          .catch(() => {});
-      },
+      maxTokens: 800,
     });
 
     return result.toDataStreamResponse();
   } catch (error) {
     console.error("[POST /api/chat]", error);
-    return new Response(JSON.stringify({ error: "Error en el asistente IA" }), { status: 500 });
+    return new Response(
+      JSON.stringify({ error: "Error en el asistente IA" }),
+      { status: 500, headers: { "Content-Type": "application/json" } }
+    );
   }
 }
