@@ -1,3 +1,6 @@
+import { google } from "@ai-sdk/google";
+import { streamText } from "ai";
+
 export const runtime = "edge";
 export const maxDuration = 30;
 
@@ -5,105 +8,68 @@ const SYSTEM_PROMPT = `Eres AgroIA, asistente especializado en cultivo de aguaca
 
 CONTEXTO DE LA FINCA:
 - Finca El Juncal, Ocaña, Norte de Santander, Colombia
-- 2 lotes de 1 hectárea cada uno  
+- 2 lotes de 1 hectárea cada uno
 - Lote A: 1.850 msnm, Aguacate Hass, etapa Siembra
 - Lote B: 1.820 msnm, Aguacate Hass, etapa Siembra
 - Siembra: julio 2026, 320 plantas (160/lote, distancia 8x8m)
 
-PLAGAS: Antracnosis: Mancozeb 80% 2.5g/L cada 15 días. Phytophthora: Fosetil-aluminio 2g/L mensual. Trips: Spinosad 0.4mL/L. Ácaros: Abamectina 0.8mL/L.
-RIEGO: Semanas 1-4: 3-4L/planta cada 2-3 días. Semanas 5-8: 4-6L/planta cada 3-4 días.
-FERTILIZACIÓN: Mes 2: 50g 8-20-20/planta. Mes 4: 100g + 10g Sulfato Zinc. Mes 6: 150g.
-HELADAS: Crítico menor 12°C. Riego nocturno 5-8L desde 21h. Cubrir con fique.
-COSTOS/ha: Plántulas 800k-1.28M COP. Fertilizantes 300k-450k. Fungicidas 250k-400k. Mano obra 1.5M-2.5M.
-REGLAS: Responde en español colombiano, práctico, cantidades concretas en COP/kg/litros. Máximo 3-4 párrafos.`;
+CONOCIMIENTO TÉCNICO:
+PLAGAS: Antracnosis (Colletotrichum): manchas negras en frutos, controlar con Mancozeb 80% 2.5g/L cada 15 días en época lluviosa. Phytophthora cinnamomi: raíces negras, marchitez, prevenir con buen drenaje y Fosetil-aluminio 2g/L mensual. Trips: deformación de brotes, controlar con Spinosad 0.4mL/L. Ácaros: bronceado en hojas, controlar con Abamectina 0.8mL/L.
+
+RIEGO ESTABLECIMIENTO: Semanas 1-4: 3-4L/planta cada 2-3 días. Semanas 5-8: 4-6L/planta cada 3-4 días. Para 320 plantas: 960-1280L por riego.
+
+FERTILIZACIÓN: Mes 2: 50g de 8-20-20 por planta. Mes 4: 100g por planta + 10g Sulfato de Zinc. Mes 6: 150g por planta. Foliar mensual: Calcio 2g/L + Boro 0.5g/L.
+
+HELADAS: Temperatura crítica menor a 12°C para plántulas. Acción: riego nocturno 5-8L/planta desde las 21h. Cubrir con sacos de fique o agrocover.
+
+COSTOS 2026 por hectárea: Plántulas: 800.000-1.280.000 COP. Fertilizantes año 1: 300.000-450.000 COP. Fungicidas año 1: 250.000-400.000 COP. Mano de obra año 1: 1.500.000-2.500.000 COP. Primera cosecha año 2: 3-5 kg/árbol.
+
+REGLAS: Responde siempre en español colombiano, práctico y directo. Da cantidades concretas en COP, kg, litros. Máximo 3-4 párrafos salvo que pidan más detalle.`;
 
 export async function POST(req: Request) {
+  console.log("[chat] Request received");
+
   try {
-    const { messages } = await req.json();
+    const body = await req.json();
+    console.log("[chat] Body parsed, messages:", body.messages?.length);
+
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    console.log("[chat] GOOGLE_GENERATIVE_AI_API_KEY present:", !!apiKey, "length:", apiKey?.length ?? 0);
 
     if (!apiKey) {
+      console.error("[chat] NO API KEY FOUND. Check Vercel env vars.");
       return new Response(
-        JSON.stringify({ error: "API key no configurada" }),
+        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY no configurada en el servidor" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const googleMessages = messages.map((m: any) => ({
-      role: m.role === "user" ? "user" : "model",
-      parts: [{ text: m.content }],
-    }));
+    const { messages } = body;
 
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?alt=sse&key=${apiKey}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: SYSTEM_PROMPT }] },
-          contents: googleMessages,
-          generationConfig: { maxOutputTokens: 800, temperature: 0.7 },
-        }),
-      }
-    );
+    console.log("[chat] Calling streamText with google('gemini-1.5-flash')...");
 
-    if (!response.ok) {
-      const err = await response.text();
-      console.error("Google API error:", err);
-      return new Response(
-        JSON.stringify({ error: "Error Google API: " + err }),
-        { status: 500, headers: { "Content-Type": "application/json" } }
-      );
-    }
-
-    const encoder = new TextEncoder();
-    const decoder = new TextDecoder();
-
-    const stream = new ReadableStream({
-      async start(controller) {
-        const reader = response.body!.getReader();
-        let buffer = "";
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            controller.enqueue(encoder.encode('0:""\n'));
-            controller.close();
-            break;
-          }
-
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-
-          for (const line of lines) {
-            if (!line.startsWith("data: ")) continue;
-            const data = line.slice(6).trim();
-            if (data === "[DONE]") continue;
-            try {
-              const parsed = JSON.parse(data);
-              const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text;
-              if (text) {
-                const escaped = JSON.stringify(text);
-                controller.enqueue(encoder.encode(`0:${escaped}\n`));
-              }
-            } catch {}
-          }
-        }
-      },
+    const result = streamText({
+      model: google("gemini-1.5-flash"),
+      system: SYSTEM_PROMPT,
+      messages,
+      maxTokens: 800,
     });
 
-    return new Response(stream, {
-      headers: {
-        "Content-Type": "text/event-stream",
-        "Cache-Control": "no-cache",
-        "X-Vercel-AI-Data-Stream": "v1",
-      },
-    });
+    console.log("[chat] streamText called, returning data stream response");
+
+    return result.toDataStreamResponse();
   } catch (error: any) {
-    console.error("[POST /api/chat]", error);
+    console.error("[chat] FULL ERROR:", {
+      message: error?.message,
+      name: error?.name,
+      stack: error?.stack?.slice(0, 500),
+      cause: error?.cause,
+    });
+
     return new Response(
-      JSON.stringify({ error: error?.message || "Error desconocido" }),
+      JSON.stringify({
+        error: "Error en AgroIA: " + (error?.message || "desconocido"),
+      }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
