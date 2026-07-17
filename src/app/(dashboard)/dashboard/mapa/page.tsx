@@ -18,8 +18,11 @@ export default async function MapaPage() {
       lotes: {
         include: {
           cultivos: {
-            select: { etapa: true, variedad: true, cantidadPlantas: true, fechaSiembra: true },
+            select: { id: true, etapa: true, variedad: true, cantidadPlantas: true, fechaSiembra: true, estado: true },
             take: 1,
+          },
+          _count: {
+            select: { cultivos: true },
           },
         },
       },

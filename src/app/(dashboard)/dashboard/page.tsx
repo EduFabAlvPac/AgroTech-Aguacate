@@ -24,8 +24,7 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
         lotes: {
           include: {
             cultivos: {
-              orderBy: { createdAt: "desc" },
-              take: 1,
+              where: { estado: "ACTIVO" },
             },
           },
         },
@@ -53,7 +52,7 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
 
   const totalHa = finca?.lotes.reduce((s, l) => s + l.areaHa, 0) ?? 0;
   const totalPlantas = finca?.lotes.reduce(
-    (s, l) => s + (l.cultivos[0]?.cantidadPlantas ?? 0),
+    (s, l) => s + l.cultivos.reduce((cs, c) => cs + (c.cantidadPlantas ?? 0), 0),
     0
   ) ?? 0;
   const gastosMesTotal = gastosMes._sum.monto ?? 0;
@@ -80,8 +79,7 @@ export default async function DashboardPage() {
       lotes: {
         include: {
           cultivos: {
-            orderBy: { createdAt: "desc" },
-            take: 1,
+            where: { estado: "ACTIVO" },
           },
         },
       },

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { SidebarOverlay } from "@/components/layout/SidebarOverlay";
+import { DashboardContent } from "@/components/layout/DashboardContent";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
@@ -25,7 +26,7 @@ export default async function DashboardLayout({
             <Sidebar />
             {/* Overlay closes sidebar when tapping outside on mobile */}
             <SidebarOverlay />
-            <div className="main-content ml-0 md:ml-[220px]">{children}</div>
+            <DashboardContent>{children}</DashboardContent>
           </div>
           {/* FAB — visible only on mobile, renders its own modals */}
           <MobileFAB />

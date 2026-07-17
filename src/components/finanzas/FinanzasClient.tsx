@@ -106,6 +106,20 @@ export function FinanzasClient({
       .sort((a, b) => b.value - a.value);
   }, [gastos]);
 
+  const gastosPorMes = useMemo(() => {
+    return Array.from({ length: 12 }, (_, i) => {
+      const mes = new Date(2026, i, 1);
+      const label = mes.toLocaleDateString("es-CO", { month: "short" });
+      const totalGastosMonth = gastos
+        .filter((g) => new Date(g.fecha).getMonth() === i && new Date(g.fecha).getFullYear() === 2026)
+        .reduce((s, g) => s + g.monto, 0);
+      const totalIngresosMonth = ingresos
+        .filter((ing) => new Date(ing.fecha).getMonth() === i && new Date(ing.fecha).getFullYear() === 2026)
+        .reduce((s, ing) => s + ing.monto, 0);
+      return { mes: label, gastos: totalGastosMonth, ingresos: totalIngresosMonth };
+    });
+  }, [gastos, ingresos]);
+
   const filteredGastos = filterCat ? gastos.filter((g) => g.categoria === filterCat) : gastos;
 
   // ── PDF Export ────────────────────────────────────────────────────────────
@@ -335,6 +349,42 @@ export function FinanzasClient({
         ))}
       </div>
 
+      {/* Proyección financiera */}
+      {(() => {
+        const produccionEstimada = 16000;
+        const preciosCompradores = compradores.filter((c) => c.precioKg).map((c) => c.precioKg!);
+        const precioPromedio = preciosCompradores.length > 0
+          ? preciosCompradores.reduce((s, p) => s + p, 0) / preciosCompradores.length
+          : 3200;
+        const ingresoProyectado = produccionEstimada * precioPromedio;
+        const roi = totalGastos > 0 ? ((ingresoProyectado - totalGastos) / totalGastos) * 100 : 0;
+
+        return (
+          <div className="card p-4" style={{ background: '#EAF3DE', border: '1px solid #C0DD97' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: '#3B6D11', marginBottom: 8 }}>
+              📈 Proyección primera cosecha (Ene 2028)
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#5F7052' }}>Inversión acumulada</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: '#A32D2D' }}>{formatCOP(totalGastos)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#5F7052' }}>Ingreso proyectado</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: '#3B6D11' }}>{formatCOP(ingresoProyectado)}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#5F7052' }}>ROI estimado</div>
+                <div style={{ fontSize: 16, fontWeight: 600, color: '#185FA5' }}>{roi.toFixed(0)}%</div>
+              </div>
+            </div>
+            <div style={{ fontSize: 11, color: '#5F7052', marginTop: 8 }}>
+              Basado en 16 ton estimadas × {formatCOP(precioPromedio)}/kg promedio compradores registrados
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Charts row */}
       {byCategory.length > 0 && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-5">
@@ -377,19 +427,16 @@ export function FinanzasClient({
           {/* Monthly bar */}
           <div className="card p-5 lg:col-span-3">
             <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-4">
-              Gastos mensuales
+              Evolución financiera 2026
             </h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={byCategory.slice(0, 6)} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+              <BarChart data={gastosPorMes} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCOP(v)} />
                 <Tooltip formatter={(v: number) => formatCOPFull(v)} />
-                <Bar dataKey="value" name="Gastos" radius={[4, 4, 0, 0]}>
-                  {byCategory.slice(0, 6).map((entry) => (
-                    <Cell key={entry.name} fill={CATEGORIA_COLORS[entry.name] ?? "#639922"} />
-                  ))}
-                </Bar>
+                <Bar dataKey="gastos" name="Gastos" fill="#F09595" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="ingresos" name="Ingresos" fill="#97C459" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -92,6 +92,11 @@ model Cultivo {
   etapa           EtapaCultivo  @default(PREPARACION)
   estado          EstadoCultivo @default(ACTIVO)
   notas           String?
+  portainjerto    String?
+  proveedorMaterial String?
+  sistemaSiembra  String?
+  distanciaSiembra String?
+  observaciones   String?
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 

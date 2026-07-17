@@ -92,20 +92,17 @@ body {
 
 @media (min-width: 640px) {
   .page-scroll {
-    padding: 24px;
+    padding: 20px;
   }
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 .sidebar {
-  width: var(--sidebar-width);
-  min-width: var(--sidebar-width);
   height: 100vh;
   background: var(--surface-sidebar);
   border-right: 1px solid var(--sidebar-border);
-  display: flex;
-  flex-direction: column;
   overflow: hidden;
+  flex-shrink: 0;
 }
 
 /* ── Cards ───────────────────────────────────────────────────────────────── */
@@ -119,12 +116,20 @@ body {
 /* ── KPI Cards ───────────────────────────────────────────────────────────── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
   gap: 12px;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .kpi-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .kpi-grid {
+    grid-template-columns: repeat(5, 1fr);
     gap: 16px;
   }
 }

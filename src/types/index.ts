@@ -178,6 +178,12 @@ export const TIPO_REGISTRO_LABELS: Record<TipoRegistro, string> = {
   ALERTA: "Alerta",
 };
 
+export const ESTADO_CULTIVO_LABELS: Record<EstadoCultivo, string> = {
+  ACTIVO: "Activo",
+  PAUSADO: "Pausado",
+  FINALIZADO: "Finalizado",
+};
+
 export const TIPO_COMPRADOR_LABELS: Record<TipoComprador, string> = {
   COOPERATIVA: "Cooperativa",
   EXPORTADOR: "Exportador",

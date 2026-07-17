@@ -39,7 +39,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { loteId, especie, variedad, fechaSiembra, cantidadPlantas, densidadHa, etapa, notas } = body;
+    const { loteId, especie, variedad, fechaSiembra, cantidadPlantas, densidadHa, etapa, estado, notas, portainjerto, proveedorMaterial, sistemaSiembra, distanciaSiembra, observaciones } = body;
 
     if (!loteId || !especie) {
       return NextResponse.json({ error: "loteId y especie son requeridos" }, { status: 400 });
@@ -53,18 +53,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
     }
 
+    // Check if lote already has an active cultivo
+    const existingActive = await db.cultivo.findFirst({
+      where: { loteId, estado: "ACTIVO" },
+    });
+    if (existingActive) {
+      return NextResponse.json({ error: "Este lote ya tiene un cultivo activo" }, { status: 400 });
+    }
+
     const cultivo = await db.cultivo.create({
       data: {
         loteId,
         especie,
-        variedad: variedad ?? "Hass",
+        variedad: variedad || undefined,
         fechaSiembra: fechaSiembra ? new Date(fechaSiembra) : undefined,
         cantidadPlantas: cantidadPlantas ? Number(cantidadPlantas) : undefined,
         densidadHa: densidadHa ? Number(densidadHa) : undefined,
         etapa: etapa ?? "PREPARACION",
-        notas,
+        estado: estado ?? "ACTIVO",
+        notas: notas || undefined,
+        portainjerto: portainjerto || undefined,
+        proveedorMaterial: proveedorMaterial || undefined,
+        sistemaSiembra: sistemaSiembra || undefined,
+        distanciaSiembra: distanciaSiembra || undefined,
+        observaciones: observaciones || undefined,
       },
-      include: { lote: { include: { finca: true } } },
+      include: {
+        lote: { include: { finca: true } },
+        registros: { orderBy: { fecha: "desc" }, take: 5 },
+        _count: { select: { registros: true, gastos: true } },
+      },
     });
 
     return NextResponse.json({ data: cultivo }, { status: 201 });
