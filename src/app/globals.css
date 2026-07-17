@@ -199,3 +199,32 @@ body {
   .sidebar, .header-bar { display: none !important; }
   .page-scroll { padding: 0; }
 }
+
+/* ── Mobile Touch Targets & Spacing ──────────────────────────────────────── */
+@media (max-width: 768px) {
+  .card {
+    border-radius: 12px;
+  }
+
+  /* Ensure touch targets are at least 44px */
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Table responsive helpers */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  /* Compact header */
+  .header-bar {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+}

@@ -524,7 +524,7 @@ export function CultivosList({ finca }: CultivosListProps) {
                           >
                             <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
                           </button>
-                          <Button size="sm" onClick={() => handleNuevoRegistro(cultivo.id)}>
+                          <Button size="sm" onClick={() => handleNuevoRegistro(cultivo.id)} style={{ minHeight: 44 }}>
                             <Plus size={14} />
                             Nuevo registro
                           </Button>
