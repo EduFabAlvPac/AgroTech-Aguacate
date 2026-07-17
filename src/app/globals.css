@@ -1,0 +1,196 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ── AgroTech Design Tokens ──────────────────────────────────────────────── */
+:root {
+  /* Brand */
+  --agro-green:       #639922;
+  --agro-green-dark:  #3B6D11;
+  --agro-green-light: #EAF3DE;
+  --agro-teal:        #1D9E75;
+  --agro-teal-dark:   #0F6E56;
+  --agro-teal-light:  #E1F5EE;
+  --agro-amber:       #EF9F27;
+  --agro-amber-dark:  #BA7517;
+  --agro-amber-light: #FAEEDA;
+
+  /* Surfaces */
+  --surface-page:     #F8FAF5;
+  --surface-card:     #FFFFFF;
+  --surface-sidebar:  #FFFFFF;
+
+  /* Sidebar */
+  --sidebar-width:    220px;
+  --sidebar-border:   #E8EDE4;
+  --nav-active-bg:    #EAF3DE;
+  --nav-active-text:  #3B6D11;
+  --nav-hover-bg:     #F4F8F0;
+
+  /* Border */
+  --border-subtle:    rgba(0, 0, 0, 0.06);
+  --border-default:   rgba(0, 0, 0, 0.10);
+  --border-strong:    rgba(0, 0, 0, 0.16);
+
+  /* Text */
+  --text-primary:     #1A2B14;
+  --text-secondary:   #5F7052;
+  --text-muted:       #8FA080;
+
+  /* Radius */
+  --radius-sm:  6px;
+  --radius-md:  10px;
+  --radius-lg:  14px;
+  --radius-xl:  20px;
+
+  /* Shadows */
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+}
+
+/* ── Base Reset ──────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  height: 100%;
+  background-color: var(--surface-page);
+  color: var(--text-primary);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* ── App Layout ──────────────────────────────────────────────────────────── */
+.app-shell {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 0;
+}
+
+.page-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+@media (min-width: 640px) {
+  .page-scroll {
+    padding: 24px;
+  }
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+.sidebar {
+  width: var(--sidebar-width);
+  min-width: var(--sidebar-width);
+  height: 100vh;
+  background: var(--surface-sidebar);
+  border-right: 1px solid var(--sidebar-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
+
+/* ── KPI Cards ───────────────────────────────────────────────────────────── */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .kpi-grid {
+    gap: 16px;
+  }
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--agro-green-light);
+}
+
+/* ── Leaflet overrides ───────────────────────────────────────────────────── */
+.leaflet-container {
+  border-radius: var(--radius-md);
+  z-index: 1;
+}
+
+/* ── Animations ──────────────────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* ── Utilities ───────────────────────────────────────────────────────────── */
+.text-balance { text-wrap: balance; }
+
+.stage-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* ── Badge variants ──────────────────────────────────────────────────────── */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.badge-success { background: var(--agro-green-light); color: var(--agro-green-dark); }
+.badge-warning { background: var(--agro-amber-light); color: var(--agro-amber-dark); }
+.badge-info    { background: #E6F1FB; color: #185FA5; }
+.badge-danger  { background: #FCEBEB; color: #A32D2D; }
+.badge-neutral { background: #F1EFE8; color: #5F5E5A; }
+
+/* ── Print ───────────────────────────────────────────────────────────────── */
+@media print {
+  .sidebar, .header-bar { display: none !important; }
+  .page-scroll { padding: 0; }
+}

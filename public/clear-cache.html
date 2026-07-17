@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgroTech — Limpiar caché</title>
+  <style>
+    body { font-family: system-ui, sans-serif; max-width: 480px; margin: 60px auto; padding: 24px; background: #F8FAF5; color: #1A2B14; }
+    h1 { color: #3B6D11; font-size: 20px; margin-bottom: 8px; }
+    p { color: #5F7052; font-size: 14px; margin-bottom: 24px; }
+    button { background: #639922; color: white; border: none; padding: 12px 24px; border-radius: 10px; font-size: 14px; cursor: pointer; width: 100%; }
+    button:hover { background: #3B6D11; }
+    #status { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 13px; display: none; }
+    .ok { background: #EAF3DE; color: #3B6D11; }
+    .err { background: #FCEBEB; color: #A32D2D; }
+  </style>
+</head>
+<body>
+  <h1>🌿 AgroTech — Limpiar caché</h1>
+  <p>Si la app muestra errores 400/404 en los recursos, usa este botón para eliminar el service worker y los cachés del navegador.</p>
+  <button onclick="clearAll()">Limpiar caché y service workers</button>
+  <div id="status"></div>
+
+  <script>
+    async function clearAll() {
+      const status = document.getElementById('status');
+      status.style.display = 'block';
+      status.className = '';
+      status.textContent = 'Limpiando...';
+
+      try {
+        // 1. Unregister all service workers
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          await Promise.all(regs.map(r => r.unregister()));
+        }
+
+        // 2. Clear all caches
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          await Promise.all(keys.map(k => caches.delete(k)));
+        }
+
+        status.className = 'ok';
+        status.textContent = '✓ Caché limpiado. Redirigiendo al login...';
+
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      } catch (e) {
+        status.className = 'err';
+        status.textContent = 'Error: ' + e.message;
+      }
+    }
+
+    // Auto-run on load
+    window.addEventListener('load', clearAll);
+  </script>
+</body>
+</html>

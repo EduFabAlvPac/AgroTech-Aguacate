@@ -1,0 +1,316 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USERS ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String      @id @default(cuid())
+  email        String      @unique
+  name         String?
+  password     String?
+  role         UserRole    @default(PRODUCER)
+  avatarUrl    String?
+  telefono     String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  fincas       Finca[]
+  compradores  Comprador[]
+  chatMessages ChatMessage[]
+  preferences  UserPreferences?
+
+  @@map("users")
+}
+
+enum UserRole {
+  PRODUCER
+  ADVISOR
+  BUYER
+  ADMIN
+}
+
+// ─── FARMS / FINCAS ───────────────────────────────────────────────────────────
+
+model Finca {
+  id           String   @id @default(cuid())
+  nombre       String
+  municipio    String
+  departamento String
+  altitud      Float?
+  lat          Float?
+  lng          Float?
+  areaTotal    Float?
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  lotes        Lote[]
+
+  @@map("fincas")
+}
+
+// ─── LOTS / LOTES ─────────────────────────────────────────────────────────────
+
+model Lote {
+  id        String   @id @default(cuid())
+  nombre    String
+  fincaId   String
+  finca     Finca    @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  areaHa    Float
+  pendiente Float?
+  altitud   Float?
+  geoJson   Json?
+  lat       Float?
+  lng       Float?
+  notas     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cultivos  Cultivo[]
+
+  @@map("lotes")
+}
+
+// ─── CROPS / CULTIVOS ─────────────────────────────────────────────────────────
+
+model Cultivo {
+  id              String        @id @default(cuid())
+  loteId          String
+  lote            Lote          @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  especie         String        @default("Aguacate")
+  variedad        String        @default("Hass")
+  fechaSiembra    DateTime?
+  cantidadPlantas Int?
+  densidadHa      Int?
+  etapa           EtapaCultivo  @default(PREPARACION)
+  estado          EstadoCultivo @default(ACTIVO)
+  notas           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  registros       RegistroCultivo[]
+  gastos          Gasto[]
+  ingresos        Ingreso[]
+
+  @@map("cultivos")
+}
+
+enum EtapaCultivo {
+  PREPARACION
+  SIEMBRA
+  ESTABLECIMIENTO
+  CRECIMIENTO
+  PRODUCCION
+  COSECHA
+}
+
+enum EstadoCultivo {
+  ACTIVO
+  PAUSADO
+  FINALIZADO
+}
+
+// ─── CROP LOGS / REGISTROS ────────────────────────────────────────────────────
+
+model RegistroCultivo {
+  id          String       @id @default(cuid())
+  cultivoId   String
+  cultivo     Cultivo      @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+  tipo        TipoRegistro
+  descripcion String
+  fecha       DateTime     @default(now())
+  imagenes    String[]
+  datos       Json?
+  createdAt   DateTime     @default(now())
+
+  @@map("registros_cultivo")
+}
+
+enum TipoRegistro {
+  SIEMBRA
+  RIEGO
+  FERTILIZACION
+  PODA
+  TRATAMIENTO_PLAGAS
+  COSECHA
+  OBSERVACION
+  INSPECCION
+  ALERTA
+}
+
+// ─── EXPENSES / GASTOS ────────────────────────────────────────────────────────
+
+model Gasto {
+  id         String        @id @default(cuid())
+  cultivoId  String?
+  cultivo    Cultivo?      @relation(fields: [cultivoId], references: [id])
+  concepto   String
+  categoria  CategoriaGasto
+  monto      Float
+  fecha      DateTime      @default(now())
+  proveedor  String?
+  factura    String?
+  notas      String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+
+  @@map("gastos")
+}
+
+enum CategoriaGasto {
+  INSUMOS
+  MANO_OBRA
+  MAQUINARIA
+  AGUA_RIEGO
+  TRANSPORTE
+  CERTIFICACIONES
+  TIERRA
+  SEMILLAS_PLANTULAS
+  HERRAMIENTAS
+  ENERGIA
+  OTROS
+}
+
+// ─── INCOME / INGRESOS ────────────────────────────────────────────────────────
+
+model Ingreso {
+  id          String    @id @default(cuid())
+  cultivoId   String?
+  cultivo     Cultivo?  @relation(fields: [cultivoId], references: [id])
+  compradorId String?
+  comprador   Comprador? @relation(fields: [compradorId], references: [id])
+  concepto    String
+  monto       Float
+  cantidadKg  Float?
+  precioKg    Float?
+  fecha       DateTime  @default(now())
+  notas       String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("ingresos")
+}
+
+// ─── BUYERS / COMPRADORES ─────────────────────────────────────────────────────
+
+model Comprador {
+  id           String        @id @default(cuid())
+  userId       String
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nombre       String
+  tipo         TipoComprador
+  ciudad       String
+  departamento String?
+  contacto     String?
+  email        String?
+  telefono     String?
+  capacidadTon Float?
+  precioKg     Float?
+  notas        String?
+  estado       String        @default("ACTIVO")
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  ingresos     Ingreso[]
+
+  @@map("compradores")
+}
+
+enum TipoComprador {
+  COOPERATIVA
+  EXPORTADOR
+  MAYORISTA
+  SUPERMERCADO
+  PLAZA_MERCADO
+  RESTAURANTE
+  OTRO
+}
+
+// ─── WEATHER ALERTS / ALERTAS CLIMÁTICAS ─────────────────────────────────────
+
+model AlertaClimatica {
+  id          String     @id @default(cuid())
+  tipo        TipoAlerta
+  titulo      String
+  descripcion String
+  severidad   Severidad  @default(MEDIA)
+  fechaInicio DateTime
+  fechaFin    DateTime?
+  activa      Boolean    @default(true)
+  leida       Boolean    @default(false)
+  datos       Json?
+  municipio   String?
+  createdAt   DateTime   @default(now())
+
+  @@map("alertas_climaticas")
+}
+
+enum TipoAlerta {
+  HELADA
+  LLUVIA_EXCESIVA
+  SEQUIA
+  VIENTO_FUERTE
+  TEMPERATURA_ALTA
+  GRANIZO
+  PLAGA
+  OTRO
+}
+
+enum Severidad {
+  BAJA
+  MEDIA
+  ALTA
+  CRITICA
+}
+
+// ─── AI CHAT / HISTORIAL IA ───────────────────────────────────────────────────
+
+model ChatMessage {
+  id        String      @id @default(cuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      ChatRole
+  content   String      @db.Text
+  tokens    Int?
+  createdAt DateTime    @default(now())
+
+  @@map("chat_messages")
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+}
+
+// ─── USER PREFERENCES ─────────────────────────────────────────────────────────
+
+model UserPreferences {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tempMinAlert Float    @default(12)
+  tempMaxAlert Float    @default(32)
+  rainAlertMm  Float    @default(30)
+  windAlertKmh Float    @default(40)
+  droughtDays  Int      @default(5)
+
+  lat          Float    @default(7.9273)
+  lng          Float    @default(-72.5078)
+  municipio    String   @default("Norte de Santander")
+
+  emailAlerts  Boolean  @default(true)
+  pushAlerts   Boolean  @default(true)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@map("user_preferences")
+}
