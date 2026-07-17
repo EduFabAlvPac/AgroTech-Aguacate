@@ -58,6 +58,13 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
   const gastosMesTotal = gastosMes._sum.monto ?? 0;
   const ingresosTotal = ingresosAggregate._sum.monto ?? 0;
 
+  // Get first active cultivo for "próxima actividad" KPI
+  const primerCultivo = finca?.lotes.flatMap((l) => l.cultivos).find((c) => c.estado === "ACTIVO");
+  const etapaCultivo = primerCultivo?.etapa ?? "SIEMBRA";
+  const diasDesdeSiembra = primerCultivo?.fechaSiembra
+    ? Math.floor((Date.now() - new Date(primerCultivo.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24))
+    : 30;
+
   return (
     <KpiCards
       totalHa={totalHa}
@@ -65,6 +72,8 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
       gastosMes={gastosMesTotal}
       alertasActivas={alertas}
       ingresosTotal={ingresosTotal}
+      etapaCultivo={etapaCultivo}
+      diasDesdeSiembra={diasDesdeSiembra}
     />
   );
 }

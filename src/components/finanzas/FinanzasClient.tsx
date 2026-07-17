@@ -55,6 +55,7 @@ export function FinanzasClient({
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [gastoLoading, setGastoLoading] = useState(false);
   const [filterCat, setFilterCat] = useState("");
+  const [filterPeriodo, setFilterPeriodo] = useState("2026");
 
   const [gastoForm, setGastoForm] = useState({
     concepto: "",
@@ -92,35 +93,59 @@ export function FinanzasClient({
   }, [ingresoForm.cantidadKg, ingresoForm.monto]);
 
   // ── Derived stats ─────────────────────────────────────────────────────────
-  const totalGastos = useMemo(() => gastos.reduce((s, g) => s + g.monto, 0), [gastos]);
-  const totalIngresos = useMemo(() => ingresos.reduce((s, i) => s + i.monto, 0), [ingresos]);
+  const gastosFiltrados = useMemo(() => {
+    return gastos.filter((g) => {
+      const fecha = new Date(g.fecha);
+      if (filterPeriodo === "mes") {
+        const hoy = new Date();
+        return fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
+      }
+      if (filterPeriodo === "2026") return fecha.getFullYear() === 2026;
+      return true;
+    });
+  }, [gastos, filterPeriodo]);
+
+  const ingresosFiltrados = useMemo(() => {
+    return ingresos.filter((i) => {
+      const fecha = new Date(i.fecha);
+      if (filterPeriodo === "mes") {
+        const hoy = new Date();
+        return fecha.getMonth() === hoy.getMonth() && fecha.getFullYear() === hoy.getFullYear();
+      }
+      if (filterPeriodo === "2026") return fecha.getFullYear() === 2026;
+      return true;
+    });
+  }, [ingresos, filterPeriodo]);
+
+  const totalGastos = useMemo(() => gastosFiltrados.reduce((s, g) => s + g.monto, 0), [gastosFiltrados]);
+  const totalIngresos = useMemo(() => ingresosFiltrados.reduce((s, i) => s + i.monto, 0), [ingresosFiltrados]);
   const saldo = totalIngresos - totalGastos;
 
   const byCategory = useMemo(() => {
     const map: Record<string, number> = {};
-    gastos.forEach((g) => {
+    gastosFiltrados.forEach((g) => {
       map[g.categoria] = (map[g.categoria] ?? 0) + g.monto;
     });
     return Object.entries(map)
       .map(([name, value]) => ({ name, label: CATEGORIA_LABELS[name as CategoriaGasto] ?? name, value }))
       .sort((a, b) => b.value - a.value);
-  }, [gastos]);
+  }, [gastosFiltrados]);
 
   const gastosPorMes = useMemo(() => {
     return Array.from({ length: 12 }, (_, i) => {
       const mes = new Date(2026, i, 1);
       const label = mes.toLocaleDateString("es-CO", { month: "short" });
-      const totalGastosMonth = gastos
+      const totalGastosMonth = gastosFiltrados
         .filter((g) => new Date(g.fecha).getMonth() === i && new Date(g.fecha).getFullYear() === 2026)
         .reduce((s, g) => s + g.monto, 0);
-      const totalIngresosMonth = ingresos
+      const totalIngresosMonth = ingresosFiltrados
         .filter((ing) => new Date(ing.fecha).getMonth() === i && new Date(ing.fecha).getFullYear() === 2026)
         .reduce((s, ing) => s + ing.monto, 0);
       return { mes: label, gastos: totalGastosMonth, ingresos: totalIngresosMonth };
     });
-  }, [gastos, ingresos]);
+  }, [gastosFiltrados, ingresosFiltrados]);
 
-  const filteredGastos = filterCat ? gastos.filter((g) => g.categoria === filterCat) : gastos;
+  const filteredGastos = filterCat ? gastosFiltrados.filter((g) => g.categoria === filterCat) : gastosFiltrados;
 
   // ── PDF Export ────────────────────────────────────────────────────────────
   const periodo = useMemo(() => {
@@ -295,7 +320,16 @@ export function FinanzasClient({
   return (
     <div className="space-y-6">
       {/* Top action bar */}
-      <div className="flex justify-end">
+      <div className="flex items-center justify-between">
+        <select
+          value={filterPeriodo}
+          onChange={(e) => setFilterPeriodo(e.target.value)}
+          className="h-8 px-3 text-[12px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white"
+        >
+          <option value="todos">Todo el historial</option>
+          <option value="2026">Año 2026</option>
+          <option value="mes">Este mes</option>
+        </select>
         <Button variant="secondary" size="sm" onClick={handleExportPDF}>
           <FileDown size={14} />
           Exportar PDF

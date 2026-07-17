@@ -68,32 +68,45 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
 
           {/* Welcome / empty state */}
           {messages.length === 0 && (
-            <div className="text-center py-12">
-              <div className="w-16 h-16 rounded-2xl bg-agro-50 flex items-center justify-center mx-auto mb-4">
-                <Leaf size={28} className="text-agro-400" />
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+              {/* Logo */}
+              <div style={{
+                width: 72, height: 72, borderRadius: 20,
+                background: "linear-gradient(135deg, #EAF3DE 0%, #C0DD97 100%)",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                marginBottom: 20, fontSize: 32
+              }}>
+                🌿
               </div>
-              <h2 className="text-[16px] font-semibold text-[var(--text-primary)] mb-1">
-                AgroIA — Asistente especializado
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>
+                Hola Eduard, soy AgroIA
               </h2>
-              <p className="text-[13px] text-[var(--text-secondary)] mb-8 max-w-sm mx-auto">
-                Especialista en aguacate Hass para la zona Andina colombiana.
-                Pregúntame sobre plagas, riego, fertilización, clima y manejo agronómico.
+              <p style={{ fontSize: 14, color: "var(--text-secondary)", maxWidth: 340, lineHeight: 1.6, marginBottom: 32 }}>
+                Soy tu asistente especializado en aguacate Hass para Norte de Santander.
+                Pregúntame sobre plagas, riego, fertilización, clima o cualquier duda de tu cultivo.
               </p>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl mx-auto text-left">
-                {QUICK_PROMPTS.map((prompt) => (
+              {/* Categorías de preguntas */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, width: "100%", maxWidth: 480, marginBottom: 24 }}>
+                {[
+                  { emoji: "🐛", titulo: "Plagas y enfermedades", prompt: "¿Qué plagas son más comunes en aguacate Hass en Norte de Santander y cómo las controlo?" },
+                  { emoji: "💧", titulo: "Riego y nutrición", prompt: "¿Cuál es el plan de riego óptimo para aguacate Hass en la etapa de siembra?" },
+                  { emoji: "🌡️", titulo: "Clima y alertas", prompt: "¿Cómo protejo mis plantas de aguacate ante una helada nocturna?" },
+                  { emoji: "💰", titulo: "Costos y finanzas", prompt: "¿Cuánto debería invertir en fertilizantes para 2 hectáreas de aguacate en establecimiento?" },
+                ].map(({ emoji, titulo, prompt }) => (
                   <button
-                    key={prompt}
+                    key={titulo}
                     onClick={() => handleQuickPrompt(prompt)}
-                    className="flex items-start gap-2.5 p-3 text-left border border-[var(--border-subtle)] rounded-[var(--radius-lg)] hover:border-agro-200 hover:bg-agro-50 transition-all group"
+                    className="text-left p-3.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--surface-page)] hover:border-agro-200 hover:bg-agro-50 transition-all"
                   >
-                    <Bot size={14} className="text-agro-400 mt-0.5 flex-shrink-0 group-hover:text-agro-600" />
-                    <span className="text-[12px] text-[var(--text-secondary)] group-hover:text-agro-600">
-                      {prompt}
-                    </span>
+                    <div style={{ fontSize: 22, marginBottom: 6 }}>{emoji}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: "var(--text-primary)" }}>{titulo}</div>
                   </button>
                 ))}
               </div>
+              <p style={{ fontSize: 11, color: "var(--text-muted)" }}>
+                O escribe tu pregunta directamente abajo
+              </p>
             </div>
           )}
 
@@ -128,17 +141,38 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
 
           {/* Loading indicator */}
           {isLoading && (
-            <div className="flex justify-start">
-              <div className="w-7 h-7 rounded-full bg-agro-50 border border-agro-100 flex items-center justify-center mr-2 flex-shrink-0">
-                <Bot size={14} className="text-agro-400" />
+            <div className="flex justify-start items-end gap-2">
+              <div style={{
+                width: 32, height: 32, borderRadius: "50%",
+                background: "#EAF3DE", border: "1px solid #C0DD97",
+                display: "flex", alignItems: "center", justifyContent: "center",
+                fontSize: 16, flexShrink: 0
+              }}>
+                🌿
               </div>
-              <div className="bg-white border border-[var(--border-subtle)] rounded-[var(--radius-xl)] rounded-tl-none px-4 py-3 shadow-card">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 bg-agro-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-1.5 h-1.5 bg-agro-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-1.5 h-1.5 bg-agro-400 rounded-full animate-bounce" />
-                </div>
+              <div style={{
+                background: "white",
+                border: "1px solid var(--border-subtle)",
+                borderRadius: "18px 18px 18px 4px",
+                padding: "12px 16px",
+                boxShadow: "var(--shadow-card)",
+                display: "flex",
+                alignItems: "center",
+                gap: 4
+              }}>
+                {[0, 1, 2].map((i) => (
+                  <span key={i} style={{
+                    width: 6, height: 6,
+                    borderRadius: "50%",
+                    background: "#639922",
+                    display: "inline-block",
+                    animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
+                  }} />
+                ))}
               </div>
+              <span style={{ fontSize: 11, color: "var(--text-muted)", marginBottom: 4 }}>
+                AgroIA está analizando...
+              </span>
             </div>
           )}
 

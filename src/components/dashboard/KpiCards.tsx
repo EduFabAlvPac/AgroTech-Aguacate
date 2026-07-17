@@ -2,6 +2,7 @@ import { Sprout, Calendar, TrendingDown, AlertTriangle, TrendingUp } from "lucid
 import { formatCOP, cn } from "@/lib/utils";
 import { differenceInDays } from "date-fns";
 import { Skeleton } from "@/components/ui/Skeleton";
+import Link from "next/link";
 
 interface KpiCardsProps {
   totalHa: number;
@@ -9,12 +10,37 @@ interface KpiCardsProps {
   gastosMes: number;
   alertasActivas: number;
   ingresosTotal: number;
+  etapaCultivo?: string;
+  diasDesdeSiembra?: number;
 }
 
 const FECHA_COSECHA_EST = new Date("2028-01-15");
 
-export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal }: KpiCardsProps) {
+const getProximaActividad = (etapa: string, diasDesdeSiembra: number) => {
+  if (etapa === "PREPARACION") return { texto: "Iniciar siembra", icono: "🌱", urgencia: "alta" as const };
+  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 7)
+    return { texto: "Primer riego (3L/planta)", icono: "💧", urgencia: "alta" as const };
+  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 30)
+    return { texto: "Riego cada 3 días", icono: "💧", urgencia: "media" as const };
+  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 60)
+    return { texto: "Primera fertilización (mes 2)", icono: "🌿", urgencia: "media" as const };
+  if (etapa === "ESTABLECIMIENTO")
+    return { texto: "Poda de formación", icono: "✂️", urgencia: "media" as const };
+  if (etapa === "CRECIMIENTO")
+    return { texto: "Análisis foliar", icono: "🔬", urgencia: "baja" as const };
+  return { texto: "Revisar cultivo", icono: "👁️", urgencia: "baja" as const };
+};
+
+const URGENCIA_COLORS = {
+  alta: { text: "text-red-600", bg: "bg-red-50" },
+  media: { text: "text-harvest-400", bg: "bg-harvest-50" },
+  baja: { text: "text-agro-600", bg: "bg-agro-50" },
+};
+
+export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra }: KpiCardsProps) {
   const diasAlCorte = differenceInDays(FECHA_COSECHA_EST, new Date());
+  const actividad = getProximaActividad(etapaCultivo ?? "SIEMBRA", diasDesdeSiembra ?? 30);
+  const urgColors = URGENCIA_COLORS[actividad.urgencia];
 
   const kpis = [
     {
@@ -36,13 +62,14 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
       bg: "bg-harvest-50",
     },
     {
-      label: "Ingresos totales",
-      value: formatCOP(ingresosTotal),
-      sub: ingresosTotal > 0 ? "Ventas registradas · acumulado" : "Sin ingresos registrados",
-      icon: TrendingUp,
-      iconColor: "text-teal-400",
-      valueColor: "text-teal-600",
-      bg: "bg-teal-50",
+      label: "Próxima actividad",
+      value: `${actividad.icono} ${actividad.texto}`,
+      sub: `Urgencia ${actividad.urgencia}`,
+      icon: Sprout,
+      iconColor: urgColors.text,
+      valueColor: urgColors.text,
+      bg: urgColors.bg,
+      href: "/dashboard/cultivos",
     },
     {
       label: "Gastos del mes",
@@ -65,21 +92,28 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
   ];
 
   return (
-    <div className="kpi-grid">
-      {kpis.map(({ label, value, sub, icon: Icon, iconColor, valueColor, bg }) => (
-        <div key={label} className="card p-5">
-          <div className={`w-9 h-9 rounded-[var(--radius-md)] ${bg} flex items-center justify-center mb-3`}>
-            <Icon size={18} className={iconColor} />
+    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
+      {kpis.map(({ label, value, sub, icon: Icon, iconColor, valueColor, bg, href }) => {
+        const content = (
+          <div className={cn("card p-5", href && "cursor-pointer hover:shadow-md transition-shadow")}>
+            <div className={`w-9 h-9 rounded-[var(--radius-md)] ${bg} flex items-center justify-center mb-3`}>
+              <Icon size={18} className={iconColor} />
+            </div>
+            <div className={`text-xl font-semibold tracking-tight ${valueColor} mb-1`}>
+              {value}
+            </div>
+            <div className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wide mb-0.5">
+              {label}
+            </div>
+            <div className="text-[12px] text-[var(--text-secondary)]">{sub}</div>
           </div>
-          <div className={`text-2xl font-semibold tracking-tight ${valueColor} mb-1`}>
-            {value}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)] font-medium uppercase tracking-wide mb-0.5">
-            {label}
-          </div>
-          <div className="text-[12px] text-[var(--text-secondary)]">{sub}</div>
-        </div>
-      ))}
+        );
+
+        if (href) {
+          return <Link key={label} href={href as any}>{content}</Link>;
+        }
+        return <div key={label}>{content}</div>;
+      })}
     </div>
   );
 }
