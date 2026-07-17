@@ -11,6 +11,11 @@ const pwaConfig = withPWA({
     cleanupOutdatedCaches: true,
     exclude: [/chunks\/.*$/],
     runtimeCaching: [
+      // API routes: siempre red, sin caché (DEBE ser primera regla)
+      {
+        urlPattern: /\/api\//,
+        handler: "NetworkOnly",
+      },
       // Assets estáticos de Next.js: siempre desde red primero
       {
         urlPattern: /^\/_next\/static\/.*/,
@@ -29,11 +34,6 @@ const pwaConfig = withPWA({
           cacheName: "static-assets",
           expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
         },
-      },
-      // API routes: siempre red, sin caché
-      {
-        urlPattern: /^\/api\/.*/,
-        handler: "NetworkOnly",
       },
       // Páginas de la app
       {
