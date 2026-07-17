@@ -46,23 +46,26 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     if (!owned) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
     const body = await req.json();
+
+    // Build update data dynamically — only include fields that are present in the request
+    const data: Record<string, unknown> = {};
+    if (body.especie !== undefined) data.especie = body.especie;
+    if (body.variedad !== undefined) data.variedad = body.variedad;
+    if (body.fechaSiembra !== undefined) data.fechaSiembra = body.fechaSiembra ? new Date(body.fechaSiembra) : null;
+    if (body.cantidadPlantas !== undefined) data.cantidadPlantas = body.cantidadPlantas ? Number(body.cantidadPlantas) : null;
+    if (body.densidadHa !== undefined) data.densidadHa = body.densidadHa ? Number(body.densidadHa) : null;
+    if (body.etapa !== undefined) data.etapa = body.etapa;
+    if (body.estado !== undefined) data.estado = body.estado;
+    if (body.notas !== undefined) data.notas = body.notas || null;
+    if (body.portainjerto !== undefined) data.portainjerto = body.portainjerto || null;
+    if (body.proveedorMaterial !== undefined) data.proveedorMaterial = body.proveedorMaterial || null;
+    if (body.sistemaSiembra !== undefined) data.sistemaSiembra = body.sistemaSiembra || null;
+    if (body.distanciaSiembra !== undefined) data.distanciaSiembra = body.distanciaSiembra || null;
+    if (body.observaciones !== undefined) data.observaciones = body.observaciones || null;
+
     const cultivo = await db.cultivo.update({
       where: { id },
-      data: {
-        especie: body.especie,
-        variedad: body.variedad,
-        fechaSiembra: body.fechaSiembra ? new Date(body.fechaSiembra) : undefined,
-        cantidadPlantas: body.cantidadPlantas !== undefined ? (body.cantidadPlantas ? Number(body.cantidadPlantas) : null) : undefined,
-        densidadHa: body.densidadHa !== undefined ? (body.densidadHa ? Number(body.densidadHa) : null) : undefined,
-        etapa: body.etapa,
-        estado: body.estado,
-        notas: body.notas ?? null,
-        portainjerto: body.portainjerto ?? null,
-        proveedorMaterial: body.proveedorMaterial ?? null,
-        sistemaSiembra: body.sistemaSiembra ?? null,
-        distanciaSiembra: body.distanciaSiembra ?? null,
-        observaciones: body.observaciones ?? null,
-      },
+      data: data as any,
       include: {
         lote: { include: { finca: true } },
         registros: { orderBy: { fecha: "desc" }, take: 5 },
