@@ -58,7 +58,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es" className={inter.variable}>
+    <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
         {/* apple-touch-icon for all available sizes — needed for iOS home screen */}
         <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72.png" />

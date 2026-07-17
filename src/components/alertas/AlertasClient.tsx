@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, BellOff, Cloud, CloudLightning } from "lucide-react";
 import { Button, EmptyState } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
@@ -43,6 +43,32 @@ interface AlertasClientProps {
 export function AlertasClient({ alertas: initial }: AlertasClientProps) {
   const [alertas, setAlertas] = useState(initial);
   const [filter, setFilter] = useState<"todas" | "activas" | "leidas">("todas");
+
+  // Auto-expire alerts where fechaFin < now and still active
+  useEffect(() => {
+    const now = new Date();
+    const expired = alertas.filter(
+      (a) => a.activa && a.fechaFin && new Date(a.fechaFin) < now
+    );
+    if (expired.length === 0) return;
+
+    // Update local state immediately
+    setAlertas((prev) =>
+      prev.map((a) =>
+        expired.some((e) => e.id === a.id) ? { ...a, activa: false } : a
+      )
+    );
+
+    // Persist to server silently
+    expired.forEach((a) => {
+      fetch(`/api/alertas/${a.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activa: false }),
+      }).catch(() => {});
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filtered = alertas.filter((a) => {
     if (filter === "activas") return a.activa && !a.leida;
@@ -114,11 +140,13 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
             const Icon = TIPO_ICONS[alerta.tipo];
             const styles = SEVERIDAD_STYLES[alerta.severidad];
             const datos = alerta.datos as any;
+            const isExpired = !alerta.activa && alerta.fechaFin && new Date(alerta.fechaFin) < new Date();
 
             return (
               <div
                 key={alerta.id}
                 className={`card p-5 border ${styles.card} ${alerta.leida ? "opacity-60" : ""} transition-opacity`}
+                style={isExpired ? { opacity: 0.5 } : undefined}
               >
                 <div className="flex items-start gap-4">
                   {/* Icon */}
@@ -150,6 +178,11 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                         <span className="badge badge-neutral text-[10px]">
                           {TIPO_LABELS[alerta.tipo]}
                         </span>
+                        {isExpired && (
+                          <span className="badge text-[10px]" style={{ background: "#F1EFE8", color: "#5F5E5A" }}>
+                            Expirada
+                          </span>
+                        )}
                         {!alerta.leida && alerta.activa && (
                           <span className="badge badge-danger text-[10px]">No leída</span>
                         )}

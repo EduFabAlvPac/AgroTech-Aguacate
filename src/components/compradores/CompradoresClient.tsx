@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Plus, Phone, Mail, Package, Star, Pencil, Trash2, Users } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { TIPO_COMPRADOR_LABELS } from "@/types";
-import { formatCOP } from "@/lib/utils";
+import { formatCOP, formatCOPFull } from "@/lib/utils";
 import { compradorFormSchema } from "@/lib/validations";
 import toast from "react-hot-toast";
 import type { Comprador, TipoComprador } from "@prisma/client";
@@ -50,6 +50,11 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
 
   const initials = (name: string) =>
     name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
+
+  const mejorPrecio = Math.max(
+    ...compradores.filter((c) => c.precioKg).map((c) => c.precioKg!),
+    0
+  );
 
   const handleOpen = (c?: CompradorWithCount) => {
     if (c) {
@@ -216,7 +221,12 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
               </div>
 
               {/* Type + status */}
-              <div className="flex items-center gap-2 mb-3">
+              <div className="flex items-center gap-2 mb-3 flex-wrap">
+                {mejorPrecio > 0 && c.precioKg === mejorPrecio && (
+                  <span style={{ background: '#FEF9E7', color: '#B7950B', fontSize: 10, padding: '2px 6px', borderRadius: 20, fontWeight: 600, border: '1px solid #F9E79F' }}>
+                    ⭐ Mejor precio
+                  </span>
+                )}
                 <span className={`badge ${TIPO_COLORS[c.tipo]} text-[10px]`}>
                   {TIPO_COMPRADOR_LABELS[c.tipo]}
                 </span>
@@ -236,7 +246,7 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
                   <div className="flex items-center gap-2">
                     <Star size={12} className="text-harvest-200 flex-shrink-0" />
                     <span className="text-[12px] text-agro-600 font-semibold">
-                      {formatCOP(c.precioKg)}/kg
+                      {formatCOPFull(c.precioKg)}/kg
                     </span>
                     {c.capacidadTon && (
                       <span className="text-[11px] text-[var(--text-muted)]">

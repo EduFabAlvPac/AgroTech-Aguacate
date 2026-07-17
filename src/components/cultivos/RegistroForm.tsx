@@ -4,12 +4,14 @@ import { useState } from "react";
 import { Button, Select, Textarea, Input } from "@/components/ui";
 import { TIPO_REGISTRO_LABELS } from "@/types";
 import { registroFormSchema } from "@/lib/validations";
-import type { TipoRegistro } from "@prisma/client";
+import type { RegistroCultivo, TipoRegistro } from "@prisma/client";
 
 interface RegistroFormProps {
   cultivoId: string;
   onSuccess: () => void;
   onCancel: () => void;
+  registro?: RegistroCultivo;
+  onEditSuccess?: (registro: RegistroCultivo) => void;
 }
 
 const tipoOptions = Object.entries(TIPO_REGISTRO_LABELS).map(([value, label]) => ({
@@ -21,13 +23,15 @@ const today = new Date().toISOString().split("T")[0];
 
 type FormErrors = Partial<Record<"tipo" | "descripcion" | "fecha", string>>;
 
-export function RegistroForm({ cultivoId, onSuccess, onCancel }: RegistroFormProps) {
+export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditSuccess }: RegistroFormProps) {
+  const isEditMode = !!registro;
+
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [form, setForm] = useState({
-    tipo: "OBSERVACION" as TipoRegistro,
-    descripcion: "",
-    fecha: today,
+    tipo: (registro?.tipo ?? "OBSERVACION") as TipoRegistro,
+    descripcion: registro?.descripcion ?? "",
+    fecha: registro ? new Date(registro.fecha).toISOString().split("T")[0] : today,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -50,14 +54,25 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel }: RegistroFormPro
     setErrors({});
     setLoading(true);
     try {
-      const res = await fetch(`/api/cultivos/${cultivoId}/registros`, {
-        method: "POST",
+      const url = isEditMode
+        ? `/api/cultivos/${cultivoId}/registros/${registro.id}`
+        : `/api/cultivos/${cultivoId}/registros`;
+      const method = isEditMode ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, cultivoId }),
       });
 
-      if (!res.ok) throw new Error("Error al crear registro");
-      onSuccess();
+      if (!res.ok) throw new Error(isEditMode ? "Error al actualizar registro" : "Error al crear registro");
+
+      if (isEditMode) {
+        const { data } = await res.json();
+        onEditSuccess?.(data);
+      } else {
+        onSuccess();
+      }
     } catch {
       alert("Error al guardar el registro. Intenta de nuevo.");
     } finally {
@@ -135,7 +150,7 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel }: RegistroFormPro
           Cancelar
         </Button>
         <Button type="submit" loading={loading}>
-          Guardar registro
+          {isEditMode ? "Guardar cambios" : "Guardar registro"}
         </Button>
       </div>
     </form>

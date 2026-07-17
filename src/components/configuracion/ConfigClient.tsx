@@ -256,31 +256,31 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
                 {
                   key: "tempMinAlert",
                   label: "Temperatura mínima para alerta de helada (°C)",
-                  hint: "Recomendado: 12°C para plántulas, 8°C para plantas establecidas",
+                  hint: "Recibirás alerta cuando la temperatura nocturna baje de este valor. Para plántulas de aguacate recién sembradas se recomienda 12°C.",
                   min: 0, max: 20, step: 1,
                 },
                 {
                   key: "tempMaxAlert",
                   label: "Temperatura máxima para alerta de calor (°C)",
-                  hint: "Recomendado: 32°C",
+                  hint: "Temperatura máxima antes de que el aguacate sufra estrés calórico. A más de 30°C aumenta el riesgo de ácaros y caída de flores.",
                   min: 25, max: 45, step: 1,
                 },
                 {
                   key: "rainAlertMm",
                   label: "Precipitación diaria para alerta de lluvia excesiva (mm)",
-                  hint: "Recomendado: 30 mm/día",
+                  hint: "Lluvia acumulada en un día que activa la alerta de encharcamiento y riesgo de Phytophthora. Valor seguro: 30 mm.",
                   min: 10, max: 100, step: 5,
                 },
                 {
                   key: "windAlertKmh",
                   label: "Velocidad del viento para alerta (km/h)",
-                  hint: "Recomendado: 40 km/h",
+                  hint: "Velocidad del viento que puede dañar ramas y flores. El aguacate es muy sensible al viento mecánico.",
                   min: 20, max: 100, step: 5,
                 },
                 {
                   key: "droughtDays",
                   label: "Días consecutivos sin lluvia para alerta de sequía",
-                  hint: "Recomendado: 5 días",
+                  hint: "Días consecutivos sin lluvia antes de alertar por sequía. Importante en la época seca (ene-feb y jul-ago).",
                   min: 2, max: 15, step: 1,
                 },
               ].map(({ key, label, hint, min, max, step }) => (
@@ -312,7 +312,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
                       }%, #EAF3DE 100%)`,
                     }}
                   />
-                  <p className="text-[11px] text-[var(--text-muted)] mt-1">{hint}</p>
+                  <p className="text-[var(--text-muted)] mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>{hint}</p>
                 </div>
               ))}
             </div>
