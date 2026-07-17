@@ -4,8 +4,6 @@ import withPWA from "@ducanh2912/next-pwa";
 const pwaConfig = withPWA({
   dest: "public",
   disable: true,
-  register: false,
-  skipWaiting: false,
 });
 
 const nextConfig: NextConfig = {
