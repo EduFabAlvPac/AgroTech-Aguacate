@@ -16,6 +16,8 @@ export const loteFormSchema = z.object({
   pendiente: z.number().min(0, "Mínimo 0°").max(90, "Máximo 90°").optional().nullable(),
   notas: z.string().max(500, "Máximo 500 caracteres").optional().nullable(),
   fincaId: z.string().min(1, "La finca es requerida"),
+  lat: z.number().min(-90).max(90).optional().nullable(),
+  lng: z.number().min(-180).max(180).optional().nullable(),
 });
 
 export type LoteFormData = z.infer<typeof loteFormSchema>;

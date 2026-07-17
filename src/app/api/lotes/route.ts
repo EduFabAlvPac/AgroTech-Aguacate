@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
-    const { nombre, areaHa, altitud, pendiente, notas, fincaId, geoJson } = parsed.data;
+    const { nombre, areaHa, altitud, pendiente, notas, fincaId, geoJson, lat, lng } = parsed.data;
 
     // Verificar que la finca pertenece al usuario autenticado
     const finca = await db.finca.findUnique({
@@ -72,6 +72,8 @@ export async function POST(req: Request) {
       altitud: altitud ?? undefined,
       pendiente: pendiente ?? undefined,
       notas: notas ?? undefined,
+      lat: lat ?? undefined,
+      lng: lng ?? undefined,
       finca: { connect: { id: fincaId } },
       ...(geoJson ? { geoJson: geoJson as Prisma.InputJsonValue } : {}),
     };

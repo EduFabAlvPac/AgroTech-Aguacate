@@ -647,25 +647,33 @@ export default function LeafletMap({
       }
 
       try {
+        const payload = {
+          nombre,
+          areaHa: formArea,
+          altitud: formAltitud,
+          pendiente: formPendiente,
+          fincaId,
+          geoJson,
+          lat: centroid.lat,
+          lng: centroid.lng,
+        };
+
+        console.log("[LeafletMap] Creando lote, payload:", JSON.stringify(payload, null, 2));
+
         const response = await fetch("/api/lotes", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            nombre,
-            areaHa: formArea,
-            altitud: formAltitud,
-            pendiente: formPendiente,
-            fincaId,
-            geoJson,
-          }),
+          body: JSON.stringify(payload),
         });
 
+        const responseData = await response.json().catch(() => ({ error: "Respuesta no válida del servidor" }));
+
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({ error: "Error al crear el lote" }));
-          const errorMessage = errorData.error ?? "Error al crear el lote";
+          console.error("Error al guardar lote:", response.status, responseData);
+          alert(`Error al guardar el lote: ${responseData.error || response.status}`);
 
           if (apiError) {
-            apiError.textContent = errorMessage;
+            apiError.textContent = responseData.error ?? "Error al crear el lote";
             apiError.style.display = "block";
           }
 
@@ -678,8 +686,7 @@ export default function LeafletMap({
           return;
         }
 
-        const result = await response.json();
-        const createdLote = result.data;
+        const createdLote = responseData.data;
 
         // Close popup
         map.closePopup(popup);
