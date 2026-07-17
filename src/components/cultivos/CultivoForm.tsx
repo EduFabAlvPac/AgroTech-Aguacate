@@ -14,6 +14,15 @@ interface CultivoFormProps {
   onCancel: () => void;
 }
 
+// Extended cultivo type for fields that may not be in the base Prisma type yet
+type CultivoExtended = Cultivo & {
+  sistemaSiembra?: string | null;
+  distanciaSiembra?: string | null;
+  portainjerto?: string | null;
+  proveedorMaterial?: string | null;
+  observaciones?: string | null;
+};
+
 const ETAPA_OPTIONS = Object.entries(ETAPA_LABELS).map(([value, label]) => ({
   value,
   label,
@@ -24,7 +33,8 @@ const ESTADO_OPTIONS = Object.entries(ESTADO_CULTIVO_LABELS).map(([value, label]
   label,
 }));
 
-export function CultivoForm({ loteId, loteAreaHa, cultivo, onSuccess, onCancel }: CultivoFormProps) {
+export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess, onCancel }: CultivoFormProps) {
+  const cultivo = rawCultivo as CultivoExtended | null | undefined;
   const isEditing = !!cultivo;
 
   // Section 1 — Información básica

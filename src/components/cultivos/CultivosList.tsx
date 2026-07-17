@@ -15,6 +15,11 @@ import type { Finca, Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prism
 type CultivoWithData = Cultivo & {
   registros: RegistroCultivo[];
   _count: { registros: number; gastos: number };
+  sistemaSiembra?: string | null;
+  distanciaSiembra?: string | null;
+  portainjerto?: string | null;
+  proveedorMaterial?: string | null;
+  observaciones?: string | null;
 };
 
 type LoteWithCultivos = Lote & { cultivos: CultivoWithData[] };
