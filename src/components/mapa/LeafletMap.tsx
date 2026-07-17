@@ -200,54 +200,132 @@ export default function LeafletMap({
       drawControlRef.current = drawControl;
 
       // ── Listen to draw:created event ──
-      map.on((L as any).Draw.Event.CREATED, (event: any) => {
-        const layer = event.layer;
-        const latLngs = layer.getLatLngs()[0]; // Array of LatLng objects
+      map.on((L as any).Draw.Event.CREATED, (e: any) => {
+        const layer = e.layer;
+        drawnItems.addLayer(layer);
 
-        // Convert to GeoJSON coordinate format [lng, lat]
-        const coordinates: [number, number][] = latLngs.map(
-          (ll: any) => [ll.lng, ll.lat] as [number, number]
-        );
+        // Calcular área y centroide
+        const latlngs = layer.getLatLngs()[0];
+        const center = layer.getBounds().getCenter();
 
-        // Close the ring (first === last)
-        const closedCoordinates = [...coordinates, coordinates[0]];
-
-        // Validate: at least 3 vertices
-        if (coordinates.length < 3) {
-          return;
+        // Calcular área en hectáreas
+        let area = 0;
+        const n = latlngs.length;
+        for (let i = 0; i < n; i++) {
+          const j = (i + 1) % n;
+          area += latlngs[i].lng * latlngs[j].lat;
+          area -= latlngs[j].lng * latlngs[i].lat;
         }
+        const areaHa = Math.abs(area * 0.5 * 111319.9 * 111319.9 * Math.cos(center.lat * Math.PI / 180) / 10000).toFixed(2);
 
-        // Validate: not self-intersecting
-        if (isSelfIntersecting(closedCoordinates)) {
-          toast.error(
-            "El polígono no es válido: las líneas no deben cruzarse"
-          );
-          return;
-        }
+        const geoJson = layer.toGeoJSON();
 
-        // Calculate geodesic area
-        const areaHa = calculateGeodesicArea(coordinates);
+        // Crear contenedor del popup
+        const container = document.createElement('div');
+        container.style.cssText = 'font-family:system-ui,sans-serif;min-width:220px;padding:4px;';
+        container.innerHTML = `
+          <div style="font-weight:600;font-size:14px;color:#1A2B14;margin-bottom:12px">Nuevo lote</div>
+          <div style="margin-bottom:8px">
+            <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Nombre del lote *</label>
+            <input id="popup-lote-nombre" type="text" placeholder="Ej: Lote Norte, Lote 3..."
+              style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+            <div>
+              <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Área (ha)</label>
+              <input id="popup-lote-area" type="number" value="${areaHa}"
+                style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+            </div>
+            <div>
+              <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Altitud (msnm)</label>
+              <input id="popup-lote-altitud" type="number" placeholder="Opcional"
+                style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+            </div>
+          </div>
+          <div style="display:flex;gap:6px;margin-top:12px">
+            <button id="popup-lote-cancelar"
+              style="flex:1;padding:8px;border:1px solid #D1D5DB;background:white;border-radius:6px;font-size:13px;cursor:pointer;color:#5F7052">Cancelar</button>
+            <button id="popup-lote-guardar"
+              style="flex:1;padding:8px;border:none;background:#639922;color:white;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Guardar lote</button>
+          </div>
+          <div id="popup-lote-error" style="color:#A32D2D;font-size:11px;margin-top:6px;display:none"></div>
+        `;
 
-        // Build GeoJSON Polygon
-        const geoJson: GeoJSON.Polygon = {
-          type: "Polygon",
-          coordinates: [closedCoordinates],
-        };
+        // Crear y abrir el popup
+        const popup = L.popup({
+          maxWidth: 260,
+          closeButton: false,
+          closeOnClick: false,
+          autoClose: false,
+        })
+          .setLatLng(center)
+          .setContent(container)
+          .openOn(map);
 
-        // Calculate centroid (bounding box center)
-        const centroid = layer.getBounds().getCenter();
+        // Bind event handlers after popup is added to DOM
+        setTimeout(() => {
+          const btnCancelar = document.getElementById('popup-lote-cancelar');
+          const btnGuardar = document.getElementById('popup-lote-guardar');
+          const errorDiv = document.getElementById('popup-lote-error');
 
-        // Add the drawn polygon temporarily to the map
-        layer.addTo(map);
-        drawnPolygonLayerRef.current = layer;
+          if (btnCancelar) {
+            btnCancelar.addEventListener('click', () => {
+              map.closePopup();
+              drawnItems.removeLayer(layer);
+            });
+          }
 
-        // Handle based on current mapMode
-        if (mapMode === "draw-new") {
-          openFlowBPopup(L, map, centroid, geoJson, areaHa);
-        } else if (mapMode === "draw-existing" && activeLoteId) {
-          openFlowCPopup(L, map, centroid, geoJson, areaHa);
-        }
-        // Flujo D will be handled in Task 8
+          if (btnGuardar) {
+            btnGuardar.addEventListener('click', async () => {
+              const nombre = (document.getElementById('popup-lote-nombre') as HTMLInputElement)?.value?.trim();
+              const areaInput = (document.getElementById('popup-lote-area') as HTMLInputElement)?.value;
+              const altitudInput = (document.getElementById('popup-lote-altitud') as HTMLInputElement)?.value;
+
+              if (!nombre) {
+                if (errorDiv) {
+                  errorDiv.style.display = 'block';
+                  errorDiv.textContent = 'El nombre del lote es requerido';
+                }
+                return;
+              }
+
+              btnGuardar.textContent = 'Guardando...';
+              (btnGuardar as HTMLButtonElement).disabled = true;
+
+              try {
+                const res = await fetch('/api/lotes', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    nombre,
+                    areaHa: parseFloat(areaInput) || parseFloat(areaHa),
+                    altitud: altitudInput ? parseFloat(altitudInput) : undefined,
+                    lat: center.lat,
+                    lng: center.lng,
+                    geoJson,
+                  }),
+                });
+
+                const data = await res.json();
+
+                if (!res.ok) {
+                  throw new Error(data.error || `Error ${res.status}`);
+                }
+
+                map.closePopup();
+                alert(`✅ Lote "${nombre}" guardado correctamente`);
+                window.location.reload();
+              } catch (err: any) {
+                if (errorDiv) {
+                  errorDiv.style.display = 'block';
+                  errorDiv.textContent = `Error: ${err.message}`;
+                }
+                btnGuardar.textContent = 'Guardar lote';
+                (btnGuardar as HTMLButtonElement).disabled = false;
+              }
+            });
+          }
+        }, 100);
       });
 
       // ── Render existing lotes ──

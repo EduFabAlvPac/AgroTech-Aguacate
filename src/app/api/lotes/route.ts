@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { loteCreateWithGeoSchema } from "@/lib/validations";
 import type { Prisma } from "@prisma/client";
 
 // GET /api/lotes — listar todos los lotes de la finca del usuario
@@ -43,39 +42,57 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const parsed = loteCreateWithGeoSchema.safeParse(body);
 
-    if (!parsed.success) {
-      const firstError = parsed.error.errors[0]?.message ?? "Datos inválidos";
-      return NextResponse.json({ error: firstError }, { status: 400 });
+    // Si viene fincaId en el body, usarlo; si no, obtener la finca del usuario
+    let fincaId = body.fincaId;
+
+    if (!fincaId) {
+      const finca = await db.finca.findFirst({
+        where: { userId: session.user.id },
+        select: { id: true },
+      });
+
+      if (!finca) {
+        return NextResponse.json({ error: "Finca no encontrada. Configura tu finca primero." }, { status: 404 });
+      }
+      fincaId = finca.id;
+    } else {
+      // Verificar que la finca pertenece al usuario autenticado
+      const finca = await db.finca.findUnique({
+        where: { id: fincaId },
+        select: { userId: true },
+      });
+
+      if (!finca) {
+        return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+      }
+
+      if (finca.userId !== session.user.id) {
+        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+      }
     }
 
-    const { nombre, areaHa, altitud, pendiente, notas, fincaId, geoJson, lat, lng } = parsed.data;
-
-    // Verificar que la finca pertenece al usuario autenticado
-    const finca = await db.finca.findUnique({
-      where: { id: fincaId },
-      select: { userId: true },
-    });
-
-    if (!finca) {
-      return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+    // Validar campos requeridos
+    const nombre = body.nombre?.trim();
+    if (!nombre) {
+      return NextResponse.json({ error: "El nombre es requerido" }, { status: 400 });
     }
 
-    if (finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    const areaHa = Number(body.areaHa);
+    if (!areaHa || areaHa <= 0) {
+      return NextResponse.json({ error: "El área debe ser mayor a 0" }, { status: 400 });
     }
 
     const data: Prisma.LoteCreateInput = {
       nombre,
       areaHa,
-      altitud: altitud ?? undefined,
-      pendiente: pendiente ?? undefined,
-      notas: notas ?? undefined,
-      lat: lat ?? undefined,
-      lng: lng ?? undefined,
+      altitud: body.altitud ? Number(body.altitud) : undefined,
+      pendiente: body.pendiente ? Number(body.pendiente) : undefined,
+      notas: body.notas ?? undefined,
+      lat: body.lat ? Number(body.lat) : undefined,
+      lng: body.lng ? Number(body.lng) : undefined,
       finca: { connect: { id: fincaId } },
-      ...(geoJson ? { geoJson: geoJson as Prisma.InputJsonValue } : {}),
+      ...(body.geoJson ? { geoJson: body.geoJson as Prisma.InputJsonValue } : {}),
     };
 
     const lote = await db.lote.create({ data });
