@@ -1,6 +1,3 @@
-import { google } from "@ai-sdk/google";
-import { generateText } from "ai";
-
 export const runtime = "edge";
 export const maxDuration = 30;
 
@@ -27,44 +24,53 @@ COSTOS 2026 por hectárea: Plántulas: 800.000-1.280.000 COP. Fertilizantes año
 REGLAS: Responde siempre en español colombiano, práctico y directo. Da cantidades concretas en COP, kg, litros. Máximo 3-4 párrafos salvo que pidan más detalle.`;
 
 export async function POST(req: Request) {
-  console.log("[chat] Request received");
-
   try {
-    const body = await req.json();
-    console.log("[chat] Messages count:", body.messages?.length);
-
-    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    console.log("[chat] API key present:", !!apiKey, "length:", apiKey?.length ?? 0);
+    const { messages } = await req.json();
+    const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
       return new Response(
-        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY no configurada" }),
+        JSON.stringify({ error: "GROQ_API_KEY no configurada" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
-    const { messages } = body;
-
-    console.log("[chat] Calling generateText...");
-
-    const result = await generateText({
-      model: google("gemini-2.0-flash"),
-      system: SYSTEM_PROMPT,
-      messages,
-      maxTokens: 800,
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          ...messages
+        ],
+        max_tokens: 800,
+        temperature: 0.7,
+      }),
     });
 
-    console.log("[chat] Success, response length:", result.text?.length);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return new Response(
+        JSON.stringify({ error: data.error?.message || "Error Groq API" }),
+        { status: 500, headers: { "Content-Type": "application/json" } }
+      );
+    }
+
+    const text = data.choices?.[0]?.message?.content || "Sin respuesta";
 
     return new Response(
-      JSON.stringify({ content: result.text }),
+      JSON.stringify({ content: text }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
-  } catch (error: any) {
-    console.error("[chat] ERROR:", error?.message, error?.cause);
 
+  } catch (error: any) {
     return new Response(
-      JSON.stringify({ error: error?.message || "Error desconocido en AgroIA" }),
+      JSON.stringify({ error: error?.message || "Error desconocido" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
