@@ -48,7 +48,7 @@ export async function POST(req: Request) {
     console.log("[chat] Calling generateText...");
 
     const result = await generateText({
-      model: google("gemini-1.5-flash"),
+      model: google("gemini-2.0-flash"),
       system: SYSTEM_PROMPT,
       messages,
       maxTokens: 800,
