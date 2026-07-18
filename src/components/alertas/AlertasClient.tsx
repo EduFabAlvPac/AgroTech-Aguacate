@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, BellOff, Cloud, CloudLightning } from "lucide-react";
-import { Button, EmptyState } from "@/components/ui";
+import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
+import toast from "react-hot-toast";
 import type { AlertaClimatica, TipoAlerta, Severidad } from "@prisma/client";
 import Link from "next/link";
 
@@ -95,10 +96,29 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
     setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
   };
 
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerarAlertas = async () => {
+    setGenerating(true);
+    try {
+      const res = await fetch("/api/alertas/generate", { method: "POST" });
+      const { data } = await res.json();
+      toast.success(data?.message ?? "Alertas actualizadas");
+      // Reload alertas
+      const alertasRes = await fetch("/api/alertas");
+      const alertasData = await alertasRes.json();
+      if (alertasData.data) setAlertas(alertasData.data);
+    } catch {
+      toast.error("Error al generar alertas");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {/* Header row */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
           {["todas", "activas", "leidas"].map((f) => (
             <button
@@ -119,21 +139,68 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
             </button>
           ))}
         </div>
-        {noLeidas > 0 && (
-          <Button size="sm" variant="secondary" onClick={markAllRead}>
-            <Eye size={14} />
-            Marcar todas como leídas
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="secondary" onClick={handleGenerarAlertas} loading={generating}>
+            <RefreshCw size={14} />
+            {generating ? "Generando..." : "Generar alertas"}
           </Button>
-        )}
+          {noLeidas > 0 && (
+            <Button size="sm" variant="secondary" onClick={markAllRead}>
+              <Eye size={14} />
+              Marcar todas como leídas
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Alert cards */}
       {filtered.length === 0 ? (
-        <EmptyState
-          icon={<BellOff size={28} />}
-          title="Sin alertas en esta vista"
-          description="Configura las alertas climáticas para recibir notificaciones sobre condiciones que puedan afectar tu cultivo."
-        />
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "48px 24px",
+          textAlign: "center",
+          gap: 12
+        }}>
+          <div style={{
+            width: 64, height: 64,
+            borderRadius: "50%",
+            background: "#EAF3DE",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: 28
+          }}>
+            ✅
+          </div>
+          <h3 style={{ fontSize: 16, fontWeight: 600, color: "var(--text-primary)", margin: 0 }}>
+            Todo va bien
+          </h3>
+          <p style={{ fontSize: 13, color: "var(--text-secondary)", margin: 0, maxWidth: 280, lineHeight: 1.6 }}>
+            No hay alertas climáticas activas. Las condiciones son favorables para tu cultivo.
+          </p>
+          <button
+            onClick={handleGenerarAlertas}
+            disabled={generating}
+            style={{
+              marginTop: 8,
+              padding: "8px 16px",
+              background: "#EAF3DE",
+              border: "1px solid #C0DD97",
+              borderRadius: 8,
+              fontSize: 13,
+              color: "#3B6D11",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 6
+            }}
+          >
+            Verificar condiciones climáticas
+          </button>
+        </div>
       ) : (
         <div className="space-y-3">
           {filtered.map((alerta) => {

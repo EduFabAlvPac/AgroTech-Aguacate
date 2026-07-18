@@ -47,6 +47,18 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
   const [loading, setLoading] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [filtroTipo, setFiltroTipo] = useState("Todos");
+
+  const FILTRO_TIPOS = ["Todos", "COOPERATIVA", "EXPORTADOR", "MAYORISTA", "SUPERMERCADO", "PLAZA_MERCADO", "RESTAURANTE", "OTRO"];
+  const FILTRO_LABELS: Record<string, string> = {
+    "Todos": "Todos", "COOPERATIVA": "Cooperativa", "EXPORTADOR": "Exportador",
+    "MAYORISTA": "Mayorista", "SUPERMERCADO": "Supermercado", "PLAZA_MERCADO": "Plaza",
+    "RESTAURANTE": "Restaurante", "OTRO": "Otro",
+  };
+
+  const compradoresFiltrados = filtroTipo === "Todos"
+    ? compradores
+    : compradores.filter((c) => c.tipo === filtroTipo);
 
   const initials = (name: string) =>
     name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -175,8 +187,33 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
         </Button>
       </div>
 
+      {/* Filter pills */}
+      <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+        {FILTRO_TIPOS.map((tipo) => (
+          <button
+            key={tipo}
+            onClick={() => setFiltroTipo(tipo)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 20,
+              border: "1px solid",
+              borderColor: filtroTipo === tipo ? "#639922" : "var(--border-default)",
+              background: filtroTipo === tipo ? "#EAF3DE" : "transparent",
+              color: filtroTipo === tipo ? "#3B6D11" : "var(--text-secondary)",
+              fontSize: 12,
+              fontWeight: filtroTipo === tipo ? 600 : 400,
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              transition: "all 0.15s",
+            }}
+          >
+            {FILTRO_LABELS[tipo]}
+          </button>
+        ))}
+      </div>
+
       {/* Grid */}
-      {compradores.length === 0 ? (
+      {compradoresFiltrados.length === 0 ? (
         <EmptyState
           icon={<Users size={28} />}
           title="Sin compradores registrados"
@@ -185,7 +222,7 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {compradores.map((c, i) => (
+          {compradoresFiltrados.map((c, i) => (
             <div key={c.id} className="card p-5 hover:shadow-card-hover transition-shadow">
               {/* Card header */}
               <div className="flex items-start justify-between mb-4">

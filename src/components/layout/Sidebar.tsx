@@ -30,7 +30,7 @@ const navItems = [
   { href: "/dashboard/compradores",  icon: Users,           label: "Compradores" },
 ];
 
-export function Sidebar() {
+export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombre?: string | null; fincaUbicacion?: string | null; fincaArea?: number | null }) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { sidebarOpen, setSidebarOpen, collapsed, toggleCollapsed } = useSidebar();
@@ -80,10 +80,10 @@ export function Sidebar() {
         <div className="mx-3 my-3 px-3 py-2.5 bg-agro-50 rounded-[var(--radius-md)] border border-agro-100">
           <div className="text-[11px] text-agro-400 font-medium mb-0.5">Finca activa</div>
           <div className="text-[12px] text-agro-600 font-medium leading-tight">
-            Finca Álvarez Pacheco
+            {fincaNombre ?? "Mi Finca"}
           </div>
           <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-            Norte de Santander · 2 ha
+            {fincaUbicacion ?? "Colombia"}{fincaArea ? ` · ${fincaArea} ha` : ""}
           </div>
         </div>
       )}
