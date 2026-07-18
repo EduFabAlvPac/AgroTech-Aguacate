@@ -1,9 +1,6 @@
 import { google } from "@ai-sdk/google";
 import { streamText } from "ai";
 
-export const runtime = "edge";
-export const maxDuration = 30;
-
 const SYSTEM_PROMPT = `Eres AgroIA, asistente especializado en cultivo de aguacate Hass en Colombia, región Andina y Norte de Santander entre 1.500 y 2.200 msnm.
 
 CONTEXTO DE LA FINCA:
