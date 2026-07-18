@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Bot, Send, RotateCcw } from "lucide-react";
+import { Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { ChatMessage } from "@prisma/client";
 
@@ -162,8 +162,13 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {msg.role === "assistant" && (
-                <div className="w-7 h-7 rounded-full bg-agro-50 border border-agro-100 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
-                  <Bot size={14} className="text-agro-400" />
+                <div style={{
+                  width: 32, height: 32, borderRadius: "50%",
+                  background: "#EAF3DE", border: "1px solid #C0DD97",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  fontSize: 16, flexShrink: 0, marginRight: 8, marginTop: 4
+                }}>
+                  🌿
                 </div>
               )}
 
