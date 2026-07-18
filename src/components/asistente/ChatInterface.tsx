@@ -1,7 +1,6 @@
 "use client";
 
-import { useChat } from "ai/react";
-import { useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Bot, Send, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui";
 import type { ChatMessage } from "@prisma/client";
@@ -11,19 +10,17 @@ interface ChatInterfaceProps {
   initialQuery?: string;
 }
 
+type Message = { role: string; content: string };
+
 export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const { messages, input, handleInputChange, handleSubmit, isLoading, setMessages, setInput } =
-    useChat({
-      api: "/api/chat",
-      initialMessages: historial.map((m) => ({
-        id: m.id,
-        role: m.role.toLowerCase() as "user" | "assistant",
-        content: m.content,
-      })),
-    });
+  const [messages, setMessages] = useState<Message[]>(
+    historial.map((m) => ({ role: m.role.toLowerCase(), content: m.content }))
+  );
+  const [input, setInput] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
 
   // Auto-scroll
   useEffect(() => {
@@ -35,24 +32,58 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
     if (initialQuery && messages.length === 0) {
       setInput(initialQuery);
       setTimeout(() => {
-        const form = document.querySelector("form");
-        if (form) {
-          const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
-          form.dispatchEvent(submitEvent);
-        }
+        submitMessage(initialQuery);
       }, 300);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialQuery]);
 
-  const handleQuickPrompt = (prompt: string) => {
-    setInput(prompt);
-    setTimeout(() => {
-      const form = document.querySelector("form");
-      if (form) {
-        const submitEvent = new Event("submit", { bubbles: true, cancelable: true });
-        form.dispatchEvent(submitEvent);
+  const submitMessage = async (text: string) => {
+    if (!text.trim() || isLoading) return;
+
+    const userMessage: Message = { role: "user", content: text };
+    const updatedMessages = [...messages, userMessage];
+    setMessages(updatedMessages);
+    setInput("");
+    setIsLoading(true);
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: updatedMessages }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: `Error: ${data.error || "No se pudo conectar con AgroIA"}` },
+        ]);
+      } else {
+        setMessages((prev) => [
+          ...prev,
+          { role: "assistant", content: data.content },
+        ]);
       }
-    }, 100);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: "Error de conexión. Verifica tu internet e intenta de nuevo." },
+      ]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await submitMessage(input);
+  };
+
+  const handleQuickPrompt = (prompt: string) => {
+    submitMessage(prompt);
   };
 
   const handleClear = () => {
@@ -110,9 +141,9 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
           )}
 
           {/* Messages */}
-          {messages.map((msg) => (
+          {messages.map((msg, idx) => (
             <div
-              key={msg.id}
+              key={idx}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
               {msg.role === "assistant" && (
@@ -198,7 +229,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
             <input
               ref={inputRef}
               value={input}
-              onChange={handleInputChange}
+              onChange={(e) => setInput(e.target.value)}
               placeholder="Pregunta sobre plagas, riego, fertilización, clima..."
               className="flex-1 h-11 px-4 text-[13px] bg-[var(--surface-page)] border border-[var(--border-default)] rounded-[var(--radius-xl)] focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
               disabled={isLoading}

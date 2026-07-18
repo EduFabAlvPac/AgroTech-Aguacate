@@ -1,5 +1,8 @@
 import { google } from "@ai-sdk/google";
-import { streamText } from "ai";
+import { generateText } from "ai";
+
+export const runtime = "edge";
+export const maxDuration = 30;
 
 const SYSTEM_PROMPT = `Eres AgroIA, asistente especializado en cultivo de aguacate Hass en Colombia, región Andina y Norte de Santander entre 1.500 y 2.200 msnm.
 
@@ -28,45 +31,40 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    console.log("[chat] Body parsed, messages:", body.messages?.length);
+    console.log("[chat] Messages count:", body.messages?.length);
 
     const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
-    console.log("[chat] GOOGLE_GENERATIVE_AI_API_KEY present:", !!apiKey, "length:", apiKey?.length ?? 0);
+    console.log("[chat] API key present:", !!apiKey, "length:", apiKey?.length ?? 0);
 
     if (!apiKey) {
-      console.error("[chat] NO API KEY FOUND. Check Vercel env vars.");
       return new Response(
-        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY no configurada en el servidor" }),
+        JSON.stringify({ error: "GOOGLE_GENERATIVE_AI_API_KEY no configurada" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
     }
 
     const { messages } = body;
 
-    console.log("[chat] Calling streamText with google('gemini-1.5-flash')...");
+    console.log("[chat] Calling generateText...");
 
-    const result = streamText({
+    const result = await generateText({
       model: google("gemini-1.5-flash"),
       system: SYSTEM_PROMPT,
       messages,
       maxTokens: 800,
     });
 
-    console.log("[chat] streamText called, returning data stream response");
-
-    return result.toDataStreamResponse();
-  } catch (error: any) {
-    console.error("[chat] FULL ERROR:", {
-      message: error?.message,
-      name: error?.name,
-      stack: error?.stack?.slice(0, 500),
-      cause: error?.cause,
-    });
+    console.log("[chat] Success, response length:", result.text?.length);
 
     return new Response(
-      JSON.stringify({
-        error: "Error en AgroIA: " + (error?.message || "desconocido"),
-      }),
+      JSON.stringify({ content: result.text }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  } catch (error: any) {
+    console.error("[chat] ERROR:", error?.message, error?.cause);
+
+    return new Response(
+      JSON.stringify({ error: error?.message || "Error desconocido en AgroIA" }),
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
