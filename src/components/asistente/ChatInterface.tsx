@@ -16,9 +16,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const [messages, setMessages] = useState<Message[]>(
-    historial.map((m) => ({ role: m.role.toLowerCase(), content: m.content }))
-  );
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -27,16 +25,33 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Handle initial query from URL — auto-submit
+  // Handle initial query from URL — auto-submit on mount
   useEffect(() => {
-    if (initialQuery && messages.length === 0) {
-      setInput(initialQuery);
-      setTimeout(() => {
-        submitMessage(initialQuery);
-      }, 300);
+    if (initialQuery && initialQuery.trim()) {
+      const userMessage: Message = { role: "user", content: initialQuery };
+      setMessages([userMessage]);
+      setIsLoading(true);
+
+      fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [userMessage] }),
+      })
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.content) {
+            setMessages([userMessage, { role: "assistant", content: data.content }]);
+          } else {
+            setMessages([userMessage, { role: "assistant", content: `Error: ${data.error || "Sin respuesta"}` }]);
+          }
+        })
+        .catch(() => {
+          setMessages([userMessage, { role: "assistant", content: "Error al conectar con AgroIA." }]);
+        })
+        .finally(() => setIsLoading(false));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialQuery]);
+  }, []);
 
   const submitMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
