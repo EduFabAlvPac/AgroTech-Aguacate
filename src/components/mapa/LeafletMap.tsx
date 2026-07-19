@@ -133,10 +133,10 @@ export default function LeafletMap({
           "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      // Center on finca or Norte de Santander
+      // Center on finca or Ocaña, Norte de Santander
       const center: [number, number] = [
-        finca?.lat ?? 7.9273,
-        finca?.lng ?? -72.5078,
+        finca?.lat ?? 8.2393,
+        finca?.lng ?? -73.3556,
       ];
 
       const map = L.map(mapRef.current!, {

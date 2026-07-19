@@ -8,7 +8,19 @@ import type { Finca, Lote, Cultivo, EtapaCultivo } from "@prisma/client";
 
 const MapPreviewLeaflet = dynamic(
   () => import("@/components/dashboard/MapPreviewLeaflet"),
-  { ssr: false, loading: () => <div className="w-full h-full bg-agro-50 animate-pulse rounded-[var(--radius-md)]" /> }
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{
+        width: "100%", height: "220px",
+        background: "#EAF3DE",
+        borderRadius: 10,
+        display: "flex", alignItems: "center", justifyContent: "center"
+      }}>
+        <span style={{ fontSize: 13, color: "#5F7052" }}>Cargando mapa...</span>
+      </div>
+    ),
+  }
 );
 
 type FincaWithLotes = (Finca & { lotes: (Lote & { cultivos: Cultivo[] })[] }) | null;
