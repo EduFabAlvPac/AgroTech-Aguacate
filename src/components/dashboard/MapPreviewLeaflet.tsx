@@ -22,15 +22,21 @@ export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeaflet
   const mapInstance = useRef<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [clientReady, setClientReady] = useState(false);
+
+  // Wait for client mount to avoid hydration issues
+  useEffect(() => {
+    setClientReady(true);
+  }, []);
 
   useEffect(() => {
-    if (!mapRef.current || mapInstance.current) return;
+    if (!clientReady || !mapRef.current || mapInstance.current) return;
 
-    let mounted = true;
+    let cancelled = false;
 
     import("leaflet")
       .then((leafletModule) => {
-        if (!mounted || !mapRef.current || mapInstance.current) return;
+        if (cancelled || !mapRef.current || mapInstance.current) return;
 
         const L = leafletModule.default || leafletModule;
 
@@ -73,21 +79,34 @@ export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeaflet
         setLoading(false);
       })
       .catch((err) => {
-        if (mounted) {
-          console.error("[MapPreviewLeaflet] Error loading map:", err);
+        if (!cancelled) {
+          console.error("[MapPreviewLeaflet] Error:", err);
           setError("No se pudo cargar el mapa");
           setLoading(false);
         }
       });
 
     return () => {
-      mounted = false;
+      cancelled = true;
       if (mapInstance.current) {
         mapInstance.current.remove();
         mapInstance.current = null;
       }
     };
-  }, [lotes, lat, lng]);
+  }, [clientReady, lotes, lat, lng]);
+
+  if (!clientReady) {
+    return (
+      <div style={{
+        width: "100%", height: "100%",
+        background: "#EAF3DE",
+        display: "flex", alignItems: "center", justifyContent: "center",
+        borderRadius: 10, fontSize: 13, color: "#5F7052"
+      }}>
+        Cargando mapa...
+      </div>
+    );
+  }
 
   if (error) {
     return (
