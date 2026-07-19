@@ -59,7 +59,7 @@ export function MapPreview({ finca }: MapPreviewProps) {
               nombre: l.nombre,
               areaHa: l.areaHa,
               altitud: l.altitud,
-              geoJson: l.geoJson,
+              geoJson: (l as any).geoJson,
               lat: l.lat,
               lng: l.lng,
               cultivos: l.cultivos.map((c) => ({ variedad: c.variedad, etapa: c.etapa })),

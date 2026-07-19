@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import "leaflet/dist/leaflet.css";
 
 interface MapPreviewLeafletProps {
   lotes: {
@@ -20,27 +19,34 @@ interface MapPreviewLeafletProps {
 export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeafletProps) {
   const mapRef = useRef<HTMLDivElement>(null);
   const mapInstance = useRef<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [clientReady, setClientReady] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  // Wait for client mount to avoid hydration issues
-  useEffect(() => {
-    setClientReady(true);
-  }, []);
+  // Only render after mount to avoid hydration issues
+  useEffect(() => { setReady(true); }, []);
 
   useEffect(() => {
-    if (!clientReady || !mapRef.current || mapInstance.current) return;
+    if (!ready || !mapRef.current || mapInstance.current) return;
 
     let cancelled = false;
 
-    import("leaflet")
-      .then((leafletModule) => {
+    // Small delay to ensure container is rendered with final dimensions
+    const timer = setTimeout(async () => {
+      if (cancelled || !mapRef.current) return;
+
+      try {
+        // Import leaflet CSS via link tag (avoids webpack CSS issues)
+        if (!document.querySelector('link[href*="leaflet.css"]')) {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+          document.head.appendChild(link);
+        }
+
+        const L = (await import("leaflet")).default;
+
         if (cancelled || !mapRef.current || mapInstance.current) return;
 
-        const L = leafletModule.default || leafletModule;
-
-        const map = L.map(mapRef.current!, {
+        const map = L.map(mapRef.current, {
           center: [lat, lng],
           zoom: 14,
           zoomControl: false,
@@ -68,72 +74,44 @@ export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeaflet
             }).addTo(map);
           } else if (lote.lat && lote.lng) {
             L.circleMarker([lote.lat, lote.lng], {
-              radius: 20,
-              color,
-              fillColor: color,
-              fillOpacity: 0.3,
+              radius: 20, color, fillColor: color, fillOpacity: 0.3,
             }).addTo(map);
           }
         });
 
-        setLoading(false);
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          console.error("[MapPreviewLeaflet] Error:", err);
-          setError("No se pudo cargar el mapa");
-          setLoading(false);
-        }
-      });
+        // Force invalidateSize after tiles start loading
+        setTimeout(() => {
+          if (mapInstance.current) {
+            mapInstance.current.invalidateSize();
+          }
+        }, 200);
+      } catch (err) {
+        console.error("[MapPreview] Failed to load Leaflet:", err);
+      }
+    }, 100);
 
     return () => {
       cancelled = true;
+      clearTimeout(timer);
       if (mapInstance.current) {
         mapInstance.current.remove();
         mapInstance.current = null;
       }
     };
-  }, [clientReady, lotes, lat, lng]);
+  }, [ready, lotes, lat, lng]);
 
-  if (!clientReady) {
+  if (!ready) {
     return (
-      <div style={{
-        width: "100%", height: "100%",
-        background: "#EAF3DE",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 10, fontSize: 13, color: "#5F7052"
-      }}>
-        Cargando mapa...
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div style={{
-        width: "100%", height: "100%",
-        background: "#FEF0E7",
-        display: "flex", alignItems: "center", justifyContent: "center",
-        borderRadius: 10, fontSize: 13, color: "#CA6F1E"
-      }}>
-        {error}
+      <div style={{ width: "100%", height: "220px", background: "#EAF3DE", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 13, color: "#5F7052" }}>Cargando mapa...</span>
       </div>
     );
   }
 
   return (
-    <div style={{ width: "100%", height: "100%", position: "relative" }}>
-      {loading && (
-        <div style={{
-          position: "absolute", inset: 0, zIndex: 10,
-          background: "#EAF3DE",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          borderRadius: 10, fontSize: 13, color: "#5F7052"
-        }}>
-          Cargando mapa...
-        </div>
-      )}
-      <div ref={mapRef} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
-    </div>
+    <div
+      ref={mapRef}
+      style={{ width: "100%", height: "220px", borderRadius: 10, background: "#2d3a28" }}
+    />
   );
 }

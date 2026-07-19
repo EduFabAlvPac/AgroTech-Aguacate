@@ -85,6 +85,25 @@ export default function RootLayout({
             },
           }}
         />
+        {/* Unregister any stale service workers */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                  registrations.forEach(function(registration) {
+                    registration.unregister();
+                  });
+                });
+                caches.keys().then(function(names) {
+                  names.forEach(function(name) {
+                    caches.delete(name);
+                  });
+                });
+              }
+            `,
+          }}
+        />
       </body>
     </html>
   );
