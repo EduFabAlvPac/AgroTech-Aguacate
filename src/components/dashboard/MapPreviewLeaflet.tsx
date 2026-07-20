@@ -26,8 +26,12 @@ interface MapPreviewLeafletProps {
 }
 
 export default function MapPreviewLeaflet({ lat, lng }: MapPreviewLeafletProps) {
-  // OpenStreetMap embed with marker at the finca coordinates
-  const embedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${lng - 0.008}%2C${lat - 0.005}%2C${lng + 0.008}%2C${lat + 0.005}&layer=mapnik&marker=${lat}%2C${lng}`;
+  // Use Google Maps embed — reliable satellite view with full Colombia coverage
+  // Note: if lat/lng appear swapped (marker in ocean), swap them
+  const actualLat = Math.abs(lat) < 15 ? lat : lng;  // lat for Colombia should be 0-13
+  const actualLng = Math.abs(lng) > 60 ? lng : lat;  // lng for Colombia should be -67 to -79
+
+  const embedUrl = `https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d3000!2d${actualLng}!3d${actualLat}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!5e1!3m2!1ses!2sco&maptype=satellite`;
 
   return (
     <iframe
@@ -40,7 +44,8 @@ export default function MapPreviewLeaflet({ lat, lng }: MapPreviewLeafletProps) 
       }}
       title="Mapa de la finca"
       loading="lazy"
-      allowFullScreen={false}
+      referrerPolicy="no-referrer-when-downgrade"
+      allowFullScreen
     />
   );
 }

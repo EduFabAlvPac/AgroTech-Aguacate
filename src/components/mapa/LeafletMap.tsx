@@ -134,9 +134,12 @@ export default function LeafletMap({
       });
 
       // Center on finca or Ocaña, Norte de Santander (Finca El Juncal)
+      // Protection against swapped lat/lng in DB: lat for Colombia = 0-13, lng = -67 to -79
+      const rawLat = finca?.lat ?? 8.320589;
+      const rawLng = finca?.lng ?? -73.337551;
       const center: [number, number] = [
-        finca?.lat ?? 8.320589,
-        finca?.lng ?? -73.337551,
+        Math.abs(rawLat) < 15 ? rawLat : rawLng,
+        Math.abs(rawLng) > 60 ? rawLng : rawLat,
       ];
 
       const map = L.map(mapRef.current!, {
@@ -153,10 +156,10 @@ export default function LeafletMap({
         maxZoom: 19,
       });
 
-      // Esri Satellite — works at zoom ≤18 in rural Colombia
+      // Esri Satellite — reliable worldwide coverage
       const satellite = L.tileLayer(
         "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { attribution: "Tiles © Esri", maxZoom: 18, maxNativeZoom: 17 }
+        { attribution: "Tiles © Esri", maxZoom: 18 }
       );
 
       // Start with OSM (guaranteed to load), satellite as option
