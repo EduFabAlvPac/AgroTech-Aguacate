@@ -124,13 +124,20 @@ export function MapSidebar({
                     ) : (
                       <button
                         onClick={() => {
-                          if (
-                            confirm(
-                              `¿Eliminar el lote ${lote.nombre}? Esta acción no se puede deshacer.`
-                            )
-                          ) {
-                            onDeleteLote?.(lote.id);
-                          }
+                          toast((t) => (
+                            <div className="flex items-center gap-3">
+                              <span className="text-[13px]">¿Eliminar {lote.nombre}?</span>
+                              <button
+                                onClick={() => { toast.dismiss(t.id); onDeleteLote?.(lote.id); }}
+                                className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+                              >
+                                Eliminar
+                              </button>
+                              <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border text-[12px] rounded-md">
+                                No
+                              </button>
+                            </div>
+                          ), { duration: 10000 });
                         }}
                         className="p-1 rounded hover:bg-red-50 transition-colors"
                         title="Eliminar lote"

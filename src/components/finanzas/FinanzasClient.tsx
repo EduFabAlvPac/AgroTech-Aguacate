@@ -243,7 +243,23 @@ export function FinanzasClient({
   };
 
   const handleGastoDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este gasto?")) return;
+    toast((t) => (
+      <div className="flex items-center gap-3">
+        <span className="text-[13px]">¿Eliminar este gasto?</span>
+        <button
+          onClick={() => { toast.dismiss(t.id); doDeleteGasto(id); }}
+          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+        >
+          Eliminar
+        </button>
+        <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">
+          Cancelar
+        </button>
+      </div>
+    ), { duration: 10000 });
+  };
+
+  const doDeleteGasto = async (id: string) => {
     try {
       await fetch(`/api/gastos/${id}`, { method: "DELETE" });
       setGastos((prev) => prev.filter((g) => g.id !== id));
@@ -310,7 +326,23 @@ export function FinanzasClient({
   };
 
   const handleIngresoDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este ingreso?")) return;
+    toast((t) => (
+      <div className="flex items-center gap-3">
+        <span className="text-[13px]">¿Eliminar este ingreso?</span>
+        <button
+          onClick={() => { toast.dismiss(t.id); doDeleteIngreso(id); }}
+          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+        >
+          Eliminar
+        </button>
+        <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">
+          Cancelar
+        </button>
+      </div>
+    ), { duration: 10000 });
+  };
+
+  const doDeleteIngreso = async (id: string) => {
     try {
       await fetch(`/api/ingresos/${id}`, { method: "DELETE" });
       setIngresos((prev) => prev.filter((i) => i.id !== id));

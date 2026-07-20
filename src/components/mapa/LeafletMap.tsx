@@ -317,8 +317,9 @@ export default function LeafletMap({
                 }
 
                 map.closePopup();
-                alert(`✅ Lote "${nombre}" guardado correctamente`);
-                window.location.reload();
+                toast.success(`Lote "${nombre}" guardado correctamente`);
+                // Reload to show the new lote on the map
+                setTimeout(() => window.location.reload(), 1500);
               } catch (err: any) {
                 if (errorDiv) {
                   errorDiv.style.display = 'block';
@@ -752,7 +753,7 @@ export default function LeafletMap({
 
         if (!response.ok) {
           console.error("Error al guardar lote:", response.status, responseData);
-          alert(`Error al guardar el lote: ${responseData.error || response.status}`);
+          toast.error(`Error al guardar: ${responseData.error || response.status}`);
 
           if (apiError) {
             apiError.textContent = responseData.error ?? "Error al crear el lote";

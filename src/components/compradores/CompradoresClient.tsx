@@ -145,7 +145,26 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar este comprador?")) return;
+    toast((t) => (
+      <div className="flex items-center gap-3">
+        <span className="text-[13px]">¿Eliminar este comprador?</span>
+        <button
+          onClick={() => { toast.dismiss(t.id); doDeleteComprador(id); }}
+          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+        >
+          Eliminar
+        </button>
+        <button
+          onClick={() => toast.dismiss(t.id)}
+          className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md"
+        >
+          Cancelar
+        </button>
+      </div>
+    ), { duration: 10000 });
+  };
+
+  const doDeleteComprador = async (id: string) => {
     try {
       await fetch(`/api/compradores/${id}`, { method: "DELETE" });
       setCompradores((prev) => prev.filter((c) => c.id !== id));

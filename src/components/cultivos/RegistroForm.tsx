@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Button, Select, Textarea, Input } from "@/components/ui";
 import { TIPO_REGISTRO_LABELS } from "@/types";
+import toast from "react-hot-toast";
 import { registroFormSchema } from "@/lib/validations";
 import type { RegistroCultivo, TipoRegistro } from "@prisma/client";
 
@@ -74,7 +75,7 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
         onSuccess();
       }
     } catch {
-      alert("Error al guardar el registro. Intenta de nuevo.");
+      toast.error("Error al guardar el registro. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }
