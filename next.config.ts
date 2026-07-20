@@ -9,6 +9,9 @@ const pwaConfig = withPWA({
 const nextConfig: NextConfig = {
   experimental: {
     typedRoutes: true,
+    staleTimes: {
+      dynamic: 0,  // Don't cache dynamic pages in client-side router cache
+    },
   },
   images: {
     remotePatterns: [
