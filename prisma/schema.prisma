@@ -74,8 +74,56 @@ model Lote {
   updatedAt DateTime @updatedAt
 
   cultivos  Cultivo[]
+  jornales  Jornal[]
 
   @@map("lotes")
+}
+
+// ─── CROP SPECIES CATALOG / ESPECIES DE CULTIVO (PARAMÉTRICO) ─────────────────
+// Tabla de configuración que define las propiedades de cada tipo de cultivo.
+// Permite soportar múltiples cultivos (café, cacao, cítricos) sin modificar enums.
+
+model EspecieCultivo {
+  id              String   @id @default(cuid())
+  slug            String   @unique             // "aguacate-hass", "cafe-caturra", "cacao-ccu51"
+  nombre          String                       // "Aguacate Hass"
+  familia         String?                      // "Lauraceae", "Rubiaceae"
+  
+  // Etapas fenológicas como JSON array — reemplaza el enum para cultivos nuevos
+  // Ej: ["PREPARACION","SIEMBRA","ESTABLECIMIENTO","CRECIMIENTO","PRODUCCION","COSECHA"]
+  etapas          Json                         // string[]
+  
+  // Tipos de registro válidos para esta especie
+  // Ej: ["RIEGO","FERTILIZACION","PODA","COSECHA","DESPULPADO","SECADO"]
+  tiposRegistro   Json                         // string[]
+  
+  // Umbrales climáticos específicos del cultivo
+  umbralHelada    Float?                       // °C mínimo antes de daño
+  umbralCalor     Float?                       // °C máximo antes de estrés
+  lluviaMaxMm     Float?                       // mm/día para alerta
+  vientoMaxKmh    Float?                       // km/h para alerta
+  
+  // Ciclo productivo
+  cicloMesesPrimeraCosecha Int?                // Meses desde siembra hasta primera cosecha
+  produccionKgArbolAnual   Float?             // kg promedio por árbol/año en plena producción
+  
+  // Rango altitudinal óptimo (msnm)
+  altitudMin      Int?
+  altitudMax      Int?
+  
+  // Condiciones climáticas óptimas
+  tempOptMin      Float?                       // °C mínimo óptimo
+  tempOptMax      Float?                       // °C máximo óptimo
+  precipAnualMin  Float?                       // mm/año mínimo
+  precipAnualMax  Float?                       // mm/año máximo
+  
+  activo          Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  cultivos        Cultivo[]
+
+  @@map("especies_cultivo")
 }
 
 // ─── CROPS / CULTIVOS ─────────────────────────────────────────────────────────
@@ -86,6 +134,8 @@ model Cultivo {
   lote            Lote          @relation(fields: [loteId], references: [id], onDelete: Cascade)
   especie         String        @default("Aguacate")
   variedad        String        @default("Hass")
+  especieId       String?
+  especieCultivo  EspecieCultivo? @relation(fields: [especieId], references: [id])
   fechaSiembra    DateTime?
   cantidadPlantas Int?
   densidadHa      Int?
@@ -103,6 +153,7 @@ model Cultivo {
   registros       RegistroCultivo[]
   gastos          Gasto[]
   ingresos        Ingreso[]
+  jornales        Jornal[]
 
   @@map("cultivos")
 }
@@ -167,6 +218,29 @@ model Gasto {
   updatedAt  DateTime      @updatedAt
 
   @@map("gastos")
+}
+
+// ─── LABOR / JORNALES ─────────────────────────────────────────────────────────
+// Registro de mano de obra — mayor costo operativo en el campo colombiano.
+// Se relaciona con finanzas como gasto automático categoría MANO_OBRA.
+
+model Jornal {
+  id              String    @id @default(cuid())
+  cultivoId       String?
+  cultivo         Cultivo?  @relation(fields: [cultivoId], references: [id])
+  loteId          String?
+  lote            Lote?     @relation(fields: [loteId], references: [id])
+  fecha           DateTime  @default(now())
+  operario        String                      // Nombre del trabajador
+  horasTrabajadas Float     @default(8)       // Horas del jornal (default: día completo)
+  valorDia        Float                       // Tarifa día completa en COP (ej: $50.000)
+  actividad       String                      // "Fumigada", "Abonada", "Limpia", "Riego manual"
+  descripcion     String?                     // Detalles adicionales
+  loteArea        String?                     // Si aplica a un área específica del lote
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@map("jornales")
 }
 
 enum CategoriaGasto {
