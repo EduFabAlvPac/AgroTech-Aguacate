@@ -147,30 +147,24 @@ export default function LeafletMap({
 
       mapInstance.current = map;
 
-      // Base tile layer — Google Satellite (best coverage in rural Colombia)
-      const satellite = L.tileLayer(
-        "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-        { attribution: "Imagery © Google", maxZoom: 20 }
-      );
-      satellite.addTo(map);
-
-      // OSM as alternate layer
+      // OpenStreetMap — always works, no API key needed
       const osmLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution:
-          '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
       });
 
-      // Google Hybrid (satellite + labels) as third option
-      const hybrid = L.tileLayer(
-        "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
-        { attribution: "Imagery © Google", maxZoom: 20 }
+      // Esri Satellite — works at zoom ≤18 in rural Colombia
+      const satellite = L.tileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Tiles © Esri", maxZoom: 18, maxNativeZoom: 17 }
       );
 
+      // Start with OSM (guaranteed to load), satellite as option
+      osmLayer.addTo(map);
+
       const baseLayers = {
+        "Mapa": osmLayer,
         "Satélite": satellite,
-        "Satélite + Nombres": hybrid,
-        "Mapa base": osmLayer,
       };
 
       L.control.layers(baseLayers).addTo(map);

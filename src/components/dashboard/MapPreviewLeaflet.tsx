@@ -59,10 +59,10 @@ export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeaflet
 
         mapInstance.current = map;
 
-        L.tileLayer(
-          "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
-          { maxZoom: 20 }
-        ).addTo(map);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '© OpenStreetMap',
+          maxZoom: 19,
+        }).addTo(map);
 
         const colors = ["#639922", "#1D9E75", "#BA7517", "#185FA5", "#8B3A8A"];
 
