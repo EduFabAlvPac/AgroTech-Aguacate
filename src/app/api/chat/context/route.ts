@@ -31,6 +31,21 @@ export type FarmContext = {
     ultimosIngresos: { concepto: string; monto: number; fecha: string }[];
     totalGastosMes: number;
   };
+  // Métricas consolidadas FINAGRO
+  metricas: {
+    costosDirectos: number;
+    manoObraTotal: number;
+    jornalesRegistrados: number;
+    insumosTotal: number;
+    costosIndirectos: number;
+    costoTotal: number;
+    ingresosAcumulados: number;
+    saldoNeto: number;
+    produccionProyectadaKg: number;
+    precioPromedioKg: number;
+    ingresoProyectado: number;
+    roi: number;
+  };
   clima: {
     disponible: boolean;
     resumen?: string;
@@ -46,8 +61,8 @@ export async function GET() {
 
     const userId = session.user.id;
 
-    // Parallel fetch: finca+cultivos, alertas, gastos recientes, ingresos recientes
-    const [finca, alertas, gastosRecientes, ingresosRecientes, gastosMesAgg] = await Promise.all([
+    // Parallel fetch: finca+cultivos, alertas, gastos recientes, ingresos recientes, aggregates
+    const [finca, alertas, gastosRecientes, ingresosRecientes, gastosMesAgg, todosGastos, todosIngresos, jornalesAgg, compradores] = await Promise.all([
       db.finca.findFirst({
         where: { userId },
         select: {
@@ -105,6 +120,37 @@ export async function GET() {
         },
         _sum: { monto: true },
       }),
+      // All gastos for FINAGRO metrics
+      db.gasto.findMany({
+        where: { cultivo: { lote: { finca: { userId } } } },
+        select: { monto: true, categoria: true },
+      }),
+      // All ingresos for total
+      db.ingreso.aggregate({
+        where: {
+          OR: [
+            { cultivo: { lote: { finca: { userId } } } },
+            { comprador: { userId } },
+          ],
+        },
+        _sum: { monto: true },
+      }),
+      // Jornales aggregate
+      db.jornal.aggregate({
+        where: {
+          OR: [
+            { lote: { finca: { userId } } },
+            { cultivo: { lote: { finca: { userId } } } },
+          ],
+        },
+        _sum: { valorDia: true },
+        _count: true,
+      }),
+      // Compradores precios
+      db.comprador.findMany({
+        where: { userId, precioKg: { not: null } },
+        select: { precioKg: true },
+      }),
     ]);
 
     // Build cultivos array with days since planting
@@ -150,6 +196,43 @@ export async function GET() {
         })),
         totalGastosMes: gastosMesAgg._sum.monto ?? 0,
       },
+      metricas: (() => {
+        // Calculate FINAGRO-style metrics
+        const manoObraGastos = todosGastos.filter((g) => g.categoria === "MANO_OBRA");
+        const insumosGastos = todosGastos.filter((g) => ["INSUMOS", "SEMILLAS_PLANTULAS"].includes(g.categoria));
+        const indirectosGastos = todosGastos.filter((g) => !["MANO_OBRA", "INSUMOS", "SEMILLAS_PLANTULAS"].includes(g.categoria));
+
+        const manoObraTotal = (jornalesAgg._sum.valorDia ?? 0) + manoObraGastos.reduce((s, g) => s + g.monto, 0);
+        const insumosTotal = insumosGastos.reduce((s, g) => s + g.monto, 0);
+        const costosDirectos = manoObraTotal + insumosTotal;
+        const costosIndirectos = indirectosGastos.reduce((s, g) => s + g.monto, 0);
+        const costoTotal = costosDirectos + costosIndirectos;
+        const ingresosAcumulados = todosIngresos._sum.monto ?? 0;
+        const saldoNeto = ingresosAcumulados - costoTotal;
+
+        // Projection
+        const totalPlantas = cultivos.reduce((s, c) => s + (c.cantidadPlantas ?? 0), 0);
+        const produccionProyectadaKg = totalPlantas * 20; // 20 kg/árbol plena producción Hass
+        const precios = compradores.map((c) => c.precioKg!).filter(Boolean);
+        const precioPromedioKg = precios.length > 0 ? precios.reduce((s, p) => s + p, 0) / precios.length : 3200;
+        const ingresoProyectado = produccionProyectadaKg * precioPromedioKg;
+        const roi = costoTotal > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
+
+        return {
+          costosDirectos,
+          manoObraTotal,
+          jornalesRegistrados: jornalesAgg._count ?? 0,
+          insumosTotal,
+          costosIndirectos,
+          costoTotal,
+          ingresosAcumulados,
+          saldoNeto,
+          produccionProyectadaKg,
+          precioPromedioKg,
+          ingresoProyectado,
+          roi,
+        };
+      })(),
       clima: {
         disponible: !!process.env.OPENWEATHER_API_KEY,
       },

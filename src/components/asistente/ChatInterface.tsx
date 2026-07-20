@@ -34,7 +34,22 @@ function buildContextString(ctx: any): string {
   }
 
   if (ctx.finanzas) {
-    parts.push(`FINANZAS: Gastos este mes $${ctx.finanzas.totalGastosMes?.toLocaleString("es-CO") ?? 0} COP.`);
+    parts.push(`FINANZAS MES ACTUAL: Gastos este mes $${ctx.finanzas.totalGastosMes?.toLocaleString("es-CO") ?? 0} COP.`);
+  }
+
+  if (ctx.metricas) {
+    const m = ctx.metricas;
+    parts.push(`MÉTRICAS FINANCIERAS CONSOLIDADAS:
+- Costos directos acumulados: $${m.costosDirectos?.toLocaleString("es-CO")} COP (Mano obra: $${m.manoObraTotal?.toLocaleString("es-CO")}, Insumos: $${m.insumosTotal?.toLocaleString("es-CO")})
+- Jornales registrados: ${m.jornalesRegistrados}
+- Costos indirectos: $${m.costosIndirectos?.toLocaleString("es-CO")} COP
+- COSTO TOTAL INVERTIDO: $${m.costoTotal?.toLocaleString("es-CO")} COP
+- Ingresos acumulados: $${m.ingresosAcumulados?.toLocaleString("es-CO")} COP
+- SALDO NETO: $${m.saldoNeto?.toLocaleString("es-CO")} COP
+- Producción proyectada (plena): ${m.produccionProyectadaKg?.toLocaleString("es-CO")} kg/año
+- Precio promedio compradores: $${m.precioPromedioKg?.toLocaleString("es-CO")}/kg
+- Ingreso anual proyectado: $${m.ingresoProyectado?.toLocaleString("es-CO")} COP
+- ROI estimado: ${m.roi?.toFixed(1)}%`);
   }
 
   return parts.join("\n\n");
