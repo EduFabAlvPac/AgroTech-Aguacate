@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { RegistroJornalForm } from "@/components/finanzas/RegistroJornalForm";
+import { ExportarFinagroButton } from "@/components/finanzas/ExportarFinagroButton";
 import { CATEGORIA_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { gastoFormSchema, ingresoFormSchema } from "@/lib/validations";
@@ -337,6 +338,7 @@ export function FinanzasClient({
             <Users size={14} />
             Registrar jornal
           </Button>
+          <ExportarFinagroButton />
           <Button variant="secondary" size="sm" onClick={handleExportPDF}>
             <FileDown size={14} />
             Exportar PDF
