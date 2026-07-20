@@ -6,9 +6,10 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import {
-  Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet, FileDown,
+  Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet, FileDown, Users,
 } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
+import { RegistroJornalForm } from "@/components/finanzas/RegistroJornalForm";
 import { CATEGORIA_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { gastoFormSchema, ingresoFormSchema } from "@/lib/validations";
@@ -53,6 +54,7 @@ export function FinanzasClient({
   // ── Gastos state ──────────────────────────────────────────────────────────
   const [gastos, setGastos] = useState(initialGastos);
   const [showGastoModal, setShowGastoModal] = useState(false);
+  const [showJornalModal, setShowJornalModal] = useState(false);
   const [gastoLoading, setGastoLoading] = useState(false);
   const [filterCat, setFilterCat] = useState("");
   const [filterPeriodo, setFilterPeriodo] = useState("2026");
@@ -320,7 +322,7 @@ export function FinanzasClient({
   return (
     <div className="space-y-6">
       {/* Top action bar */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <select
           value={filterPeriodo}
           onChange={(e) => setFilterPeriodo(e.target.value)}
@@ -330,10 +332,16 @@ export function FinanzasClient({
           <option value="2026">Año 2026</option>
           <option value="mes">Este mes</option>
         </select>
-        <Button variant="secondary" size="sm" onClick={handleExportPDF}>
-          <FileDown size={14} />
-          Exportar PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" onClick={() => setShowJornalModal(true)} style={{ minHeight: 44 }}>
+            <Users size={14} />
+            Registrar jornal
+          </Button>
+          <Button variant="secondary" size="sm" onClick={handleExportPDF}>
+            <FileDown size={14} />
+            Exportar PDF
+          </Button>
+        </div>
       </div>
 
       {/* KPI Summary */}
@@ -867,6 +875,22 @@ export function FinanzasClient({
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Jornal Modal ── */}
+      <Modal isOpen={showJornalModal} onClose={() => setShowJornalModal(false)} title="Registrar jornal" size="md">
+        <RegistroJornalForm
+          onSuccess={async () => {
+            setShowJornalModal(false);
+            // Refresh gastos to show the auto-created MANO_OBRA entry
+            try {
+              const res = await fetch("/api/gastos");
+              const { data } = await res.json();
+              if (Array.isArray(data)) setGastos(data);
+            } catch {}
+          }}
+          onCancel={() => setShowJornalModal(false)}
+        />
       </Modal>
     </div>
   );
