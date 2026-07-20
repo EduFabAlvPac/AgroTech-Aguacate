@@ -367,7 +367,7 @@ export function FinanzasClient({
   return (
     <div className="space-y-6">
       {/* Top action bar */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2" suppressHydrationWarning>
         <select
           value={filterPeriodo}
           onChange={(e) => setFilterPeriodo(e.target.value)}

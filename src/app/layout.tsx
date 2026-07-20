@@ -72,7 +72,7 @@ export default function RootLayout({
         {/* theme-color for browser chrome — matches AgroTech green */}
         <meta name="theme-color" content="#639922" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {children}
         <Toaster
           position="top-right"

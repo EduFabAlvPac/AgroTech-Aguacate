@@ -34,7 +34,7 @@ export function MapPreview({ finca }: MapPreviewProps) {
   const totalHa = lotes.reduce((s, l) => s + l.areaHa, 0);
 
   return (
-    <div className="card p-5 h-full">
+    <div className="card p-5 h-full" suppressHydrationWarning>
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
           <Map size={16} className="text-agro-400" />
