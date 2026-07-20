@@ -37,9 +37,9 @@ export type WeatherForecast = {
   list: ForecastItem[];
 };
 
-// Norte de Santander defaults
-const DEFAULT_LAT = 7.9273;
-const DEFAULT_LNG = -72.5078;
+// Ocaña, Norte de Santander defaults (Finca El Juncal)
+const DEFAULT_LAT = 8.320589;
+const DEFAULT_LNG = -73.337551;
 
 // ── Current weather ────────────────────────────────────────────────────────────
 

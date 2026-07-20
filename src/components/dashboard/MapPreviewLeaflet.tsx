@@ -60,8 +60,8 @@ export default function MapPreviewLeaflet({ lotes, lat, lng }: MapPreviewLeaflet
         mapInstance.current = map;
 
         L.tileLayer(
-          "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-          { maxZoom: 19 }
+          "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+          { maxZoom: 20 }
         ).addTo(map);
 
         const colors = ["#639922", "#1D9E75", "#BA7517", "#185FA5", "#8B3A8A"];

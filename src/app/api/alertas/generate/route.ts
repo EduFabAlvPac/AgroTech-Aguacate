@@ -31,9 +31,9 @@ export async function POST() {
       }),
     ]);
 
-    const lat = finca?.lat ?? 8.2393;
-    const lng = finca?.lng ?? -73.3556;
-    const municipio = finca?.municipio ?? "Norte de Santander";
+    const lat = finca?.lat ?? 8.320589;
+    const lng = finca?.lng ?? -73.337551;
+    const municipio = finca?.municipio ?? "Ocaña";
 
     // Build thresholds from user preferences (fallback to defaults)
     const thresholds: AlertThresholds = {

@@ -36,8 +36,8 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
     nombre: finca?.nombre ?? "",
     municipio: finca?.municipio ?? "",
     departamento: finca?.departamento ?? "",
-    lat: finca?.lat?.toString() ?? "7.9273",
-    lng: finca?.lng?.toString() ?? "-72.5078",
+    lat: finca?.lat?.toString() ?? "8.320589",
+    lng: finca?.lng?.toString() ?? "-73.337551",
     areaTotal: finca?.areaTotal?.toString() ?? "2",
   });
 

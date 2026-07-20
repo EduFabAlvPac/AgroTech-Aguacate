@@ -133,24 +133,24 @@ export default function LeafletMap({
           "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
       });
 
-      // Center on finca or Ocaña, Norte de Santander
+      // Center on finca or Ocaña, Norte de Santander (Finca El Juncal)
       const center: [number, number] = [
-        finca?.lat ?? 8.2393,
-        finca?.lng ?? -73.3556,
+        finca?.lat ?? 8.320589,
+        finca?.lng ?? -73.337551,
       ];
 
       const map = L.map(mapRef.current!, {
         center,
-        zoom: 15,
+        zoom: 16,
         zoomControl: true,
       });
 
       mapInstance.current = map;
 
-      // Base tile layer — satellite by default
+      // Base tile layer — Google Satellite (best coverage in rural Colombia)
       const satellite = L.tileLayer(
-        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-        { attribution: "Tiles © Esri", maxZoom: 19 }
+        "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+        { attribution: "Imagery © Google", maxZoom: 20 }
       );
       satellite.addTo(map);
 
@@ -161,8 +161,15 @@ export default function LeafletMap({
         maxZoom: 19,
       });
 
+      // Google Hybrid (satellite + labels) as third option
+      const hybrid = L.tileLayer(
+        "https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}",
+        { attribution: "Imagery © Google", maxZoom: 20 }
+      );
+
       const baseLayers = {
         "Satélite": satellite,
+        "Satélite + Nombres": hybrid,
         "Mapa base": osmLayer,
       };
 

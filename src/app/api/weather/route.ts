@@ -25,8 +25,8 @@ export async function GET(req: Request) {
       select: { lat: true, lng: true, municipio: true },
     });
 
-    const lat = finca?.lat ?? 7.9273;
-    const lng = finca?.lng ?? -72.5078;
+    const lat = finca?.lat ?? 8.320589;
+    const lng = finca?.lng ?? -73.337551;
 
     if (type === "forecast" || type === "daily") {
       const forecast = await getForecast(lat, lng);
