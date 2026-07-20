@@ -18,9 +18,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         categoria: body.categoria,
         monto: body.monto ? Number(body.monto) : undefined,
         fecha: body.fecha ? new Date(body.fecha) : undefined,
-        proveedor: body.proveedor,
-        notas: body.notas,
+        proveedor: body.proveedor || null,
+        notas: body.notas || null,
+        cultivoId: body.cultivoId || undefined,
       },
+      include: { cultivo: { include: { lote: true } } },
     });
 
     return NextResponse.json({ data: gasto });

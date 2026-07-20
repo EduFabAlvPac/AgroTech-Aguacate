@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from "recharts";
 import {
-  Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet, FileDown, Users,
+  Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet, FileDown, Users, Pencil,
 } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { RegistroJornalForm } from "@/components/finanzas/RegistroJornalForm";
@@ -56,6 +56,7 @@ export function FinanzasClient({
   const [gastos, setGastos] = useState(initialGastos);
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [showJornalModal, setShowJornalModal] = useState(false);
+  const [editingGasto, setEditingGasto] = useState<GastoWithCultivo | null>(null);
   const [gastoLoading, setGastoLoading] = useState(false);
   const [filterCat, setFilterCat] = useState("");
   const [filterPeriodo, setFilterPeriodo] = useState("2026");
@@ -217,8 +218,11 @@ export function FinanzasClient({
 
     setGastoLoading(true);
     try {
-      const res = await fetch("/api/gastos", {
-        method: "POST",
+      const url = editingGasto ? `/api/gastos/${editingGasto.id}` : "/api/gastos";
+      const method = editingGasto ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...gastoForm,
@@ -228,13 +232,21 @@ export function FinanzasClient({
       });
       const { data } = await res.json();
       if (!res.ok) throw new Error();
-      setGastos((prev) => [data, ...prev]);
+
+      if (editingGasto) {
+        setGastos((prev) => prev.map((g) => g.id === editingGasto.id ? data : g));
+        toast.success("Gasto actualizado");
+      } else {
+        setGastos((prev) => [data, ...prev]);
+        toast.success("Gasto registrado");
+      }
+
       setShowGastoModal(false);
+      setEditingGasto(null);
       setGastoForm({
         concepto: "", categoria: "INSUMOS", monto: "", fecha: today,
         proveedor: "", notas: "", cultivoId: cultivos[0]?.id ?? "",
       });
-      toast.success("Gasto registrado");
     } catch {
       toast.error("Error al registrar el gasto");
     } finally {
@@ -366,10 +378,6 @@ export function FinanzasClient({
           <option value="mes">Este mes</option>
         </select>
         <div className="flex items-center gap-2">
-          <Button size="sm" onClick={() => setShowJornalModal(true)} style={{ minHeight: 44 }}>
-            <Users size={14} />
-            Registrar jornal
-          </Button>
           <ExportarFinagroButton />
           <Button variant="secondary" size="sm" onClick={handleExportPDF}>
             <FileDown size={14} />
@@ -624,10 +632,16 @@ export function FinanzasClient({
               ))}
             </select>
           </div>
-          <Button size="sm" className="self-start sm:self-auto" onClick={() => setShowGastoModal(true)}>
-            <Plus size={14} />
-            Nuevo gasto
-          </Button>
+          <div className="flex items-center gap-2 self-start sm:self-auto">
+            <Button size="sm" onClick={() => setShowJornalModal(true)}>
+              <Users size={14} />
+              Jornal
+            </Button>
+            <Button size="sm" onClick={() => { setEditingGasto(null); setShowGastoModal(true); }}>
+              <Plus size={14} />
+              Nuevo gasto
+            </Button>
+          </div>
         </div>
 
         {filteredGastos.length === 0 ? (
@@ -680,13 +694,34 @@ export function FinanzasClient({
                       {formatCOPFull(g.monto)}
                     </td>
                     <td className="px-4 sm:px-5 py-3">
-                      <button
-                        onClick={() => handleGastoDelete(g.id)}
-                        className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500 transition-colors"
-                        aria-label="Eliminar gasto"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => {
+                            setEditingGasto(g);
+                            setGastoForm({
+                              concepto: g.concepto,
+                              categoria: g.categoria,
+                              monto: g.monto.toString(),
+                              fecha: new Date(g.fecha).toISOString().split("T")[0],
+                              proveedor: g.proveedor ?? "",
+                              notas: g.notas ?? "",
+                              cultivoId: g.cultivoId ?? cultivos[0]?.id ?? "",
+                            });
+                            setShowGastoModal(true);
+                          }}
+                          className="p-1.5 hover:bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-agro-600 transition-colors"
+                          aria-label="Editar gasto"
+                        >
+                          <Pencil size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleGastoDelete(g.id)}
+                          className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                          aria-label="Eliminar gasto"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -815,7 +850,7 @@ export function FinanzasClient({
       </Modal>
 
       {/* ── Gasto Modal ── */}
-      <Modal isOpen={showGastoModal} onClose={() => setShowGastoModal(false)} title="Registrar gasto">
+      <Modal isOpen={showGastoModal} onClose={() => { setShowGastoModal(false); setEditingGasto(null); }} title={editingGasto ? "Editar gasto" : "Registrar gasto"}>
         <form onSubmit={handleGastoSubmit} className="space-y-4">
           <Input
             label="Concepto del gasto"
