@@ -12,6 +12,34 @@ interface ChatInterfaceProps {
 
 type Message = { role: string; content: string };
 
+/** Converts the farm context API response into a text block for the AI prompt */
+function buildContextString(ctx: any): string {
+  if (!ctx) return "";
+  const parts: string[] = [];
+
+  if (ctx.finca) {
+    parts.push(`FINCA: ${ctx.finca.nombre}, ${ctx.finca.municipio}, ${ctx.finca.departamento}. Área: ${ctx.finca.areaTotal ?? "?"} ha.`);
+  }
+
+  if (ctx.cultivos?.length > 0) {
+    const cultivoLines = ctx.cultivos.map((c: any) =>
+      `- ${c.lote}: ${c.especie} ${c.variedad}, etapa ${c.etapa}${c.diasDesdeSiembra != null ? `, día ${c.diasDesdeSiembra} desde siembra` : ""}${c.cantidadPlantas ? `, ${c.cantidadPlantas} plantas` : ""}`
+    );
+    parts.push(`CULTIVOS ACTIVOS:\n${cultivoLines.join("\n")}`);
+  }
+
+  if (ctx.alertasActivas?.length > 0) {
+    const alertLines = ctx.alertasActivas.map((a: any) => `- [${a.severidad}] ${a.titulo}`);
+    parts.push(`ALERTAS ACTIVAS:\n${alertLines.join("\n")}`);
+  }
+
+  if (ctx.finanzas) {
+    parts.push(`FINANZAS: Gastos este mes $${ctx.finanzas.totalGastosMes?.toLocaleString("es-CO") ?? 0} COP.`);
+  }
+
+  return parts.join("\n\n");
+}
+
 export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -63,10 +91,22 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
     setIsLoading(true);
 
     try {
+      // Fetch dynamic farm context (runs on Node.js, has access to Prisma)
+      let farmContext: string | undefined;
+      try {
+        const ctxRes = await fetch("/api/chat/context");
+        if (ctxRes.ok) {
+          const { data } = await ctxRes.json();
+          farmContext = buildContextString(data);
+        }
+      } catch {
+        // Context fetch failed silently — proceed without dynamic context
+      }
+
       const res = await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: updatedMessages }),
+        body: JSON.stringify({ messages: updatedMessages, farmContext }),
       });
 
       const data = await res.json();

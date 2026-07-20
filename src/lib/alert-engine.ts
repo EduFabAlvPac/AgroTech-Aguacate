@@ -14,6 +14,17 @@ export const DEFAULT_THRESHOLDS = {
 
 export type AlertThresholds = typeof DEFAULT_THRESHOLDS;
 
+/** Context about the active crop — used to parametrize alert descriptions */
+export type CropContext = {
+  cropName: string;    // e.g. "Aguacate Hass", "Café Caturra"
+  cropStage: string;   // EtapaCultivo value
+};
+
+const DEFAULT_CROP_CONTEXT: CropContext = {
+  cropName: "cultivo",
+  cropStage: "SIEMBRA",
+};
+
 type GeneratedAlert = {
   tipo: TipoAlerta;
   titulo: string;
@@ -25,19 +36,33 @@ type GeneratedAlert = {
   municipio: string;
 };
 
+// ── Helper: stage-aware vulnerability text ─────────────────────────────────────
+
+function getVulnerabilityText(cropName: string, stage: string): string {
+  const isEarly = ["PREPARACION", "SIEMBRA", "ESTABLECIMIENTO"].includes(stage);
+  if (isEarly) {
+    return `Las plantas jóvenes de ${cropName} son especialmente vulnerables en esta etapa.`;
+  }
+  return `Revise el estado de su ${cropName} y tome medidas preventivas.`;
+}
+
 // ── Main generation function ───────────────────────────────────────────────────
 
 export async function generateWeatherAlerts(
   lat: number,
   lng: number,
   municipio: string,
-  thresholds: AlertThresholds = DEFAULT_THRESHOLDS
+  thresholds: AlertThresholds = DEFAULT_THRESHOLDS,
+  cropContext: CropContext = DEFAULT_CROP_CONTEXT
 ): Promise<{ created: number; skipped: number }> {
   const forecast = await getForecast(lat, lng);
   if (!forecast) return { created: 0, skipped: 0 };
 
   const daily = groupForecastByDay(forecast);
   const potentialAlerts: GeneratedAlert[] = [];
+
+  const { cropName, cropStage } = cropContext;
+  const vulnText = getVulnerabilityText(cropName, cropStage);
 
   // ── Check each day ──────────────────────────────────────────────────────────
   for (const day of daily) {
@@ -50,7 +75,7 @@ export async function generateWeatherAlerts(
       potentialAlerts.push({
         tipo: "HELADA",
         titulo: `Riesgo de helada el ${day.dayLabel.toLowerCase()} (${day.tempMin}°C)`,
-        descripcion: `Temperatura mínima proyectada de ${day.tempMin}°C en ${municipio}. ${isCritical ? "⚠️ TEMPERATURA CRÍTICA para plántulas de aguacate. Acción inmediata requerida." : "Las plántulas recién sembradas son vulnerables al frío nocturno."} Aplique riego nocturno o cubra las plantas con sacos o agrocover.`,
+        descripcion: `Temperatura mínima proyectada de ${day.tempMin}°C en ${municipio}. ${isCritical ? `⚠️ TEMPERATURA CRÍTICA para ${cropName}. Acción inmediata requerida.` : vulnText} Aplique riego nocturno o cubra las plantas con sacos o agrocover.`,
         severidad: isCritical ? "CRITICA" : "ALTA",
         fechaInicio: fecha,
         fechaFin: new Date(fecha.getTime() + 8 * 3600000),
@@ -64,7 +89,7 @@ export async function generateWeatherAlerts(
       potentialAlerts.push({
         tipo: "TEMPERATURA_ALTA",
         titulo: `Temperatura alta el ${day.dayLabel.toLowerCase()} (${day.tempMax}°C)`,
-        descripcion: `Se proyecta temperatura máxima de ${day.tempMax}°C en ${municipio}. El aguacate Hass sufre estrés calórico por encima de 30°C. Aumente la frecuencia de riego y verifique coberturas del suelo.`,
+        descripcion: `Se proyecta temperatura máxima de ${day.tempMax}°C en ${municipio}. ${cropName} puede sufrir estrés calórico. Aumente la frecuencia de riego y verifique coberturas del suelo.`,
         severidad: day.tempMax >= 35 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
         datos: { tempMax: day.tempMax, fuente: "OpenWeather" },
@@ -72,12 +97,12 @@ export async function generateWeatherAlerts(
       });
     }
 
-    // LLUVIA_EXCESIVA — flood / phytophthora risk
+    // LLUVIA_EXCESIVA — flood / root disease risk
     if (day.rainMm >= thresholds.rainAlertMm) {
       potentialAlerts.push({
         tipo: "LLUVIA_EXCESIVA",
         titulo: `Lluvia excesiva el ${day.dayLabel.toLowerCase()} (${day.rainMm} mm)`,
-        descripcion: `Se pronostican ${day.rainMm} mm de lluvia en ${municipio}. Riesgo de encharcamiento y activación de Phytophthora cinnamomi. Verifique drenajes, suspenda riego y aplique Fosetil-aluminio preventivo 1–2 semanas después.`,
+        descripcion: `Se pronostican ${day.rainMm} mm de lluvia en ${municipio}. Riesgo de encharcamiento y enfermedades radiculares en ${cropName}. Verifique drenajes y suspenda riego.`,
         severidad: day.rainMm >= 60 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
         datos: { rainMm: day.rainMm, pop: day.popMax, fuente: "OpenWeather" },
@@ -90,7 +115,7 @@ export async function generateWeatherAlerts(
       potentialAlerts.push({
         tipo: "VIENTO_FUERTE",
         titulo: `Vientos fuertes el ${day.dayLabel.toLowerCase()} (${day.windSpeed} km/h)`,
-        descripcion: `Se esperan vientos de ${day.windSpeed} km/h en ${municipio}. Las plántulas jóvenes de aguacate son susceptibles al vuelco y daño mecánico. Revise tutores y estacas de soporte.`,
+        descripcion: `Se esperan vientos de ${day.windSpeed} km/h en ${municipio}. ${vulnText} Revise tutores y estacas de soporte.`,
         severidad: day.windSpeed >= 60 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
         datos: { windSpeed: day.windSpeed, fuente: "OpenWeather" },
@@ -105,7 +130,7 @@ export async function generateWeatherAlerts(
     potentialAlerts.push({
       tipo: "SEQUIA",
       titulo: `Posible sequía prolongada (${dryDays} días secos proyectados)`,
-      descripcion: `El pronóstico muestra ${dryDays} días consecutivos sin lluvia significativa en ${municipio}. Para plántulas de aguacate en establecimiento, aumente la frecuencia de riego a cada 2 días y aplique mulching de 8–10 cm alrededor de las plantas.`,
+      descripcion: `El pronóstico muestra ${dryDays} días consecutivos sin lluvia significativa en ${municipio}. Para ${cropName} en ${cropStage.toLowerCase()}, aumente la frecuencia de riego y aplique mulching alrededor de las plantas.`,
       severidad: dryDays >= 8 ? "ALTA" : "MEDIA",
       fechaInicio: new Date(),
       datos: { dryDays, fuente: "OpenWeather" },

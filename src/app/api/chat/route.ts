@@ -1,14 +1,7 @@
 export const runtime = "edge";
 export const maxDuration = 30;
 
-const SYSTEM_PROMPT = `Eres AgroIA, asistente especializado en cultivo de aguacate Hass en Colombia, región Andina y Norte de Santander entre 1.500 y 2.200 msnm.
-
-CONTEXTO DE LA FINCA:
-- Finca El Juncal, Ocaña, Norte de Santander, Colombia
-- 2 lotes de 1 hectárea cada uno
-- Lote A: 1.850 msnm, Aguacate Hass, etapa Siembra
-- Lote B: 1.820 msnm, Aguacate Hass, etapa Siembra
-- Siembra: julio 2026, 320 plantas (160/lote, distancia 8x8m)
+const BASE_SYSTEM_PROMPT = `Eres AgroIA, asistente especializado en cultivos agrícolas en Colombia, región Andina y Norte de Santander entre 1.500 y 2.200 msnm.
 
 CONOCIMIENTO TÉCNICO:
 PLAGAS: Antracnosis (Colletotrichum): manchas negras en frutos, controlar con Mancozeb 80% 2.5g/L cada 15 días en época lluviosa. Phytophthora cinnamomi: raíces negras, marchitez, prevenir con buen drenaje y Fosetil-aluminio 2g/L mensual. Trips: deformación de brotes, controlar con Spinosad 0.4mL/L. Ácaros: bronceado en hojas, controlar con Abamectina 0.8mL/L.
@@ -21,11 +14,11 @@ HELADAS: Temperatura crítica menor a 12°C para plántulas. Acción: riego noct
 
 COSTOS 2026 por hectárea: Plántulas: 800.000-1.280.000 COP. Fertilizantes año 1: 300.000-450.000 COP. Fungicidas año 1: 250.000-400.000 COP. Mano de obra año 1: 1.500.000-2.500.000 COP. Primera cosecha año 2: 3-5 kg/árbol.
 
-REGLAS: Responde siempre en español colombiano, práctico y directo. Da cantidades concretas en COP, kg, litros. Máximo 3-4 párrafos salvo que pidan más detalle.`;
+REGLAS: Responde siempre en español colombiano, práctico y directo. Da cantidades concretas en COP, kg, litros. Máximo 3-4 párrafos salvo que pidan más detalle. Si recibes contexto dinámico de la finca, úsalo para personalizar tu respuesta al estado actual del cultivo.`;
 
 export async function POST(req: Request) {
   try {
-    const { messages } = await req.json();
+    const { messages, farmContext } = await req.json();
     const apiKey = process.env.GROQ_API_KEY;
 
     if (!apiKey) {
@@ -33,6 +26,12 @@ export async function POST(req: Request) {
         JSON.stringify({ error: "GROQ_API_KEY no configurada" }),
         { status: 500, headers: { "Content-Type": "application/json" } }
       );
+    }
+
+    // Build system prompt: base + dynamic farm context if available
+    let systemPrompt = BASE_SYSTEM_PROMPT;
+    if (farmContext) {
+      systemPrompt += `\n\nCONTEXTO ACTUAL DE LA FINCA (datos en tiempo real):\n${farmContext}`;
     }
 
     const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -44,8 +43,8 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: "llama-3.1-8b-instant",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
-          ...messages
+          { role: "system", content: systemPrompt },
+          ...messages,
         ],
         max_tokens: 800,
         temperature: 0.7,
@@ -67,7 +66,6 @@ export async function POST(req: Request) {
       JSON.stringify({ content: text }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
-
   } catch (error: any) {
     return new Response(
       JSON.stringify({ error: error?.message || "Error desconocido" }),
