@@ -236,6 +236,7 @@ model Jornal {
   valorDia        Float                       // Tarifa día completa en COP (ej: $50.000)
   actividad       String                      // "Fumigada", "Abonada", "Limpia", "Riego manual"
   descripcion     String?                     // Detalles adicionales
+  imagen          String?   @db.Text          // Base64 data URL or external URL
   loteArea        String?                     // Si aplica a un área específica del lote
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt

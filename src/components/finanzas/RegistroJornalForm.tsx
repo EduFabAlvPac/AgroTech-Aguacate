@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button, Input, Select } from "@/components/ui";
+import { PhotoCapture } from "@/components/ui/PhotoCapture";
 import toast from "react-hot-toast";
 
 type CultivoOption = { id: string; lote: { nombre: string }; variedad: string };
@@ -32,6 +33,7 @@ const today = new Date().toISOString().split("T")[0];
 export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormProps) {
   const [cultivos, setCultivos] = useState<CultivoOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [foto, setFoto] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     operario: "",
@@ -78,6 +80,7 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
           valorDia: Number(form.valorDia),
           horasTrabajadas: Number(form.horasTrabajadas) || 8,
           cultivoId: form.cultivoId || undefined,
+          imagen: foto || undefined,
         }),
       });
 
@@ -192,6 +195,14 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
         value={form.descripcion}
         onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
         placeholder="Ej: Fumigada con Mancozeb, lote norte"
+      />
+
+      {/* Captura fotográfica — Cuaderno de Campo BPA */}
+      <PhotoCapture
+        label="Evidencia fotográfica (Cuaderno BPA)"
+        preview={foto}
+        onCapture={(dataUrl) => setFoto(dataUrl)}
+        onRemove={() => setFoto(null)}
       />
 
       {/* Quick activity chips */}

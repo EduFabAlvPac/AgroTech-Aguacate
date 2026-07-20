@@ -74,7 +74,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { operario, fecha, horasTrabajadas, valorDia, actividad, descripcion, cultivoId, loteId } = body;
+    const { operario, fecha, horasTrabajadas, valorDia, actividad, descripcion, cultivoId, loteId, imagen } = body;
 
     // Validaciones
     if (!operario?.trim()) {
@@ -118,6 +118,7 @@ export async function POST(req: Request) {
         valorDia: valorDiaNum,
         actividad: actividad.trim(),
         descripcion: descripcion?.trim() || null,
+        imagen: imagen || null,
         cultivoId: cultivoId || null,
         loteId: loteId || null,
       },
