@@ -60,6 +60,9 @@ export default function RootLayout({
   return (
     <html lang="es" className={inter.variable} suppressHydrationWarning>
       <head>
+        {/* Leaflet CSS — required for map rendering */}
+        <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.draw/1.0.4/leaflet.draw.css" />
         {/* apple-touch-icon for all available sizes — needed for iOS home screen */}
         <link rel="apple-touch-icon" sizes="72x72" href="/icons/icon-72.png" />
         <link rel="apple-touch-icon" sizes="96x96" href="/icons/icon-96.png" />
