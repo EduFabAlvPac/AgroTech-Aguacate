@@ -147,6 +147,19 @@ export async function POST(req: Request) {
       },
     });
 
+    // ── Sync: Auto-create registro in cultivo's bitácora ─────────────────────
+    if (cultivoId && ingreso.id) {
+      db.registroCultivo.create({
+        data: {
+          cultivoId,
+          tipo: "COSECHA",
+          descripcion: `📥 Ingreso: ${concepto} ($${montoNum.toLocaleString("es-CO")} COP${resolvedCantidadKg ? `, ${resolvedCantidadKg} kg` : ""})`,
+          fecha: new Date(fecha),
+          ingresoId: ingreso.id,
+        },
+      }).catch(() => {}); // Non-blocking
+    }
+
     return NextResponse.json({ data: ingreso }, { status: 201 });
   } catch (error) {
     console.error("[POST /api/ingresos]", error);

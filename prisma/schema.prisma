@@ -184,6 +184,11 @@ model RegistroCultivo {
   fecha       DateTime     @default(now())
   imagenes    String[]
   datos       Json?
+  // Bidirectional sync: optional 1:1 link to financial records
+  gastoId     String?      @unique
+  gasto       Gasto?       @relation(fields: [gastoId], references: [id])
+  ingresoId   String?      @unique
+  ingreso     Ingreso?     @relation(fields: [ingresoId], references: [id])
   createdAt   DateTime     @default(now())
 
   @@map("registros_cultivo")
@@ -216,6 +221,9 @@ model Gasto {
   notas      String?
   createdAt  DateTime      @default(now())
   updatedAt  DateTime      @updatedAt
+
+  // Back-relation: optional link from registro de cultivo
+  registro   RegistroCultivo?
 
   @@map("gastos")
 }
@@ -274,6 +282,9 @@ model Ingreso {
   notas       String?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+
+  // Back-relation: optional link from registro de cultivo
+  registro    RegistroCultivo?
 
   @@map("ingresos")
 }

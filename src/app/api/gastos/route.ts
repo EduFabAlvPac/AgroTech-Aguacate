@@ -97,6 +97,28 @@ export async function POST(req: Request) {
       include: { cultivo: { include: { lote: true } } },
     });
 
+    // ── Sync: Auto-create registro in cultivo's bitácora ─────────────────────
+    if (cultivoId && gasto.id) {
+      const CATEGORIA_TO_TIPO: Record<string, string> = {
+        INSUMOS: "FERTILIZACION",
+        MANO_OBRA: "OBSERVACION",
+        SEMILLAS_PLANTULAS: "SIEMBRA",
+        AGUA_RIEGO: "RIEGO",
+        TRATAMIENTO_PLAGAS: "TRATAMIENTO_PLAGAS",
+      };
+      const tipoRegistro = CATEGORIA_TO_TIPO[categoria] || "OBSERVACION";
+
+      db.registroCultivo.create({
+        data: {
+          cultivoId,
+          tipo: tipoRegistro as any,
+          descripcion: `💰 Gasto: ${concepto} ($${Number(monto).toLocaleString("es-CO")} COP)`,
+          fecha: fecha ? new Date(fecha) : new Date(),
+          gastoId: gasto.id,
+        },
+      }).catch(() => {}); // Non-blocking — don't fail the main request
+    }
+
     return NextResponse.json({ data: gasto }, { status: 201 });
   } catch (error) {
     console.error("[POST /api/gastos]", error);
