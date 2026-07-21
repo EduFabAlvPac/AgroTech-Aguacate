@@ -58,8 +58,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     };
 
     if (body.costo && Number(body.costo) > 0 && TIPO_TO_CATEGORIA[tipo]) {
+      // Get the finca for ownership
+      const cultivo = await db.cultivo.findUnique({ where: { id }, include: { lote: { select: { fincaId: true } } } });
       const gasto = await db.gasto.create({
         data: {
+          userId: session.user.id,
+          fincaId: cultivo?.lote.fincaId ?? "",
           cultivoId: id,
           concepto: `${tipo.replace(/_/g, " ")} — ${descripcion.slice(0, 50)}`,
           categoria: TIPO_TO_CATEGORIA[tipo] as any,

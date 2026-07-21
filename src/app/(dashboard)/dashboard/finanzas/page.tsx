@@ -12,10 +12,15 @@ export default async function FinanzasPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
 
-  const [gastos, ingresos, cultivos, compradores, finca] = await Promise.all([
+  const [gastos, ingresos, cultivos, compradores, finca, lotes, presupuestos] = await Promise.all([
     db.gasto.findMany({
-      where: { cultivo: { lote: { finca: { userId: session.user.id } } } },
-      include: { cultivo: { include: { lote: true } } },
+      where: {
+        OR: [
+          { userId: session.user.id },
+          { cultivo: { lote: { finca: { userId: session.user.id } } } },
+        ],
+      },
+      include: { cultivo: { include: { lote: true } }, lote: true },
       orderBy: { fecha: "desc" },
     }),
     db.ingreso.findMany({
@@ -41,7 +46,18 @@ export default async function FinanzasPage() {
     }),
     db.finca.findFirst({
       where: { userId: session.user.id },
-      select: { nombre: true },
+      select: { nombre: true, lotes: { select: { id: true, nombre: true, areaHa: true } } },
+    }),
+    db.lote.findMany({
+      where: { finca: { userId: session.user.id } },
+      select: { id: true, nombre: true, areaHa: true },
+      orderBy: { nombre: "asc" },
+    }),
+    db.presupuesto.findMany({
+      where: {
+        finca: { userId: session.user.id },
+        anio: new Date().getFullYear(),
+      },
     }),
   ]);
 
@@ -49,7 +65,7 @@ export default async function FinanzasPage() {
     <>
       <Header
         title="Finanzas"
-        subtitle="Gastos, ingresos y resumen financiero del cultivo"
+        subtitle="Gestión financiera agrícola completa"
       />
       <main className="page-scroll">
         <FinanzasClient
@@ -57,6 +73,8 @@ export default async function FinanzasPage() {
           ingresos={ingresos}
           cultivos={cultivos}
           compradores={compradores}
+          lotes={lotes}
+          presupuestos={presupuestos}
           nombreFinca={finca?.nombre}
         />
       </main>

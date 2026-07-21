@@ -129,14 +129,18 @@ export async function POST(req: Request) {
     });
 
     // ── Efecto colateral: crear gasto automático MANO_OBRA ──────────────────────
+    const finca = await db.finca.findFirst({ where: { userId: session.user.id }, select: { id: true } });
     await db.gasto.create({
       data: {
+        userId: session.user.id,
+        fincaId: finca?.id ?? "",
         concepto: `Jornal ${operario.trim()} — ${actividad.trim()}`,
         categoria: "MANO_OBRA",
         monto: valorDiaNum,
         fecha: fecha ? new Date(fecha) : new Date(),
         notas: `Registrado automáticamente desde módulo de Jornales. ${horasNum}h trabajadas.`,
         cultivoId: cultivoId || null,
+        loteId: loteId || null,
       },
     });
 

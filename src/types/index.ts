@@ -9,10 +9,12 @@ import type {
   Comprador,
   AlertaClimatica,
   ChatMessage,
+  Presupuesto,
   EtapaCultivo,
   EstadoCultivo,
   TipoRegistro,
   CategoriaGasto,
+  TipoGasto,
   TipoComprador,
   TipoAlerta,
   Severidad,
@@ -22,8 +24,8 @@ import type {
 
 export type {
   User, Finca, Lote, Cultivo, RegistroCultivo,
-  Gasto, Ingreso, Comprador, AlertaClimatica, ChatMessage,
-  EtapaCultivo, EstadoCultivo, TipoRegistro, CategoriaGasto,
+  Gasto, Ingreso, Comprador, AlertaClimatica, ChatMessage, Presupuesto,
+  EtapaCultivo, EstadoCultivo, TipoRegistro, CategoriaGasto, TipoGasto,
   TipoComprador, TipoAlerta, Severidad, UserRole, ChatRole,
 };
 
@@ -192,4 +194,10 @@ export const TIPO_COMPRADOR_LABELS: Record<TipoComprador, string> = {
   PLAZA_MERCADO: "Plaza de mercado",
   RESTAURANTE: "Restaurante",
   OTRO: "Otro",
+};
+
+export const TIPO_GASTO_LABELS: Record<TipoGasto, string> = {
+  FIJO: "Fijo",
+  VARIABLE: "Variable",
+  INVERSION: "Inversión",
 };

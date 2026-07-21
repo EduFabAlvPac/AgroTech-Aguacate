@@ -20,9 +20,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         fecha: body.fecha ? new Date(body.fecha) : undefined,
         proveedor: body.proveedor || null,
         notas: body.notas || null,
-        cultivoId: body.cultivoId || undefined,
+        cultivoId: body.cultivoId || null,
+        loteId: body.loteId || null,
+        subcategoria: body.subcategoria || null,
+        cantidad: body.cantidad ? Number(body.cantidad) : null,
+        unidad: body.unidad || null,
+        precioUnitario: body.precioUnitario ? Number(body.precioUnitario) : null,
+        numeroFactura: body.numeroFactura || null,
+        tipoGasto: body.tipoGasto || undefined,
       },
-      include: { cultivo: { include: { lote: true } } },
+      include: { cultivo: { include: { lote: true } }, lote: true },
     });
 
     return NextResponse.json({ data: gasto });

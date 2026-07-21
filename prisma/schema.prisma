@@ -24,6 +24,8 @@ model User {
   compradores  Comprador[]
   chatMessages ChatMessage[]
   preferences  UserPreferences?
+  gastos       Gasto[]
+  presupuestos Presupuesto[]
 
   @@map("users")
 }
@@ -52,6 +54,8 @@ model Finca {
   updatedAt    DateTime @updatedAt
 
   lotes        Lote[]
+  gastos       Gasto[]
+  presupuestos Presupuesto[]
 
   @@map("fincas")
 }
@@ -75,6 +79,7 @@ model Lote {
 
   cultivos  Cultivo[]
   jornales  Jornal[]
+  gastos    Gasto[]
 
   @@map("lotes")
 }
@@ -209,23 +214,60 @@ enum TipoRegistro {
 // ─── EXPENSES / GASTOS ────────────────────────────────────────────────────────
 
 model Gasto {
-  id         String        @id @default(cuid())
-  cultivoId  String?
-  cultivo    Cultivo?      @relation(fields: [cultivoId], references: [id])
-  concepto   String
-  categoria  CategoriaGasto
-  monto      Float
-  fecha      DateTime      @default(now())
-  proveedor  String?
-  factura    String?
-  notas      String?
-  createdAt  DateTime      @default(now())
-  updatedAt  DateTime      @updatedAt
+  id             String         @id @default(cuid())
+  userId         String
+  fincaId        String
+  loteId         String?
+  cultivoId      String?
+  concepto       String
+  categoria      CategoriaGasto
+  subcategoria   String?
+  monto          Float
+  cantidad       Float?
+  unidad         String?
+  precioUnitario Float?
+  proveedor      String?
+  numeroFactura  String?
+  tipoGasto      TipoGasto      @default(VARIABLE)
+  fecha          DateTime       @default(now())
+  notas          String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id])
+  finca          Finca          @relation(fields: [fincaId], references: [id])
+  lote           Lote?          @relation(fields: [loteId], references: [id])
+  cultivo        Cultivo?       @relation(fields: [cultivoId], references: [id])
 
   // Back-relation: optional link from registro de cultivo
-  registro   RegistroCultivo?
+  registro       RegistroCultivo?
 
   @@map("gastos")
+}
+
+enum TipoGasto {
+  FIJO
+  VARIABLE
+  INVERSION
+}
+
+// ─── BUDGET / PRESUPUESTO ─────────────────────────────────────────────────────
+
+model Presupuesto {
+  id             String         @id @default(cuid())
+  userId         String
+  fincaId        String
+  anio           Int
+  categoria      CategoriaGasto
+  montoPlaneado  Float
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  user           User           @relation(fields: [userId], references: [id])
+  finca          Finca          @relation(fields: [fincaId], references: [id])
+
+  @@unique([fincaId, anio, categoria])
+  @@map("presupuestos")
 }
 
 // ─── LABOR / JORNALES ─────────────────────────────────────────────────────────

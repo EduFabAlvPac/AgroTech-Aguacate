@@ -16,8 +16,17 @@ export async function GET(req: Request) {
     const hasta = searchParams.get("hasta");
     const summary = searchParams.get("summary") === "true";
 
+    // Support both legacy (via cultivo) and new (via userId/fincaId) ownership
+    const finca = await db.finca.findFirst({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+
     const where: any = {
-      cultivo: { lote: { finca: { userId: session.user.id } } },
+      OR: [
+        { userId: session.user.id },
+        { cultivo: { lote: { finca: { userId: session.user.id } } } },
+      ],
     };
 
     if (categoria) where.categoria = categoria;
@@ -57,7 +66,7 @@ export async function GET(req: Request) {
 
     const gastos = await db.gasto.findMany({
       where,
-      include: { cultivo: { include: { lote: true } } },
+      include: { cultivo: { include: { lote: true } }, lote: true },
       orderBy: { fecha: "desc" },
     });
 
@@ -75,7 +84,10 @@ export async function POST(req: Request) {
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
     const body = await req.json();
-    const { concepto, categoria, monto, fecha, proveedor, notas, cultivoId } = body;
+    const {
+      concepto, categoria, monto, fecha, proveedor, notas, cultivoId,
+      loteId, subcategoria, cantidad, unidad, precioUnitario, numeroFactura, tipoGasto,
+    } = body;
 
     if (!concepto || !categoria || !monto) {
       return NextResponse.json(
@@ -84,8 +96,20 @@ export async function POST(req: Request) {
       );
     }
 
+    // Get finca for ownership
+    const finca = await db.finca.findFirst({
+      where: { userId: session.user.id },
+      select: { id: true },
+    });
+
+    if (!finca) {
+      return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+    }
+
     const gasto = await db.gasto.create({
       data: {
+        userId: session.user.id,
+        fincaId: finca.id,
         concepto,
         categoria,
         monto: Number(monto),
@@ -93,8 +117,15 @@ export async function POST(req: Request) {
         proveedor: proveedor || undefined,
         notas: notas || undefined,
         cultivoId: cultivoId || undefined,
+        loteId: loteId || undefined,
+        subcategoria: subcategoria || undefined,
+        cantidad: cantidad ? Number(cantidad) : undefined,
+        unidad: unidad || undefined,
+        precioUnitario: precioUnitario ? Number(precioUnitario) : undefined,
+        numeroFactura: numeroFactura || undefined,
+        tipoGasto: tipoGasto || "VARIABLE",
       },
-      include: { cultivo: { include: { lote: true } } },
+      include: { cultivo: { include: { lote: true } }, lote: true },
     });
 
     // ── Sync: Auto-create registro in cultivo's bitácora ─────────────────────
