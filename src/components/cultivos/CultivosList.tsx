@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Sprout, ClipboardList, DollarSign, Pencil, Trash2, MapPin } from "lucide-react";
+import { Plus, Sprout, ClipboardList, DollarSign, Pencil, Trash2, MapPin, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input, EmptyState } from "@/components/ui";
 import { RegistroForm } from "@/components/cultivos/RegistroForm";
+import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
 import { LoteForm } from "@/components/cultivos/LoteForm";
 import { CultivoForm } from "@/components/cultivos/CultivoForm";
 import { ETAPA_LABELS } from "@/types";
@@ -62,6 +63,7 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [lotes, setLotes] = useState<LoteWithCultivos[]>(finca?.lotes ?? []);
   const [selectedCultivoId, setSelectedCultivoId] = useState<string | null>(null);
   const [showRegistroModal, setShowRegistroModal] = useState(false);
+  const [diagnosticoCultivoId, setDiagnosticoCultivoId] = useState<string | null>(null);
   const [etapaLoading, setEtapaLoading] = useState<string | null>(null);
 
   // Lote CRUD state
@@ -524,6 +526,10 @@ export function CultivosList({ finca }: CultivosListProps) {
                           >
                             <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
                           </button>
+                          <Button size="sm" variant="secondary" onClick={() => setDiagnosticoCultivoId(cultivo.id)} style={{ minHeight: 44 }}>
+                            <Sparkles size={14} />
+                            Diagnóstico IA
+                          </Button>
                           <Button size="sm" onClick={() => handleNuevoRegistro(cultivo.id)} style={{ minHeight: 44 }}>
                             <Plus size={14} />
                             Nuevo registro
@@ -704,6 +710,21 @@ export function CultivosList({ finca }: CultivosListProps) {
             cultivoId={selectedCultivoId}
             onSuccess={handleRegistroCreado}
             onCancel={() => setShowRegistroModal(false)}
+          />
+        )}
+      </Modal>
+
+      {/* Diagnóstico IA Modal */}
+      <Modal
+        isOpen={!!diagnosticoCultivoId}
+        onClose={() => setDiagnosticoCultivoId(null)}
+        title="Diagnóstico por foto"
+      >
+        {diagnosticoCultivoId && (
+          <DiagnosticoForm
+            cultivoId={diagnosticoCultivoId}
+            onSuccess={() => { setDiagnosticoCultivoId(null); router.refresh(); }}
+            onCancel={() => setDiagnosticoCultivoId(null)}
           />
         )}
       </Modal>

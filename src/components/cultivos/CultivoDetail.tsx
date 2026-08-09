@@ -1,10 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown } from "lucide-react";
+import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { Button, Modal, EmptyState } from "@/components/ui";
 import { RegistroForm } from "@/components/cultivos/RegistroForm";
+import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
 import { ETAPA_LABELS, TIPO_REGISTRO_LABELS, CATEGORIA_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { differenceInDays } from "date-fns";
@@ -37,6 +38,7 @@ const TIPO_BADGE: Record<string, string> = {
 export function CultivoDetail({ cultivo }: CultivoDetailProps) {
   const [registros, setRegistros] = useState(cultivo.registros);
   const [showModal, setShowModal] = useState(false);
+  const [showDiagnosticoModal, setShowDiagnosticoModal] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
 
   const totalGastos = cultivo.gastos.reduce((s, g) => s + g.monto, 0);
@@ -96,10 +98,16 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
             </div>
           </div>
 
-          <Button onClick={() => setShowModal(true)}>
-            <Plus size={14} />
-            Nuevo registro
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setShowDiagnosticoModal(true)}>
+              <Sparkles size={14} />
+              Diagnóstico IA
+            </Button>
+            <Button onClick={() => setShowModal(true)}>
+              <Plus size={14} />
+              Nuevo registro
+            </Button>
+          </div>
         </div>
 
         {/* KPIs */}
@@ -215,6 +223,14 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
           cultivoId={cultivo.id}
           onSuccess={handleRegistroCreado}
           onCancel={() => setShowModal(false)}
+        />
+      </Modal>
+
+      <Modal isOpen={showDiagnosticoModal} onClose={() => setShowDiagnosticoModal(false)} title="Diagnóstico por foto">
+        <DiagnosticoForm
+          cultivoId={cultivo.id}
+          onSuccess={() => { setShowDiagnosticoModal(false); window.location.reload(); }}
+          onCancel={() => setShowDiagnosticoModal(false)}
         />
       </Modal>
     </div>
