@@ -330,7 +330,13 @@ export function InversionistasClient({
               {[
                 { label: "Total aportado", value: formatCOP(dashboard.totalAportado), sub: `${inversionistas.length} inversionista(s)`, color: "text-harvest-400", bg: "bg-harvest-50", icon: DollarSign },
                 { label: "Total retornado", value: formatCOP(dashboard.totalRetornado), sub: "Distribuido a la fecha", color: "text-agro-600", bg: "bg-agro-50", icon: TrendingUp },
-                { label: "Rentabilidad global", value: `${rentGlobal >= 0 ? "+" : ""}${rentGlobal.toFixed(1)}%`, sub: rentGlobal >= 0 ? "Sobre el capital aportado" : "Aún no se recupera el capital", color: rentGlobal >= 0 ? "text-agro-600" : "text-red-600", bg: rentGlobal >= 0 ? "bg-agro-50" : "bg-red-50", icon: rentGlobal >= 0 ? TrendingUp : TrendingDown },
+                // "-100%" cuando aún no hay ningún retorno es matemáticamente
+                // correcto pero comunica mal (lee como "perdiste todo" en vez
+                // de "todavía no hay distribuciones") — estado neutro en su
+                // lugar hasta que exista al menos un retorno real.
+                dashboard.totalRetornado === 0
+                  ? { label: "Rentabilidad global", value: "Sin retornos", sub: "Aún no hay distribuciones registradas", color: "text-[var(--text-muted)]", bg: "bg-[var(--surface-page)]", icon: Wallet }
+                  : { label: "Rentabilidad global", value: `${rentGlobal >= 0 ? "+" : ""}${rentGlobal.toFixed(1)}%`, sub: rentGlobal >= 0 ? "Sobre el capital aportado" : "Aún no se recupera el capital", color: rentGlobal >= 0 ? "text-agro-600" : "text-red-600", bg: rentGlobal >= 0 ? "bg-agro-50" : "bg-red-50", icon: rentGlobal >= 0 ? TrendingUp : TrendingDown },
                 { label: "Inversionistas activos", value: dashboard.activos.toString(), sub: `${dashboard.cultivosFinanciados} cultivo(s) financiado(s)`, color: "text-[#185FA5]", bg: "bg-[#E6F1FB]", icon: Users },
               ].map(({ label, value, sub, color, bg, icon: Icon }) => (
                 <div key={label} className="card p-4">
@@ -357,7 +363,7 @@ export function InversionistasClient({
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={dashboard.porInversionista} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                <BarChart data={dashboard.porInversionista} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barGap={4} barCategoryGap="30%">
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
                   <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: "#8FA080" }} axisLine={false} tickLine={false} />
                   <YAxis
@@ -367,10 +373,15 @@ export function InversionistasClient({
                     tickFormatter={(v) => (v === 0 ? "" : `$${(v / 1000000).toFixed(1)}M`)}
                   />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="aportado" name="Aportado" fill="#F09595" radius={[3, 3, 0, 0]} />
-                  <Bar dataKey="retornado" name="Retornado" fill="#97C459" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="aportado" name="Aportado" fill="#F09595" radius={[3, 3, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="retornado" name="Retornado" fill="#97C459" radius={[3, 3, 0, 0]} maxBarSize={56} />
                 </BarChart>
               </ResponsiveContainer>
+              {dashboard.totalRetornado === 0 && (
+                <p className="text-[11px] text-[var(--text-muted)] mt-3 text-center">
+                  Todavía no hay retornos registrados — la barra verde aparecerá cuando registres el primero.
+                </p>
+              )}
             </div>
           </div>
 
@@ -437,9 +448,13 @@ export function InversionistasClient({
                   </div>
                   <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
                     <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><TrendingUp size={11} className="inline mr-1" />Rentabilidad</div>
-                    <div className={`text-[15px] font-semibold ${rent >= 0 ? "text-agro-600" : "text-red-600"}`}>
-                      {rent >= 0 ? "+" : ""}{rent.toFixed(1)}%
-                    </div>
+                    {totalRetornado === 0 ? (
+                      <div className="text-[13px] font-medium text-[var(--text-muted)]">Sin retornos</div>
+                    ) : (
+                      <div className={`text-[15px] font-semibold ${rent >= 0 ? "text-agro-600" : "text-red-600"}`}>
+                        {rent >= 0 ? "+" : ""}{rent.toFixed(1)}%
+                      </div>
+                    )}
                   </div>
                   <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
                     <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><Sprout size={11} className="inline mr-1" />Cultivos</div>
