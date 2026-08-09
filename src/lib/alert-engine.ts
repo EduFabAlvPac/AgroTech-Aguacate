@@ -1,5 +1,6 @@
 import { db } from "./db";
-import { getForecast, groupForecastByDay } from "./weather";
+import { getForecast, groupForecastByDay, type DailyForecast } from "./weather";
+import type { UmbralAlertaPlaga } from "./fichas-tecnicas";
 import type { TipoAlerta, Severidad } from "@prisma/client";
 
 // ── Default thresholds (used when UserPreferences not yet configured) ──────────
@@ -34,6 +35,8 @@ type GeneratedAlert = {
   fechaFin?: Date;
   datos: Record<string, unknown>;
   municipio: string;
+  fincaId?: string;
+  cultivoId?: string;
 };
 
 // ── Helper: stage-aware vulnerability text ─────────────────────────────────────
@@ -46,12 +49,64 @@ function getVulnerabilityText(cropName: string, stage: string): string {
   return `Revise el estado de su ${cropName} y tome medidas preventivas.`;
 }
 
-// ── Main generation function ───────────────────────────────────────────────────
+// ── Shared: dedupe + persist ────────────────────────────────────────────────────
+// Un mismo tipo+fecha(+cultivo) no se vuelve a crear si ya se generó en las
+// últimas 24h — evita duplicar alertas cada vez que se dispara la generación.
+
+async function persistAlerts(potentialAlerts: GeneratedAlert[]): Promise<{ created: number; skipped: number }> {
+  if (potentialAlerts.length === 0) return { created: 0, skipped: 0 };
+
+  const recentAlerts = await db.alertaClimatica.findMany({
+    where: { createdAt: { gte: new Date(Date.now() - 24 * 3600000) } },
+    select: { tipo: true, fechaInicio: true, cultivoId: true },
+  });
+
+  const isDuplicate = (alert: GeneratedAlert) =>
+    recentAlerts.some(
+      (r) =>
+        r.tipo === alert.tipo &&
+        r.cultivoId === (alert.cultivoId ?? null) &&
+        Math.abs(r.fechaInicio.getTime() - alert.fechaInicio.getTime()) < 86400000
+    );
+
+  let created = 0;
+  let skipped = 0;
+
+  for (const alert of potentialAlerts) {
+    if (isDuplicate(alert)) {
+      skipped++;
+      continue;
+    }
+
+    await db.alertaClimatica.create({
+      data: {
+        tipo: alert.tipo,
+        titulo: alert.titulo,
+        descripcion: alert.descripcion,
+        severidad: alert.severidad,
+        fechaInicio: alert.fechaInicio,
+        fechaFin: alert.fechaFin,
+        activa: true,
+        leida: false,
+        datos: alert.datos as any,
+        municipio: alert.municipio,
+        fincaId: alert.fincaId,
+        cultivoId: alert.cultivoId,
+      },
+    });
+    created++;
+  }
+
+  return { created, skipped };
+}
+
+// ── Weather alerts (finca-scoped) ───────────────────────────────────────────────
 
 export async function generateWeatherAlerts(
   lat: number,
   lng: number,
   municipio: string,
+  fincaId: string,
   thresholds: AlertThresholds = DEFAULT_THRESHOLDS,
   cropContext: CropContext = DEFAULT_CROP_CONTEXT
 ): Promise<{ created: number; skipped: number }> {
@@ -81,6 +136,7 @@ export async function generateWeatherAlerts(
         fechaFin: new Date(fecha.getTime() + 8 * 3600000),
         datos: { tempMin: day.tempMin, tempMax: day.tempMax, dia: dateStr, fuente: "OpenWeather" },
         municipio,
+        fincaId,
       });
     }
 
@@ -94,6 +150,7 @@ export async function generateWeatherAlerts(
         fechaInicio: fecha,
         datos: { tempMax: day.tempMax, fuente: "OpenWeather" },
         municipio,
+        fincaId,
       });
     }
 
@@ -107,6 +164,7 @@ export async function generateWeatherAlerts(
         fechaInicio: fecha,
         datos: { rainMm: day.rainMm, pop: day.popMax, fuente: "OpenWeather" },
         municipio,
+        fincaId,
       });
     }
 
@@ -120,6 +178,7 @@ export async function generateWeatherAlerts(
         fechaInicio: fecha,
         datos: { windSpeed: day.windSpeed, fuente: "OpenWeather" },
         municipio,
+        fincaId,
       });
     }
   }
@@ -135,52 +194,89 @@ export async function generateWeatherAlerts(
       fechaInicio: new Date(),
       datos: { dryDays, fuente: "OpenWeather" },
       municipio,
+      fincaId,
     });
   }
 
-  if (potentialAlerts.length === 0) return { created: 0, skipped: 0 };
+  return persistAlerts(potentialAlerts);
+}
 
-  // ── Deduplicate: skip alerts already created in last 24h for same tipo + fecha ─
-  const recentAlerts = await db.alertaClimatica.findMany({
-    where: {
-      createdAt: { gte: new Date(Date.now() - 24 * 3600000) },
-      municipio,
-    },
-    select: { tipo: true, fechaInicio: true },
-  });
+// ── Plaga alerts (cultivo-scoped, motor de fichas técnicas) ────────────────────
+// Fase 5 — ver CLAUDE.md §2.2 y docs/REQUERIMIENTOS.md RF17. Cruza el
+// pronóstico contra PlagaEnfermedad.umbralAlerta del catálogo de la
+// FichaTecnica pinneada al cultivo. Todos los umbrales definidos en una
+// plaga deben cumplirse a la vez (AND) para que dispare — ver
+// src/lib/fichas-tecnicas.ts (UmbralAlertaPlaga).
+//
+// No se filtra por etapa fenológica todavía (Cultivo.etapa es el enum legacy
+// fijo, distinto de EtapaFenologica.orden de la ficha técnica — no hay hoy
+// una forma confiable de saber en qué EtapaFenologica está un cultivo).
+// Deuda reconocida, no bloqueante para el valor de esta fase.
 
-  const isDuplicate = (alert: GeneratedAlert) =>
-    recentAlerts.some(
-      (r) =>
-        r.tipo === alert.tipo &&
-        Math.abs(r.fechaInicio.getTime() - alert.fechaInicio.getTime()) < 86400000
-    );
+export interface PlagaParaAlerta {
+  id: string;
+  nombre: string;
+  tipo: string;
+  manejoRecomendado: string | null;
+  umbralAlerta: unknown;
+}
 
-  let created = 0;
-  let skipped = 0;
+function umbralCoincide(umbral: UmbralAlertaPlaga, day: DailyForecast): boolean {
+  if (umbral.humedadMinPct !== undefined && day.humidity < umbral.humedadMinPct) return false;
+  if (umbral.lluviaMinMm !== undefined && day.rainMm < umbral.lluviaMinMm) return false;
+  // Rango de riesgo [tempMinC, tempMaxC]: dispara si el rango del día se
+  // solapa con el rango de riesgo configurado.
+  if (umbral.tempMinC !== undefined && day.tempMax < umbral.tempMinC) return false;
+  if (umbral.tempMaxC !== undefined && day.tempMin > umbral.tempMaxC) return false;
+  return true;
+}
 
-  for (const alert of potentialAlerts) {
-    if (isDuplicate(alert)) {
-      skipped++;
-      continue;
-    }
+export async function generatePlagaAlerts(
+  lat: number,
+  lng: number,
+  municipio: string,
+  fincaId: string,
+  cultivoId: string,
+  cropName: string,
+  plagas: PlagaParaAlerta[]
+): Promise<{ created: number; skipped: number }> {
+  const conUmbral = plagas.filter((p) => p.umbralAlerta && typeof p.umbralAlerta === "object");
+  if (conUmbral.length === 0) return { created: 0, skipped: 0 };
 
-    await db.alertaClimatica.create({
-      data: {
-        tipo: alert.tipo,
-        titulo: alert.titulo,
-        descripcion: alert.descripcion,
-        severidad: alert.severidad,
-        fechaInicio: alert.fechaInicio,
-        fechaFin: alert.fechaFin,
-        activa: true,
-        leida: false,
-        datos: alert.datos as any,
-        municipio: alert.municipio,
+  const forecast = await getForecast(lat, lng);
+  if (!forecast) return { created: 0, skipped: 0 };
+
+  const daily = groupForecastByDay(forecast);
+  const potentialAlerts: GeneratedAlert[] = [];
+
+  for (const plaga of conUmbral) {
+    const umbral = plaga.umbralAlerta as UmbralAlertaPlaga;
+    const diaRiesgo = daily.find((d) => umbralCoincide(umbral, d));
+    if (!diaRiesgo) continue;
+
+    potentialAlerts.push({
+      tipo: "PLAGA",
+      titulo: `Condiciones favorables para ${plaga.nombre} en ${cropName}`,
+      descripcion:
+        `El pronóstico para ${diaRiesgo.dayLabel.toLowerCase()} en ${municipio} cumple las condiciones de riesgo ` +
+        `de ${plaga.nombre.toLowerCase()} registradas en la ficha técnica de ${cropName}. ` +
+        (plaga.manejoRecomendado ? `Manejo recomendado: ${plaga.manejoRecomendado}` : "Revise el cultivo e inspeccione síntomas tempranos."),
+      severidad: "MEDIA",
+      fechaInicio: new Date(diaRiesgo.date + "T06:00:00"),
+      datos: {
+        plagaId: plaga.id,
+        humedad: diaRiesgo.humidity,
+        tempMin: diaRiesgo.tempMin,
+        tempMax: diaRiesgo.tempMax,
+        rainMm: diaRiesgo.rainMm,
+        umbral,
+        fuente: "OpenWeather + FichaTecnica",
       },
+      municipio,
+      fincaId,
+      cultivoId,
     });
-    created++;
   }
 
-  return { created, skipped };
+  return persistAlerts(potentialAlerts);
 }

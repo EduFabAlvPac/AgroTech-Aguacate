@@ -3,7 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 
-// GET /api/alertas
+// GET /api/alertas — scoped a las fincas del usuario (ver CLAUDE.md §7:
+// antes AlertaClimatica no tenía dueño y esto devolvía TODAS las alertas
+// de la base de datos a cualquier usuario autenticado).
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -15,14 +17,16 @@ export async function GET(req: Request) {
     const soloActivas = searchParams.get("activas") === "true";
     const limit = parseInt(searchParams.get("limit") ?? "50");
 
+    const scope = { finca: { userId: session.user.id } } as const;
+
     const alertas = await db.alertaClimatica.findMany({
-      where: soloActivas ? { activa: true } : undefined,
+      where: soloActivas ? { ...scope, activa: true } : scope,
       orderBy: [{ activa: "desc" }, { createdAt: "desc" }],
       take: limit,
     });
 
     const noLeidas = await db.alertaClimatica.count({
-      where: { activa: true, leida: false },
+      where: { ...scope, activa: true, leida: false },
     });
 
     return NextResponse.json({ data: alertas, meta: { noLeidas } });
@@ -32,12 +36,17 @@ export async function GET(req: Request) {
   }
 }
 
-// POST /api/alertas — create manual alert
+// POST /api/alertas — crear alerta manual, siempre atada a la finca del usuario
 export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    }
+
+    const finca = await db.finca.findFirst({ where: { userId: session.user.id }, select: { id: true } });
+    if (!finca) {
+      return NextResponse.json({ error: "Registra una finca antes de crear alertas" }, { status: 400 });
     }
 
     const body = await req.json();
@@ -60,6 +69,7 @@ export async function POST(req: Request) {
         activa: true,
         leida: false,
         municipio: municipio ?? "Norte de Santander",
+        fincaId: finca.id,
       },
     });
 

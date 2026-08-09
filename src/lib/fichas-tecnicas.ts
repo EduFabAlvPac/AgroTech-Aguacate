@@ -4,6 +4,20 @@
  */
 import { db } from "@/lib/db";
 
+/**
+ * Forma del JSON en PlagaEnfermedad.umbralAlerta — condiciones climáticas
+ * que, cruzadas contra el pronóstico, disparan una alerta de riesgo para
+ * esa plaga/enfermedad (motor de alertas, Fase 5). Todos los campos son
+ * opcionales y se combinan con AND: solo se dispara si TODOS los umbrales
+ * definidos se cumplen simultáneamente en el pronóstico de un día.
+ */
+export interface UmbralAlertaPlaga {
+  humedadMinPct?: number;
+  tempMinC?: number;
+  tempMaxC?: number;
+  lluviaMinMm?: number;
+}
+
 export interface VariedadResuelta {
   especieId: string;
   variedadId: string;

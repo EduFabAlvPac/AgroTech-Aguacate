@@ -46,6 +46,19 @@ const TIPO_PLAGA_COLORS: Record<TipoPlagaEnfermedad, { bg: string; color: string
 const numOrNull = (v: string) => (v === "" ? null : Number(v));
 const fmt = (n: number | null | undefined, suf = "") => (n === null || n === undefined ? "—" : `${n}${suf}`);
 
+/** Texto legible del umbral de alerta de una plaga (ver src/lib/fichas-tecnicas.ts). */
+function formatUmbral(umbral: unknown): string | null {
+  if (!umbral || typeof umbral !== "object") return null;
+  const u = umbral as Record<string, number | undefined>;
+  const partes = [
+    u.humedadMinPct !== undefined && `humedad≥${u.humedadMinPct}%`,
+    u.lluviaMinMm !== undefined && `lluvia≥${u.lluviaMinMm}mm`,
+    u.tempMinC !== undefined && `temp≥${u.tempMinC}°C`,
+    u.tempMaxC !== undefined && `temp≤${u.tempMaxC}°C`,
+  ].filter(Boolean);
+  return partes.length > 0 ? partes.join(" y ") : null;
+}
+
 export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta }) {
   const [ficha, setFicha] = useState(initial);
   const editable = ficha.estado === "BORRADOR";
@@ -156,7 +169,10 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   // ── Plagas y enfermedades ──────────────────────────────────────────────────
   const [plagas, setPlagas] = useState(ficha.plagas);
   const [showPlagaModal, setShowPlagaModal] = useState(false);
-  const [nuevaPlaga, setNuevaPlaga] = useState({ nombre: "", tipo: "PLAGA" as TipoPlagaEnfermedad, sintomas: "", manejoRecomendado: "" });
+  const [nuevaPlaga, setNuevaPlaga] = useState({
+    nombre: "", tipo: "PLAGA" as TipoPlagaEnfermedad, sintomas: "", manejoRecomendado: "",
+    humedadMinPct: "", tempMinC: "", tempMaxC: "", lluviaMinMm: "",
+  });
   const [addingPlaga, setAddingPlaga] = useState(false);
 
   const handleAgregarPlaga = async () => {
@@ -171,12 +187,18 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
           tipo: nuevaPlaga.tipo,
           sintomas: nuevaPlaga.sintomas.trim() || undefined,
           manejoRecomendado: nuevaPlaga.manejoRecomendado.trim() || undefined,
+          umbralAlerta: {
+            humedadMinPct: nuevaPlaga.humedadMinPct,
+            tempMinC: nuevaPlaga.tempMinC,
+            tempMaxC: nuevaPlaga.tempMaxC,
+            lluviaMinMm: nuevaPlaga.lluviaMinMm,
+          },
         }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error al agregar");
       setPlagas((prev) => [...prev, json.data]);
-      setNuevaPlaga({ nombre: "", tipo: "PLAGA", sintomas: "", manejoRecomendado: "" });
+      setNuevaPlaga({ nombre: "", tipo: "PLAGA", sintomas: "", manejoRecomendado: "", humedadMinPct: "", tempMinC: "", tempMaxC: "", lluviaMinMm: "" });
       setShowPlagaModal(false);
       toast.success("Plaga/enfermedad agregada");
     } catch (err) {
@@ -422,7 +444,11 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
           <FilaActividad
             key={p.id}
             texto={p.nombre}
-            meta={[p.sintomas && `Síntomas: ${p.sintomas}`, p.manejoRecomendado && `Manejo: ${p.manejoRecomendado}`].filter(Boolean).join(" · ")}
+            meta={[
+              p.sintomas && `Síntomas: ${p.sintomas}`,
+              p.manejoRecomendado && `Manejo: ${p.manejoRecomendado}`,
+              formatUmbral(p.umbralAlerta) && `🔔 Alerta si: ${formatUmbral(p.umbralAlerta)}`,
+            ].filter(Boolean).join(" · ")}
             badge={{ label: TIPO_PLAGA_LABELS[p.tipo], ...TIPO_PLAGA_COLORS[p.tipo] }}
             editable={editable}
             onEliminar={() => handleEliminarPlaga(p.id)}
@@ -530,6 +556,24 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
           </div>
           <Textarea label="Síntomas" value={nuevaPlaga.sintomas} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, sintomas: e.target.value })} rows={2} />
           <Textarea label="Manejo recomendado" value={nuevaPlaga.manejoRecomendado} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, manejoRecomendado: e.target.value })} rows={2} />
+
+          <div>
+            <h3 className="text-[11px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-2">
+              Umbral de alerta (opcional)
+            </h3>
+            <p className="text-[11px] text-[var(--text-muted)] mb-2">
+              Si el pronóstico cumple TODAS las condiciones que definas aquí, el motor de alertas genera una alerta
+              de riesgo de esta plaga/enfermedad para los cultivos de esta variedad. Déjalos vacíos si todavía no
+              tienes el dato — puedes completarlo después.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Humedad mín. (%)" type="number" value={nuevaPlaga.humedadMinPct} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, humedadMinPct: e.target.value })} placeholder="Ej: 80" />
+              <Input label="Lluvia mín. (mm/día)" type="number" value={nuevaPlaga.lluviaMinMm} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, lluviaMinMm: e.target.value })} placeholder="Ej: 15" />
+              <Input label="Temp. mín. (°C)" type="number" value={nuevaPlaga.tempMinC} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, tempMinC: e.target.value })} />
+              <Input label="Temp. máx. (°C)" type="number" value={nuevaPlaga.tempMaxC} onChange={(e) => setNuevaPlaga({ ...nuevaPlaga, tempMaxC: e.target.value })} />
+            </div>
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setShowPlagaModal(false)}>Cancelar</Button>
             <Button loading={addingPlaga} onClick={handleAgregarPlaga}>Agregar</Button>
