@@ -104,6 +104,7 @@ export const registroFormSchema = z.object({
     .max(2000, "La descripción no puede superar los 2000 caracteres"),
   fecha: z.string().min(1, "La fecha es requerida"),
   cultivoId: z.string().min(1, "El cultivo es requerido"),
+  imagenes: z.array(z.string()).max(5, "Máximo 5 fotos por registro").optional(),
 });
 
 export type RegistroFormData = z.infer<typeof registroFormSchema>;

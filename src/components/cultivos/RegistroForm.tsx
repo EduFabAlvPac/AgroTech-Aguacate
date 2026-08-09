@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { X } from "lucide-react";
 import { Button, Select, Textarea, Input } from "@/components/ui";
+import { PhotoCapture } from "@/components/ui/PhotoCapture";
 import { TIPO_REGISTRO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import { registroFormSchema } from "@/lib/validations";
 import type { RegistroCultivo, TipoRegistro } from "@prisma/client";
+
+const MAX_FOTOS = 5;
 
 interface RegistroFormProps {
   cultivoId: string;
@@ -39,6 +43,8 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
   const [ingreso, setIngreso] = useState("");
   const [cantidadKg, setCantidadKg] = useState("");
   const [producto, setProducto] = useState("");
+  // Evidencia fotográfica (cuaderno de campo BPA-ICA)
+  const [imagenes, setImagenes] = useState<string[]>(registro?.imagenes ?? []);
 
   // Types that typically have costs
   const tiposConCosto = ["FERTILIZACION", "TRATAMIENTO_PLAGAS", "RIEGO", "PODA"];
@@ -76,6 +82,7 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
         body: JSON.stringify({
           ...form,
           cultivoId,
+          imagenes,
           // Financial sync fields
           costo: costo ? Number(costo) : undefined,
           ingreso: ingreso ? Number(ingreso) : undefined,
@@ -204,6 +211,41 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
           )}
         </div>
       )}
+
+      {/* Evidencia fotográfica */}
+      <div>
+        <div className="text-[12px] font-medium text-[var(--text-secondary)] mb-2">
+          Fotos de evidencia (opcional)
+        </div>
+        {imagenes.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-2">
+            {imagenes.map((src, idx) => (
+              <div key={idx} className="relative">
+                <img
+                  src={src}
+                  alt={`Foto de evidencia ${idx + 1}`}
+                  className="w-20 h-20 object-cover rounded-[var(--radius-md)] border border-[var(--border-default)]"
+                />
+                <button
+                  type="button"
+                  onClick={() => setImagenes((prev) => prev.filter((_, i) => i !== idx))}
+                  className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+                  aria-label="Eliminar foto"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {imagenes.length < MAX_FOTOS && (
+          <PhotoCapture
+            onCapture={(dataUrl) => setImagenes((prev) => [...prev, dataUrl])}
+            onRemove={() => {}}
+            preview={null}
+          />
+        )}
+      </div>
 
       {/* Quick templates */}
       <div>
