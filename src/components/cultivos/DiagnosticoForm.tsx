@@ -34,6 +34,7 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<DiagnosticoResultado | null>(null);
+  const [alertaCreada, setAlertaCreada] = useState(false);
   const [showRazonamiento, setShowRazonamiento] = useState(false);
 
   const handleAnalizar = async () => {
@@ -48,6 +49,7 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error al analizar la imagen");
       setResultado(json.data.diagnostico);
+      setAlertaCreada(!!json.data.alerta);
       toast.success("Diagnóstico agregado a la bitácora");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al analizar la imagen");
@@ -58,6 +60,7 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
 
   const handleNuevo = () => {
     setResultado(null);
+    setAlertaCreada(false);
     setImagen(null);
     setDescripcion("");
   };
@@ -115,6 +118,7 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
         )}
         <p className="text-[11px] text-agro-600 bg-agro-50 px-2 py-1.5 rounded">
           ✅ Se guardó como inspección en el cuaderno de campo.
+          {alertaCreada && " También se generó una alerta — la verás en el módulo Alertas."}
         </p>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={handleNuevo}>Nuevo diagnóstico</Button>
