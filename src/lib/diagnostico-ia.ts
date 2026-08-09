@@ -104,15 +104,17 @@ export async function diagnosticarImagen(
           ],
         },
       ],
-      // qwen3.6-27b es un modelo "thinking": sin reasoning_format separado,
-      // su cadena de razonamiento sale mezclada dentro de `content` envuelta
-      // en <think>...</think> y puede agotar max_tokens antes de llegar al
-      // JSON final (bug real observado: la respuesta se cortaba a mitad del
-      // razonamiento). "parsed" la manda aparte a `message.reasoning` y deja
-      // `content` limpio — ver https://console.groq.com/docs/reasoning.
-      reasoning_effort: "default",
-      reasoning_format: "parsed",
-      max_tokens: 2000,
+      // qwen3.6-27b es un modelo "thinking". Con reasoning_effort:"default"
+      // (aunque separado vía reasoning_format:"parsed") se observaron DOS
+      // fallas reales en producción: 1) el razonamiento se comía max_tokens
+      // antes de llegar al JSON, 2) incluso separado, el razonamiento seguía
+      // consumiendo casi todo el presupuesto y `content` llegaba vacío.
+      // reasoning_effort:"none" desactiva el pensamiento por completo —
+      // menos "profundidad" de diagnóstico diferencial, pero confiable, que
+      // es lo que importa para un flujo de campo. Ver
+      // https://console.groq.com/docs/reasoning.
+      reasoning_effort: "none",
+      max_tokens: 1200,
       temperature: 0.3,
     }),
   });
