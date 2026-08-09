@@ -31,10 +31,12 @@ interface EspecieConVariedades {
   variedades: VariedadConFichas[];
 }
 
-const ESTADO_BADGE: Record<EstadoFicha, string> = {
-  BORRADOR: "badge-neutral",
-  PUBLICADA: "badge-success",
-  ARCHIVADA: "badge-warning",
+// Mismo mapa de color que ETAPA_COLORS en CultivosList.tsx — pill rounded-full
+// con color de fondo/texto inline en vez de las clases badge-* genéricas.
+const ESTADO_COLORS: Record<EstadoFicha, { bg: string; color: string }> = {
+  BORRADOR: { bg: "#F1EFE8", color: "#5F5E5A" },
+  PUBLICADA: { bg: "#EAF3DE", color: "#3B6D11" },
+  ARCHIVADA: { bg: "#FAEEDA", color: "#BA7517" },
 };
 
 const emptyEspecieForm = { nombre: "", slug: "", familia: "" };
@@ -145,7 +147,7 @@ export function FichasTecnicasClient({ especies: initial }: { especies: EspecieC
             <div key={especie.id} className="card p-4">
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-agro-50 flex items-center justify-center flex-shrink-0">
+                  <div className="w-10 h-10 rounded-[var(--radius-md)] bg-agro-50 flex items-center justify-center flex-shrink-0">
                     <Leaf size={18} className="text-agro-400" />
                   </div>
                   <div>
@@ -182,7 +184,10 @@ export function FichasTecnicasClient({ especies: initial }: { especies: EspecieC
                         <div className="flex items-center gap-2">
                           <span className="text-[13px] font-medium text-[var(--text-primary)]">{variedad.nombre}</span>
                           {fichaActual ? (
-                            <span className={`badge ${ESTADO_BADGE[fichaActual.estado]}`}>
+                            <span
+                              className="badge text-[10px] font-medium rounded-full px-2 py-0.5"
+                              style={{ background: ESTADO_COLORS[fichaActual.estado].bg, color: ESTADO_COLORS[fichaActual.estado].color }}
+                            >
                               v{fichaActual.version} · {ESTADO_FICHA_LABELS[fichaActual.estado]}
                             </span>
                           ) : (

@@ -3,8 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import {
-  ArrowLeft, Plus, Trash2, Rocket, Copy, Pencil, Sprout,
-  Layers, Bug, DollarSign, TrendingUp,
+  ArrowLeft, Plus, Trash2, Pencil, Rocket, Copy, Sprout,
+  Layers, Bug, DollarSign, TrendingUp, Users,
 } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { ESTADO_FICHA_LABELS, TIPO_PLAGA_LABELS, CATEGORIA_LABELS } from "@/types";
@@ -30,10 +30,17 @@ type FichaCompleta = FichaTecnica & {
   _count: { cultivos: number };
 };
 
-const ESTADO_BADGE: Record<string, string> = {
-  BORRADOR: "badge-neutral",
-  PUBLICADA: "badge-success",
-  ARCHIVADA: "badge-warning",
+// Mismo patrón de mapa de color que ETAPA_COLORS/TIPO_BADGE_COLORS en CultivosList.tsx
+const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
+  BORRADOR: { bg: "#F1EFE8", color: "#5F5E5A" },
+  PUBLICADA: { bg: "#EAF3DE", color: "#3B6D11" },
+  ARCHIVADA: { bg: "#FAEEDA", color: "#BA7517" },
+};
+
+const TIPO_PLAGA_COLORS: Record<TipoPlagaEnfermedad, { bg: string; color: string }> = {
+  PLAGA: { bg: "#FCEBEB", color: "#A32D2D" },
+  ENFERMEDAD: { bg: "#FAEEDA", color: "#BA7517" },
+  DEFICIENCIA_NUTRICIONAL: { bg: "#E6F1FB", color: "#185FA5" },
 };
 
 const numOrNull = (v: string) => (v === "" ? null : Number(v));
@@ -42,10 +49,33 @@ const fmt = (n: number | null | undefined, suf = "") => (n === null || n === und
 export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta }) {
   const [ficha, setFicha] = useState(initial);
   const editable = ficha.estado === "BORRADOR";
+  const nombreFicha = `${ficha.variedad.especie.nombre} ${ficha.variedad.nombre} v${ficha.version}`;
 
   const [publishing, setPublishing] = useState(false);
   const [cloning, setCloning] = useState(false);
   const [showCoreModal, setShowCoreModal] = useState(false);
+
+  // Eliminar ficha (solo BORRADOR) — mismo patrón de confirmación con nombre
+  // escrito que Lote/Cultivo en CultivosList.tsx.
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const handleEliminarFicha = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Error al eliminar");
+      }
+      toast.success("Ficha técnica eliminada");
+      window.location.href = "/dashboard/admin/fichas-tecnicas";
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar");
+      setDeleting(false);
+    }
+  };
 
   const handlePublicar = async () => {
     if (!confirm("¿Publicar esta ficha técnica? Quedará activa para todos los cultivos nuevos de esta variedad.")) return;
@@ -252,7 +282,7 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <Link
         href={"/dashboard/admin/fichas-tecnicas" as any}
         className="flex items-center gap-1.5 text-[12px] text-[var(--text-secondary)] hover:text-agro-600 transition-colors"
@@ -260,230 +290,189 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
         <ArrowLeft size={14} /> Fichas técnicas
       </Link>
 
-      {/* Status card — mismo lenguaje visual que CultivoDetail */}
-      <div className="card p-5">
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-agro-50 flex items-center justify-center flex-shrink-0">
-              <Sprout size={24} className="text-agro-400" />
+      {/* Card principal — mismo patrón que la card de Cultivo en CultivosList.tsx */}
+      <div className="card p-5 animate-fade-in">
+        <div className="flex items-start justify-between mb-4 flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-[var(--radius-md)] bg-agro-50 flex items-center justify-center flex-shrink-0">
+              <Sprout size={20} className="text-agro-400" />
             </div>
             <div>
-              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                <h1 className="text-[18px] font-bold text-[var(--text-primary)]">
+              <div className="flex items-center gap-2">
+                <span className="text-[14px] font-semibold text-[var(--text-primary)]">
                   {ficha.variedad.especie.nombre} {ficha.variedad.nombre}
-                </h1>
-                <span className={`badge ${ESTADO_BADGE[ficha.estado]}`}>
+                </span>
+                <span
+                  className="badge text-[10px] font-medium rounded-full px-2 py-0.5"
+                  style={{ background: ESTADO_COLORS[ficha.estado].bg, color: ESTADO_COLORS[ficha.estado].color }}
+                >
                   v{ficha.version} · {ESTADO_FICHA_LABELS[ficha.estado]}
                 </span>
               </div>
-              <p className="text-[13px] text-[var(--text-muted)]">
+              <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
                 {ficha.variedad.especie.familia ?? "Ficha técnica"}
-                {ficha._count.cultivos > 0 && ` · ${ficha._count.cultivos} cultivo(s) pinneados a esta versión`}
               </p>
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-1">
             {editable ? (
               <>
-                <Button variant="secondary" onClick={() => setShowCoreModal(true)}>
-                  <Pencil size={14} /> Editar rango y ciclo
-                </Button>
-                <Button onClick={handlePublicar} loading={publishing}>
-                  <Rocket size={15} /> Publicar
+                <button
+                  onClick={() => setShowCoreModal(true)}
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-[var(--surface-page)] transition-colors"
+                  aria-label="Editar rango y ciclo"
+                >
+                  <Pencil size={14} className="text-[var(--text-muted)]" />
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(true)}
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors"
+                  aria-label="Eliminar ficha"
+                >
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                </button>
+                <Button size="sm" onClick={handlePublicar} loading={publishing}>
+                  <Rocket size={14} /> Publicar
                 </Button>
               </>
             ) : (
-              <Button variant="secondary" onClick={handleNuevaVersion} loading={cloning}>
-                <Copy size={15} /> Nueva versión editable
+              <Button size="sm" variant="secondary" onClick={handleNuevaVersion} loading={cloning}>
+                <Copy size={14} /> Nueva versión editable
               </Button>
             )}
           </div>
         </div>
 
-        {/* KPIs */}
-        <div className="grid grid-cols-4 gap-3 mt-5 pt-5 border-t border-[var(--border-subtle)]">
-          {[
-            { label: "Etapas", value: etapas.length.toString(), icon: Layers, color: "text-agro-400" },
-            { label: "Plagas/enfermedades", value: plagas.length.toString(), icon: Bug, color: "text-red-500" },
-            { label: "Costos ref.", value: costos.length.toString(), icon: DollarSign, color: "text-blue-500" },
-            { label: "Curva producción", value: curva.length.toString(), icon: TrendingUp, color: "text-agro-400" },
-          ].map(({ label, value, icon: Icon, color }) => (
-            <div key={label} className="bg-[var(--surface-page)] rounded-[var(--radius-md)] p-3 text-center">
-              <Icon size={16} className={`${color} mx-auto mb-1.5`} />
-              <div className="text-[15px] font-semibold text-[var(--text-primary)]">{value}</div>
-              <div className="text-[11px] text-[var(--text-muted)]">{label}</div>
-            </div>
-          ))}
+        {/* Stats row — mismo patrón left-aligned que CultivosList.tsx */}
+        <div className="grid grid-cols-3 sm:grid-cols-5 gap-3 mb-4">
+          <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
+            <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><Layers size={11} className="inline mr-1" />Etapas</div>
+            <div className="text-[16px] font-semibold text-[var(--text-primary)]">{etapas.length}</div>
+          </div>
+          <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
+            <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><Bug size={11} className="inline mr-1" />Plagas</div>
+            <div className="text-[16px] font-semibold text-[var(--text-primary)]">{plagas.length}</div>
+          </div>
+          <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
+            <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><DollarSign size={11} className="inline mr-1" />Costos</div>
+            <div className="text-[16px] font-semibold text-[var(--text-primary)]">{costos.length}</div>
+          </div>
+          <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
+            <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><TrendingUp size={11} className="inline mr-1" />Curva</div>
+            <div className="text-[16px] font-semibold text-[var(--text-primary)]">{curva.length}</div>
+          </div>
+          <div className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)]">
+            <div className="text-[11px] text-[var(--text-muted)] mb-0.5"><Users size={11} className="inline mr-1" />Cultivos</div>
+            <div className="text-[16px] font-semibold text-[var(--text-primary)]">{ficha._count.cultivos}</div>
+          </div>
         </div>
 
-        {/* Rango ambiental — resumen de solo lectura */}
-        <div className="mt-4 p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[12px] text-[var(--text-secondary)] grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <span>🏔️ Altitud: {fmt(ficha.altitudMinM)}–{fmt(ficha.altitudMaxM, " msnm")}</span>
-          <span>🌡️ Temp: {fmt(ficha.tempMinC)}–{fmt(ficha.tempMaxC, "°C")}</span>
-          <span>💧 pH: {fmt(ficha.phMin)}–{fmt(ficha.phMax)}</span>
-          <span>📅 Ciclo: {fmt(ficha.cicloProductivoMeses, " meses")}</span>
+        {/* Info chips — mismo patrón de emoji + badge-neutral que CultivosList.tsx */}
+        <div className="flex flex-wrap gap-2">
+          <span className="badge badge-neutral text-[11px]">🏔️ {fmt(ficha.altitudMinM)}–{fmt(ficha.altitudMaxM)} msnm</span>
+          <span className="badge badge-neutral text-[11px]">🌡️ {fmt(ficha.tempMinC)}–{fmt(ficha.tempMaxC)}°C</span>
+          <span className="badge badge-neutral text-[11px]">💧 pH {fmt(ficha.phMin)}–{fmt(ficha.phMax)}</span>
+          <span className="badge badge-neutral text-[11px]">📅 Ciclo: {fmt(ficha.cicloProductivoMeses)} meses</span>
+          {ficha.distanciaSiembraM && <span className="badge badge-neutral text-[11px]">📐 {ficha.distanciaSiembraM}</span>}
         </div>
 
         {!editable && (
-          <p className="text-[12px] text-[var(--text-muted)] mt-4 pt-4 border-t border-[var(--border-subtle)]">
-            Esta ficha está {ESTADO_FICHA_LABELS[ficha.estado].toLowerCase()} y es de solo lectura — así los cultivos ya
+          <p className="mt-3 text-[12px] text-[var(--text-secondary)] bg-[var(--surface-page)] rounded-[var(--radius-md)] px-3 py-2">
+            🔒 Esta ficha está {ESTADO_FICHA_LABELS[ficha.estado].toLowerCase()} y es de solo lectura — así los cultivos ya
             pinneados a esta versión nunca cambian retroactivamente. Crea una nueva versión para editarla.
           </p>
         )}
       </div>
 
       {/* Etapas fenológicas */}
-      <div className="card">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-          <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
-            Etapas fenológicas
-            <span className="ml-2 text-[12px] font-normal text-[var(--text-muted)]">{etapas.length} etapas</span>
-          </h2>
-          {editable && (
-            <Button size="sm" onClick={() => setShowEtapaModal(true)}><Plus size={14} /> Etapa</Button>
-          )}
-        </div>
-        {etapas.length === 0 ? (
-          <EmptyState icon={<Layers size={24} />} title="Sin etapas definidas" description="Define el ciclo fenológico de esta variedad." />
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {etapas.map((e) => (
-              <div key={e.id} className="flex items-start gap-4 px-5 py-3 hover:bg-[var(--surface-page)] transition-colors">
-                <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--surface-page)] flex items-center justify-center flex-shrink-0 text-[12px] font-semibold text-agro-600">
-                  {e.orden}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-[var(--text-primary)]">{e.nombre}</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {(e.duracionDiasMin || e.duracionDiasMax) && `${e.duracionDiasMin ?? "?"}–${e.duracionDiasMax ?? "?"} días`}
-                    {e.descripcion && ` · ${e.descripcion}`}
-                  </p>
-                </div>
-                {editable && (
-                  <button onClick={() => handleEliminarEtapa(e.id)} className="text-red-400 hover:text-red-600 flex-shrink-0" aria-label="Eliminar etapa">
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SeccionFicha
+        titulo="Etapas fenológicas"
+        icono={<Layers size={24} />}
+        vacio="Sin etapas definidas."
+        editable={editable}
+        onAgregar={() => setShowEtapaModal(true)}
+        labelAgregar="Etapa"
+      >
+        {etapas.map((e) => (
+          <FilaActividad
+            key={e.id}
+            texto={`${e.orden}. ${e.nombre}`}
+            meta={[
+              e.duracionDiasMin || e.duracionDiasMax ? `${e.duracionDiasMin ?? "?"}–${e.duracionDiasMax ?? "?"} días` : null,
+              e.descripcion,
+            ].filter(Boolean).join(" · ")}
+            editable={editable}
+            onEliminar={() => handleEliminarEtapa(e.id)}
+          />
+        ))}
+      </SeccionFicha>
 
       {/* Plagas y enfermedades */}
-      <div className="card">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-          <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
-            Plagas y enfermedades
-            <span className="ml-2 text-[12px] font-normal text-[var(--text-muted)]">catálogo base para diagnóstico IA</span>
-          </h2>
-          {editable && (
-            <Button size="sm" onClick={() => setShowPlagaModal(true)}><Plus size={14} /> Plaga</Button>
-          )}
-        </div>
-        {plagas.length === 0 ? (
-          <EmptyState icon={<Bug size={24} />} title="Sin plagas registradas" description="Agrega las plagas/enfermedades típicas de esta variedad." />
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {plagas.map((p) => (
-              <div key={p.id} className="flex items-start gap-4 px-5 py-3 hover:bg-[var(--surface-page)] transition-colors">
-                <div className="w-9 h-9 rounded-[var(--radius-md)] bg-[var(--surface-page)] flex items-center justify-center flex-shrink-0">
-                  <Bug size={16} className="text-[var(--text-muted)]" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="text-[13px] font-medium text-[var(--text-primary)]">{p.nombre}</span>
-                    <span className="badge badge-neutral text-[10px]">{TIPO_PLAGA_LABELS[p.tipo]}</span>
-                  </div>
-                  {p.sintomas && <p className="text-[12px] text-[var(--text-secondary)]">Síntomas: {p.sintomas}</p>}
-                  {p.manejoRecomendado && <p className="text-[12px] text-[var(--text-secondary)]">Manejo: {p.manejoRecomendado}</p>}
-                </div>
-                {editable && (
-                  <button onClick={() => handleEliminarPlaga(p.id)} className="text-red-400 hover:text-red-600 flex-shrink-0" aria-label="Eliminar">
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SeccionFicha
+        titulo="Plagas y enfermedades"
+        subtitulo="catálogo base para diagnóstico IA"
+        icono={<Bug size={24} />}
+        vacio="Sin plagas/enfermedades registradas."
+        editable={editable}
+        onAgregar={() => setShowPlagaModal(true)}
+        labelAgregar="Plaga"
+      >
+        {plagas.map((p) => (
+          <FilaActividad
+            key={p.id}
+            texto={p.nombre}
+            meta={[p.sintomas && `Síntomas: ${p.sintomas}`, p.manejoRecomendado && `Manejo: ${p.manejoRecomendado}`].filter(Boolean).join(" · ")}
+            badge={{ label: TIPO_PLAGA_LABELS[p.tipo], ...TIPO_PLAGA_COLORS[p.tipo] }}
+            editable={editable}
+            onEliminar={() => handleEliminarPlaga(p.id)}
+          />
+        ))}
+      </SeccionFicha>
 
       {/* Costos de referencia */}
-      <div className="card">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-          <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
-            Costos de referencia
-            <span className="ml-2 text-[12px] font-normal text-[var(--text-muted)]">{costos.length} categorías</span>
-          </h2>
-          {editable && (
-            <Button size="sm" onClick={() => setShowCostoModal(true)}><Plus size={14} /> Costo</Button>
-          )}
-        </div>
-        {costos.length === 0 ? (
-          <EmptyState icon={<DollarSign size={24} />} title="Sin costos de referencia" description="Define costos esperados por categoría para proyecciones financieras." />
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {costos.map((c) => (
-              <div key={c.id} className="flex items-center gap-4 px-5 py-3 hover:bg-[var(--surface-page)] transition-colors">
-                <DollarSign size={14} className="text-blue-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <div className="text-[13px] text-[var(--text-primary)]">{CATEGORIA_LABELS[c.categoria]}</div>
-                  <div className="text-[11px] text-[var(--text-muted)]">
-                    {c.montoPorHa && `$${c.montoPorHa.toLocaleString("es-CO")}/ha`}
-                    {c.montoPorHa && c.montoPorPlanta && " · "}
-                    {c.montoPorPlanta && `$${c.montoPorPlanta.toLocaleString("es-CO")}/planta`}
-                    {c.frecuencia && ` · ${c.frecuencia}`}
-                  </div>
-                </div>
-                {editable && (
-                  <button onClick={() => handleEliminarCosto(c.id)} className="text-red-400 hover:text-red-600 flex-shrink-0" aria-label="Eliminar">
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SeccionFicha
+        titulo="Costos de referencia"
+        icono={<DollarSign size={24} />}
+        vacio="Sin costos de referencia."
+        editable={editable}
+        onAgregar={() => setShowCostoModal(true)}
+        labelAgregar="Costo"
+      >
+        {costos.map((c) => (
+          <FilaActividad
+            key={c.id}
+            texto={[
+              c.montoPorHa && `$${c.montoPorHa.toLocaleString("es-CO")}/ha`,
+              c.montoPorPlanta && `$${c.montoPorPlanta.toLocaleString("es-CO")}/planta`,
+            ].filter(Boolean).join(" · ") || "Sin monto"}
+            meta={c.frecuencia ?? ""}
+            badge={{ label: CATEGORIA_LABELS[c.categoria], bg: "#F1EFE8", color: "#5F5E5A" }}
+            editable={editable}
+            onEliminar={() => handleEliminarCosto(c.id)}
+          />
+        ))}
+      </SeccionFicha>
 
       {/* Curva de producción */}
-      <div className="card">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
-          <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
-            Curva de producción esperada
-            <span className="ml-2 text-[12px] font-normal text-[var(--text-muted)]">{curva.length} puntos</span>
-          </h2>
-          {editable && (
-            <Button size="sm" onClick={() => setShowCurvaModal(true)}><Plus size={14} /> Punto</Button>
-          )}
-        </div>
-        {curva.length === 0 ? (
-          <EmptyState icon={<TrendingUp size={24} />} title="Sin curva de producción" description="Define kg esperados por planta/ha según el año de producción." />
-        ) : (
-          <div className="divide-y divide-[var(--border-subtle)]">
-            {curva.map((p) => (
-              <div key={p.id} className="flex items-center gap-4 px-5 py-3 hover:bg-[var(--surface-page)] transition-colors">
-                <TrendingUp size={14} className="text-agro-400 flex-shrink-0" />
-                <div className="flex-1 min-w-0">
-                  <span className="text-[13px] text-[var(--text-primary)]">Año {p.anioProduccion}</span>
-                  <span className="text-[11px] text-[var(--text-muted)] ml-2">
-                    {p.kgPorPlantaEsperado && `${p.kgPorPlantaEsperado} kg/planta`}
-                    {p.kgPorPlantaEsperado && p.kgPorHaEsperado && " · "}
-                    {p.kgPorHaEsperado && `${p.kgPorHaEsperado} kg/ha`}
-                  </span>
-                </div>
-                {editable && (
-                  <button onClick={() => handleEliminarPunto(p.id)} className="text-red-400 hover:text-red-600 flex-shrink-0" aria-label="Eliminar">
-                    <Trash2 size={14} />
-                  </button>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      <SeccionFicha
+        titulo="Curva de producción esperada"
+        icono={<TrendingUp size={24} />}
+        vacio="Sin puntos de curva de producción."
+        editable={editable}
+        onAgregar={() => setShowCurvaModal(true)}
+        labelAgregar="Punto"
+      >
+        {curva.map((p) => (
+          <FilaActividad
+            key={p.id}
+            texto={`Año ${p.anioProduccion}`}
+            meta={[p.kgPorPlantaEsperado && `${p.kgPorPlantaEsperado} kg/planta`, p.kgPorHaEsperado && `${p.kgPorHaEsperado} kg/ha`].filter(Boolean).join(" · ")}
+            editable={editable}
+            onEliminar={() => handleEliminarPunto(p.id)}
+          />
+        ))}
+      </SeccionFicha>
 
       {/* ── Popups ─────────────────────────────────────────────────────────── */}
       <FichaCoreModal
@@ -492,6 +481,26 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
         ficha={ficha}
         onSaved={(actualizada) => setFicha((prev) => ({ ...prev, ...actualizada }))}
       />
+
+      <Modal isOpen={showDeleteModal} onClose={() => { setShowDeleteModal(false); setDeleteConfirm(""); }} title="Eliminar ficha técnica" size="sm">
+        <div className="space-y-4">
+          <p className="text-[13px] text-[var(--text-secondary)]">
+            Esta acción eliminará la ficha <strong>{nombreFicha}</strong> permanentemente. Para confirmar, escribe la versión exacta:
+          </p>
+          <Input
+            label={`Escribe "v${ficha.version}" para confirmar`}
+            value={deleteConfirm}
+            onChange={(e) => setDeleteConfirm(e.target.value)}
+            placeholder={`v${ficha.version}`}
+          />
+          <div className="flex gap-3 justify-end pt-2">
+            <Button variant="secondary" onClick={() => { setShowDeleteModal(false); setDeleteConfirm(""); }}>Cancelar</Button>
+            <Button variant="danger" disabled={deleteConfirm !== `v${ficha.version}`} loading={deleting} onClick={handleEliminarFicha}>
+              Eliminar ficha
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal isOpen={showEtapaModal} onClose={() => setShowEtapaModal(false)} title="Nueva etapa fenológica">
         <div className="space-y-3">
@@ -561,6 +570,94 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
           </div>
         </div>
       </Modal>
+    </div>
+  );
+}
+
+// ── Sección de ficha (card con header + lista) ──────────────────────────────
+// Mismo patrón que las cards "Historial de actividades"/"Gastos asociados" de
+// CultivoDetail.tsx: header con título+contador+acción, EmptyState si vacío.
+
+function SeccionFicha({
+  titulo,
+  subtitulo,
+  icono,
+  vacio,
+  editable,
+  onAgregar,
+  labelAgregar,
+  children,
+}: {
+  titulo: string;
+  subtitulo?: string;
+  icono: React.ReactNode;
+  vacio: string;
+  editable: boolean;
+  onAgregar: () => void;
+  labelAgregar: string;
+  children: React.ReactNode;
+}) {
+  const hasChildren = Array.isArray(children) ? children.length > 0 : !!children;
+  return (
+    <div className="card">
+      <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--border-subtle)]">
+        <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
+          {titulo}
+          {subtitulo && <span className="ml-2 text-[12px] font-normal text-[var(--text-muted)]">{subtitulo}</span>}
+        </h2>
+        {editable && (
+          <Button size="sm" variant="ghost" onClick={onAgregar}><Plus size={14} /> {labelAgregar}</Button>
+        )}
+      </div>
+      {!hasChildren ? (
+        <EmptyState icon={icono} title={vacio} />
+      ) : (
+        <div className="px-5 py-2">{children}</div>
+      )}
+    </div>
+  );
+}
+
+// ── Fila de actividad (dot-timeline) ────────────────────────────────────────
+// Mismo patrón que "Actividad reciente" dentro de la card de Cultivo en
+// CultivosList.tsx: punto + texto + badge + iconos que aparecen en hover.
+
+function FilaActividad({
+  texto,
+  meta,
+  badge,
+  editable,
+  onEliminar,
+}: {
+  texto: string;
+  meta?: string;
+  badge?: { label: string; bg: string; color: string };
+  editable: boolean;
+  onEliminar: () => void;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 py-1.5 border-b border-[var(--border-subtle)] last:border-0 group">
+      <span className="stage-dot bg-agro-200 mt-1.5 flex-shrink-0" />
+      <div className="flex-1 min-w-0">
+        <span className="text-[12px] text-[var(--text-primary)] block truncate">{texto}</span>
+        {meta && <span className="text-[11px] text-[var(--text-muted)]">{meta}</span>}
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {badge && (
+          <span className="badge text-[10px] font-medium" style={{ background: badge.bg, color: badge.color }}>
+            {badge.label}
+          </span>
+        )}
+        {editable && (
+          <button
+            onClick={onEliminar}
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            aria-label="Eliminar"
+          >
+            <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+          </button>
+        )}
+      </div>
     </div>
   );
 }
