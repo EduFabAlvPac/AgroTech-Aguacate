@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
-  Plus, User, Pencil, Trash2, TrendingUp, DollarSign, Sprout, Wallet,
+  Plus, User, Pencil, Trash2, TrendingUp, TrendingDown, DollarSign, Sprout, Wallet, Users,
 } from "lucide-react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { formatCOP, formatCOPFull } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -65,6 +66,23 @@ function rentabilidad(aportado: number, retornado: number): number {
   return ((retornado - aportado) / aportado) * 100;
 }
 
+// Mismo tooltip que FinancialChart.tsx — estilo transversal de los gráficos.
+const ChartTooltip = ({ active, payload, label }: any) => {
+  if (active && payload?.length) {
+    return (
+      <div className="bg-white border border-[var(--border-subtle)] rounded-[var(--radius-md)] p-2.5 shadow-sm text-[12px]">
+        <p className="font-semibold text-[var(--text-primary)] mb-1">{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} style={{ color: p.color }}>
+            {p.name}: {formatCOP(p.value)}
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
 export function InversionistasClient({
   inversionistas: initial,
   cultivos,
@@ -97,6 +115,26 @@ export function InversionistasClient({
 
   const cultivoLabel = (c: { especie: string; variedad: string; lote: { nombre: string } }) =>
     `${c.especie} ${c.variedad} — ${c.lote.nombre}`;
+
+  // ── Dashboard: KPIs globales + comportamiento por inversionista ─────────────
+  const dashboard = useMemo(() => {
+    const porInversionista = inversionistas.map((inv) => {
+      const aportado = inv.inversiones.reduce((s, i) => s + i.montoAportado, 0);
+      const retornado = inv.inversiones.reduce((s, i) => s + i.retornos.reduce((rs, r) => rs + r.monto, 0), 0);
+      return { nombre: inv.nombre.split(" ")[0], aportado, retornado };
+    });
+
+    const totalAportado = porInversionista.reduce((s, i) => s + i.aportado, 0);
+    const totalRetornado = porInversionista.reduce((s, i) => s + i.retornado, 0);
+    const activos = inversionistas.filter((i) => i.inversiones.some((inv) => inv.estado === "ACTIVA")).length;
+    const cultivosFinanciados = new Set(
+      inversionistas.flatMap((i) => i.inversiones.map((inv) => inv.cultivoId))
+    ).size;
+
+    return { porInversionista, totalAportado, totalRetornado, activos, cultivosFinanciados };
+  }, [inversionistas]);
+
+  const rentGlobal = rentabilidad(dashboard.totalAportado, dashboard.totalRetornado);
 
   // ── Inversionista CRUD ───────────────────────────────────────────────────
   const handleOpenNuevoInversionista = () => {
@@ -284,7 +322,59 @@ export function InversionistasClient({
           action={<Button onClick={handleOpenNuevoInversionista}><Plus size={14} /> Nuevo inversionista</Button>}
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* ════════ DASHBOARD: resumen global + comportamiento por inversionista ════════ */}
+          <div className="space-y-4">
+            {/* KPI Summary — mismo patrón que el tab Resumen de Finanzas */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              {[
+                { label: "Total aportado", value: formatCOP(dashboard.totalAportado), sub: `${inversionistas.length} inversionista(s)`, color: "text-harvest-400", bg: "bg-harvest-50", icon: DollarSign },
+                { label: "Total retornado", value: formatCOP(dashboard.totalRetornado), sub: "Distribuido a la fecha", color: "text-agro-600", bg: "bg-agro-50", icon: TrendingUp },
+                { label: "Rentabilidad global", value: `${rentGlobal >= 0 ? "+" : ""}${rentGlobal.toFixed(1)}%`, sub: rentGlobal >= 0 ? "Sobre el capital aportado" : "Aún no se recupera el capital", color: rentGlobal >= 0 ? "text-agro-600" : "text-red-600", bg: rentGlobal >= 0 ? "bg-agro-50" : "bg-red-50", icon: rentGlobal >= 0 ? TrendingUp : TrendingDown },
+                { label: "Inversionistas activos", value: dashboard.activos.toString(), sub: `${dashboard.cultivosFinanciados} cultivo(s) financiado(s)`, color: "text-[#185FA5]", bg: "bg-[#E6F1FB]", icon: Users },
+              ].map(({ label, value, sub, color, bg, icon: Icon }) => (
+                <div key={label} className="card p-4">
+                  <div className={`w-8 h-8 rounded-[var(--radius-md)] ${bg} flex items-center justify-center mb-3`}>
+                    <Icon size={16} className={color} />
+                  </div>
+                  <div className={`text-xl font-semibold ${color} mb-0.5`}>{value}</div>
+                  <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide">{label}</div>
+                  <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">{sub}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* Gráfico: aportado vs retornado por inversionista */}
+            <div className="card p-5">
+              <div className="flex items-center justify-between mb-5">
+                <div>
+                  <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">Aportado vs. retornado por inversionista</h2>
+                  <p className="text-[12px] text-[var(--text-muted)] mt-0.5">Seguimiento visual del comportamiento de cada inversión</p>
+                </div>
+                <div className="flex items-center gap-4 text-[11px] text-[var(--text-secondary)]">
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-300 inline-block" />Aportado</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-agro-200 inline-block" />Retornado</span>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={dashboard.porInversionista} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
+                  <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: "#8FA080" }} axisLine={false} tickLine={false} />
+                  <YAxis
+                    tick={{ fontSize: 10, fill: "#8FA080" }}
+                    axisLine={false}
+                    tickLine={false}
+                    tickFormatter={(v) => (v === 0 ? "" : `$${(v / 1000000).toFixed(1)}M`)}
+                  />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Bar dataKey="aportado" name="Aportado" fill="#F09595" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="retornado" name="Retornado" fill="#97C459" radius={[3, 3, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          <div className="space-y-4">
           {inversionistas.map((inv) => {
             const totalAportado = inv.inversiones.reduce((s, i) => s + i.montoAportado, 0);
             const totalRetornado = inv.inversiones.reduce(
@@ -430,6 +520,7 @@ export function InversionistasClient({
               </div>
             );
           })}
+        </div>
         </div>
       )}
 
