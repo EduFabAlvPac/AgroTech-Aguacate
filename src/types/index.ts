@@ -20,6 +20,8 @@ import type {
   Severidad,
   UserRole,
   ChatRole,
+  EstadoFicha,
+  TipoPlagaEnfermedad,
 } from "@prisma/client";
 
 export type {
@@ -27,6 +29,7 @@ export type {
   Gasto, Ingreso, Comprador, AlertaClimatica, ChatMessage, Presupuesto,
   EtapaCultivo, EstadoCultivo, TipoRegistro, CategoriaGasto, TipoGasto,
   TipoComprador, TipoAlerta, Severidad, UserRole, ChatRole,
+  EstadoFicha, TipoPlagaEnfermedad,
 };
 
 // ── Extended types with relations ────────────────────────────────────────────
@@ -200,4 +203,18 @@ export const TIPO_GASTO_LABELS: Record<TipoGasto, string> = {
   FIJO: "Fijo",
   VARIABLE: "Variable",
   INVERSION: "Inversión",
+};
+
+// ── Motor de fichas técnicas (panel Super Admin) ────────────────────────────
+
+export const ESTADO_FICHA_LABELS: Record<EstadoFicha, string> = {
+  BORRADOR: "Borrador",
+  PUBLICADA: "Publicada",
+  ARCHIVADA: "Archivada",
+};
+
+export const TIPO_PLAGA_LABELS: Record<TipoPlagaEnfermedad, string> = {
+  PLAGA: "Plaga",
+  ENFERMEDAD: "Enfermedad",
+  DEFICIENCIA_NUTRICIONAL: "Deficiencia nutricional",
 };
