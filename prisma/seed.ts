@@ -165,6 +165,8 @@ async function main() {
   await prisma.gasto.createMany({
     data: [
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoA.id,
         concepto: "Plántulas Hass certificadas - Lote A",
         categoria: CategoriaGasto.SEMILLAS_PLANTULAS,
@@ -174,6 +176,8 @@ async function main() {
         notas: "160 unidades a $5,000 c/u",
       },
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoB.id,
         concepto: "Plántulas Hass certificadas - Lote B",
         categoria: CategoriaGasto.SEMILLAS_PLANTULAS,
@@ -183,6 +187,8 @@ async function main() {
         notas: "160 unidades a $5,000 c/u",
       },
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoA.id,
         concepto: "Subsolado y preparación terreno - Lote A",
         categoria: CategoriaGasto.MAQUINARIA,
@@ -191,6 +197,8 @@ async function main() {
         proveedor: "Maquinaria local",
       },
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoB.id,
         concepto: "Subsolado y preparación terreno - Lote B",
         categoria: CategoriaGasto.MAQUINARIA,
@@ -199,6 +207,8 @@ async function main() {
         proveedor: "Maquinaria local",
       },
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoA.id,
         concepto: "Mano de obra siembra Lote A",
         categoria: CategoriaGasto.MANO_OBRA,
@@ -207,6 +217,8 @@ async function main() {
         notas: "2 jornales",
       },
       {
+        userId: user.id,
+        fincaId: finca.id,
         cultivoId: cultivoB.id,
         concepto: "Mano de obra siembra Lote B",
         categoria: CategoriaGasto.MANO_OBRA,

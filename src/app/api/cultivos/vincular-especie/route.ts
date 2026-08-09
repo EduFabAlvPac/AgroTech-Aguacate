@@ -77,6 +77,9 @@ export async function PATCH(req: Request) {
 }
 
 // GET /api/cultivos/vincular-especie — list available species for dropdown
+// Incluye, por cada especie, sus Variedad con ficha técnica PUBLICADA (motor
+// de fichas técnicas, RF5 — ver CLAUDE.md §2.2). Una variedad sin ficha
+// publicada aún no es seleccionable desde el catálogo.
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -95,6 +98,20 @@ export async function GET() {
         altitudMin: true,
         altitudMax: true,
         cicloMesesPrimeraCosecha: true,
+        variedades: {
+          where: { activo: true },
+          select: {
+            id: true,
+            nombre: true,
+            slug: true,
+            fichas: {
+              where: { estado: "PUBLICADA" },
+              orderBy: { version: "desc" },
+              take: 1,
+              select: { id: true, version: true, cicloProductivoMeses: true, altitudMinM: true, altitudMaxM: true },
+            },
+          },
+        },
       },
       orderBy: { nombre: "asc" },
     });

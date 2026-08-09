@@ -6,6 +6,30 @@ import { ETAPA_LABELS, ESTADO_CULTIVO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import type { Cultivo, EtapaCultivo, EstadoCultivo } from "@prisma/client";
 
+const OTRO_CULTIVO = "__otro__";
+
+interface CatalogoFicha {
+  id: string;
+  version: number;
+}
+
+interface CatalogoVariedad {
+  id: string;
+  nombre: string;
+  fichas: CatalogoFicha[];
+}
+
+interface CatalogoEspecie {
+  id: string;
+  nombre: string;
+  variedades: CatalogoVariedad[];
+}
+
+interface CatalogoOpcion {
+  variedadId: string;
+  label: string;
+}
+
 interface CultivoFormProps {
   loteId: string;
   loteAreaHa?: number;
@@ -41,6 +65,50 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
   const [especie, setEspecie] = useState(cultivo?.especie ?? "");
   const [variedad, setVariedad] = useState(cultivo?.variedad ?? "");
   const [estado, setEstado] = useState<EstadoCultivo>(cultivo?.estado ?? "ACTIVO");
+
+  // Motor de fichas técnicas (RF5) — catálogo especie+variedad en vez de
+  // texto libre. Si el cultivo editado ya tiene variedadId, se preselecciona;
+  // si no, arranca en modo manual (compatibilidad con cultivos legacy).
+  const [catalogo, setCatalogo] = useState<CatalogoOpcion[]>([]);
+  const [variedadId, setVariedadId] = useState<string>(cultivo?.variedadId ?? "");
+  const [modoManual, setModoManual] = useState(!variedadId);
+
+  useEffect(() => {
+    fetch("/api/cultivos/vincular-especie")
+      .then((res) => res.json())
+      .then(({ data }: { data: CatalogoEspecie[] }) => {
+        const opciones: CatalogoOpcion[] = [];
+        for (const especieItem of data ?? []) {
+          for (const variedadItem of especieItem.variedades ?? []) {
+            if (variedadItem.fichas.length > 0) {
+              opciones.push({ variedadId: variedadItem.id, label: especieItem.nombre });
+            }
+          }
+        }
+        setCatalogo(opciones);
+      })
+      .catch(() => {
+        // Si falla, el usuario sigue pudiendo crear el cultivo en modo manual.
+        setModoManual(true);
+      });
+  }, []);
+
+  const handleCatalogoChange = (value: string) => {
+    if (value === OTRO_CULTIVO) {
+      setModoManual(true);
+      setVariedadId("");
+      return;
+    }
+    setModoManual(false);
+    setVariedadId(value);
+    const opcion = catalogo.find((o) => o.variedadId === value);
+    if (opcion) {
+      // Se muestran de referencia; el servidor resuelve los valores finales.
+      const [especieBase, ...resto] = opcion.label.split(" ");
+      setEspecie(especieBase);
+      setVariedad(resto.join(" "));
+    }
+  };
 
   // Section 2 — Siembra
   const [fechaSiembra, setFechaSiembra] = useState(
@@ -89,6 +157,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
       loteId,
       especie: especie.trim(),
       variedad: variedad.trim() || undefined,
+      variedadId: !modoManual && variedadId ? variedadId : undefined,
       estado,
       fechaSiembra: fechaSiembra || undefined,
       cantidadPlantas: cantidadPlantas ? Number(cantidadPlantas) : undefined,
@@ -133,6 +202,24 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
         <h3 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">
           Información básica
         </h3>
+        {catalogo.length > 0 && (
+          <div className="mb-3">
+            <Select
+              label="Cultivo y variedad *"
+              value={modoManual ? OTRO_CULTIVO : variedadId}
+              onChange={(e) => handleCatalogoChange(e.target.value)}
+              options={[
+                ...catalogo.map((o) => ({ value: o.variedadId, label: o.label })),
+                { value: OTRO_CULTIVO, label: "Otro cultivo (especificar manualmente)" },
+              ]}
+            />
+            {!modoManual && variedadId && (
+              <p className="text-[11px] text-agro-600 bg-agro-50 px-2 py-1.5 rounded mt-1.5">
+                ✅ Se activará automáticamente la ficha técnica de {especie} {variedad} (calendario, riego, nutrición y alertas).
+              </p>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Input
             label="Especie *"
@@ -140,12 +227,14 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
             onChange={(e) => setEspecie(e.target.value)}
             placeholder="Ej: Aguacate, Cítrico, Café"
             required
+            disabled={!modoManual}
           />
           <Input
             label="Variedad"
             value={variedad}
             onChange={(e) => setVariedad(e.target.value)}
             placeholder="Ej: Hass, Papelillo, Grand Nain, Castillo"
+            disabled={!modoManual}
           />
           <Select
             label="Estado"
