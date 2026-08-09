@@ -10,7 +10,9 @@ services:
       POSTGRES_PASSWORD: agrotech123
       POSTGRES_DB: agro_tech_db
     ports:
-      - "5432:5432"
+      # 5432 y 5433 ya están tomados en este equipo por otros proyectos
+      # (arquiron-postgres, inmunocare-db) — se usa 5434 en el host.
+      - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:

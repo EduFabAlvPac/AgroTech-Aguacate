@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { resolverVariedad } from "@/lib/fichas-tecnicas";
 
 // GET /api/cultivos — list all cultivos for the user's fincas
 export async function GET() {
@@ -39,9 +40,30 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { loteId, especie, variedad, fechaSiembra, cantidadPlantas, densidadHa, etapa, estado, notas, portainjerto, proveedorMaterial, sistemaSiembra, distanciaSiembra, observaciones } = body;
+    const { loteId, especie, variedad, variedadId, fechaSiembra, cantidadPlantas, densidadHa, etapa, estado, notas, portainjerto, proveedorMaterial, sistemaSiembra, distanciaSiembra, observaciones } = body;
 
-    if (!loteId || !especie) {
+    // Si viene del catálogo de fichas técnicas (RF5), el servidor resuelve
+    // especie/variedad/fichaTecnicaId — nunca se confía en lo que mande el
+    // cliente para estos campos derivados. Ver src/lib/fichas-tecnicas.ts.
+    let especieFinal = especie as string | undefined;
+    let variedadFinal = variedad as string | undefined;
+    let especieIdFinal: string | undefined;
+    let variedadIdFinal: string | undefined;
+    let fichaTecnicaIdFinal: string | undefined;
+
+    if (variedadId) {
+      const resuelto = await resolverVariedad(variedadId);
+      if (!resuelto) {
+        return NextResponse.json({ error: "Variedad no encontrada en el catálogo" }, { status: 400 });
+      }
+      especieFinal = resuelto.especie;
+      variedadFinal = resuelto.variedad;
+      especieIdFinal = resuelto.especieId;
+      variedadIdFinal = resuelto.variedadId;
+      fichaTecnicaIdFinal = resuelto.fichaTecnicaId ?? undefined;
+    }
+
+    if (!loteId || !especieFinal) {
       return NextResponse.json({ error: "loteId y especie son requeridos" }, { status: 400 });
     }
 
@@ -64,8 +86,11 @@ export async function POST(req: Request) {
     const cultivo = await db.cultivo.create({
       data: {
         loteId,
-        especie,
-        variedad: variedad || undefined,
+        especie: especieFinal,
+        variedad: variedadFinal || undefined,
+        especieId: especieIdFinal,
+        variedadId: variedadIdFinal,
+        fichaTecnicaId: fichaTecnicaIdFinal,
         fechaSiembra: fechaSiembra ? new Date(fechaSiembra) : undefined,
         cantidadPlantas: cantidadPlantas ? Number(cantidadPlantas) : undefined,
         densidadHa: densidadHa ? Number(densidadHa) : undefined,

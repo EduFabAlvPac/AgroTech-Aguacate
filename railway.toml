@@ -1,3 +1,9 @@
+# NOTA: vestigial — el deploy real de producción es Vercel + Neon Postgres
+# (ver CLAUDE.md §3 y docs/REQUERIMIENTOS.md §8, deuda técnica #3). Este archivo
+# quedó del intento inicial de desplegar en Railway y hoy no se usa en el
+# pipeline real. No se elimina sin confirmación explícita; no tratar como
+# fuente de verdad de la configuración de deployment.
+
 [build]
 builder = "NIXPACKS"
 buildCommand = "npx prisma generate && npm run build"

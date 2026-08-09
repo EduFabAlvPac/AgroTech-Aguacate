@@ -10,15 +10,18 @@ datasource db {
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String      @id @default(cuid())
-  email        String      @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   name         String?
   password     String?
-  role         UserRole    @default(PRODUCER)
+  role         UserRole @default(PRODUCER)
   avatarUrl    String?
   telefono     String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  // Flag de plataforma, transversal a cualquier Organizacion — ver CLAUDE.md §2.3
+  // y docs/REQUERIMIENTOS.md ADR-004. No se modela como rol dentro de una org.
+  esSuperAdmin Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   fincas       Finca[]
   compradores  Comprador[]
@@ -26,6 +29,8 @@ model User {
   preferences  UserPreferences?
   gastos       Gasto[]
   presupuestos Presupuesto[]
+  membresias   Membresia[]
+  fincaAccesos FincaAcceso[]
 
   @@map("users")
 }
@@ -37,25 +42,107 @@ enum UserRole {
   ADMIN
 }
 
+// ─── ORGANIZATIONS / TENANCY ────────────────────────────────────────────────
+// Límite de tenant/facturación, por encima de Finca. Ver CLAUDE.md §2.1 y
+// docs/REQUERIMIENTOS.md ADR-001. Fase 0 del roadmap: se crea en paralelo al
+// modelo actual (Finca.organizacionId nullable) — el backfill (Fase 0, script
+// de migración) asigna 1 Organizacion + Membresia(OWNER) a cada User existente
+// sin cambiar comportamiento visible del piloto actual.
+
+model Organizacion {
+  id        String           @id @default(cuid())
+  nombre    String
+  slug      String           @unique
+  plan      PlanOrganizacion @default(GRATUITO)
+  activa    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  fincas     Finca[]
+  membresias Membresia[]
+
+  @@map("organizaciones")
+}
+
+enum PlanOrganizacion {
+  GRATUITO
+  PRODUCTOR
+  COOPERATIVA
+  ENTERPRISE
+}
+
+// User↔Organizacion: quién pertenece a qué tenant y con qué rol.
+model Membresia {
+  id             String          @id @default(cuid())
+  userId         String
+  organizacionId String
+  rol            RolOrganizacion
+  invitadoPorId  String?
+  aceptada       Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizacionId])
+  @@map("membresias")
+}
+
+enum RolOrganizacion {
+  OWNER
+  ADMIN_FINCA
+  COLABORADOR
+  INVERSIONISTA
+  COMPRADOR
+}
+
+// Scoping fino: cuando una organización tiene varias fincas y un miembro solo
+// debe operar algunas (no se requiere para el OWNER, que accede a todas las
+// fincas de su propia organización de forma implícita).
+model FincaAcceso {
+  id          String   @id @default(cuid())
+  userId      String
+  fincaId     String
+  rol         RolFinca @default(LECTURA)
+  creadoPorId String?
+  createdAt   DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  finca Finca @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, fincaId])
+  @@map("finca_accesos")
+}
+
+enum RolFinca {
+  ADMIN
+  OPERARIO
+  LECTURA
+}
+
 // ─── FARMS / FINCAS ───────────────────────────────────────────────────────────
 
 model Finca {
-  id           String   @id @default(cuid())
-  nombre       String
-  municipio    String
-  departamento String
-  altitud      Float?
-  lat          Float?
-  lng          Float?
-  areaTotal    Float?
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id             String        @id @default(cuid())
+  nombre         String
+  municipio      String
+  departamento   String
+  altitud        Float?
+  lat            Float?
+  lng            Float?
+  areaTotal      Float?
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Nullable durante la migración (Fase 0) — se vuelve NOT NULL tras el backfill.
+  organizacionId String?
+  organizacion   Organizacion? @relation(fields: [organizacionId], references: [id])
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
 
   lotes        Lote[]
   gastos       Gasto[]
   presupuestos Presupuesto[]
+  accesos      FincaAcceso[]
 
   @@map("fincas")
 }
@@ -77,9 +164,9 @@ model Lote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cultivos  Cultivo[]
-  jornales  Jornal[]
-  gastos    Gasto[]
+  cultivos Cultivo[]
+  jornales Jornal[]
+  gastos   Gasto[]
 
   @@map("lotes")
 }
@@ -89,76 +176,268 @@ model Lote {
 // Permite soportar múltiples cultivos (café, cacao, cítricos) sin modificar enums.
 
 model EspecieCultivo {
-  id              String   @id @default(cuid())
-  slug            String   @unique             // "aguacate-hass", "cafe-caturra", "cacao-ccu51"
-  nombre          String                       // "Aguacate Hass"
-  familia         String?                      // "Lauraceae", "Rubiaceae"
-  
+  id      String  @id @default(cuid())
+  slug    String  @unique // "aguacate-hass", "cafe-caturra", "cacao-ccu51"
+  nombre  String // "Aguacate Hass"
+  familia String? // "Lauraceae", "Rubiaceae"
+
   // Etapas fenológicas como JSON array — reemplaza el enum para cultivos nuevos
   // Ej: ["PREPARACION","SIEMBRA","ESTABLECIMIENTO","CRECIMIENTO","PRODUCCION","COSECHA"]
-  etapas          Json                         // string[]
-  
+  etapas Json // string[]
+
   // Tipos de registro válidos para esta especie
   // Ej: ["RIEGO","FERTILIZACION","PODA","COSECHA","DESPULPADO","SECADO"]
-  tiposRegistro   Json                         // string[]
-  
-  // Umbrales climáticos específicos del cultivo
-  umbralHelada    Float?                       // °C mínimo antes de daño
-  umbralCalor     Float?                       // °C máximo antes de estrés
-  lluviaMaxMm     Float?                       // mm/día para alerta
-  vientoMaxKmh    Float?                       // km/h para alerta
-  
-  // Ciclo productivo
-  cicloMesesPrimeraCosecha Int?                // Meses desde siembra hasta primera cosecha
-  produccionKgArbolAnual   Float?             // kg promedio por árbol/año en plena producción
-  
-  // Rango altitudinal óptimo (msnm)
-  altitudMin      Int?
-  altitudMax      Int?
-  
-  // Condiciones climáticas óptimas
-  tempOptMin      Float?                       // °C mínimo óptimo
-  tempOptMax      Float?                       // °C máximo óptimo
-  precipAnualMin  Float?                       // mm/año mínimo
-  precipAnualMax  Float?                       // mm/año máximo
-  
-  activo          Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  tiposRegistro Json // string[]
 
-  cultivos        Cultivo[]
+  // Umbrales climáticos específicos del cultivo
+  umbralHelada Float? // °C mínimo antes de daño
+  umbralCalor  Float? // °C máximo antes de estrés
+  lluviaMaxMm  Float? // mm/día para alerta
+  vientoMaxKmh Float? // km/h para alerta
+
+  // Ciclo productivo
+  cicloMesesPrimeraCosecha Int? // Meses desde siembra hasta primera cosecha
+  produccionKgArbolAnual   Float? // kg promedio por árbol/año en plena producción
+
+  // Rango altitudinal óptimo (msnm)
+  altitudMin Int?
+  altitudMax Int?
+
+  // Condiciones climáticas óptimas
+  tempOptMin     Float? // °C mínimo óptimo
+  tempOptMax     Float? // °C máximo óptimo
+  precipAnualMin Float? // mm/año mínimo
+  precipAnualMax Float? // mm/año máximo
+
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cultivos   Cultivo[]
+  variedades Variedad[]
 
   @@map("especies_cultivo")
+}
+
+// ─── MOTOR DE FICHAS TÉCNICAS (PARAMÉTRICO, VERSIONADO) ───────────────────────
+// Evoluciona EspecieCultivo (arriba) sin reemplazarlo — ver CLAUDE.md §2.2 y
+// docs/REQUERIMIENTOS.md §4.2 / ADR-002. Cada EspecieCultivo hoy ya representa
+// una combinación especie+variedad (ej. "Aguacate Hass"), sembrada en
+// prisma/seed-especies.ts; el script prisma/migrar-fichas-tecnicas.ts crea,
+// por cada una, exactamente 1 Variedad + 1 FichaTecnica v1 PUBLICADA.
+//
+// Un Cultivo se PINEA a una versión concreta (fichaTecnicaId) al crearse —
+// republicar una ficha no altera retroactivamente cultivos ya en curso.
+
+model Variedad {
+  id        String  @id @default(cuid())
+  especieId String
+  nombre    String // "Hass", "Caturra", "CCN-51"
+  slug      String
+  activo    Boolean @default(true)
+
+  especie  EspecieCultivo @relation(fields: [especieId], references: [id], onDelete: Cascade)
+  fichas   FichaTecnica[]
+  cultivos Cultivo[]
+
+  @@unique([especieId, slug])
+  @@map("variedades")
+}
+
+model FichaTecnica {
+  id           String      @id @default(cuid())
+  variedadId   String
+  version      Int         @default(1)
+  estado       EstadoFicha @default(BORRADOR)
+  publicadaEn  DateTime?
+  // Sin FK — mismo patrón laxo que Membresia.invitadoPorId; se resuelve cuando
+  // exista un flujo real de Super Admin (Fase 0/2) que lo popule.
+  creadoPorId  String?
+  notasVersion String?
+
+  altitudMinM             Int?
+  altitudMaxM             Int?
+  tempMinC                Float?
+  tempMaxC                Float?
+  humedadMinPct           Float?
+  humedadMaxPct           Float?
+  phMin                   Float?
+  phMax                   Float?
+  precipitacionAnualMinMm Int?
+  precipitacionAnualMaxMm Int?
+
+  densidadPlantasHaMin Int?
+  densidadPlantasHaMax Int?
+  distanciaSiembraM    String?
+  cicloProductivoMeses Int?
+  vidaUtilAnios        Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  variedad        Variedad               @relation(fields: [variedadId], references: [id], onDelete: Cascade)
+  etapas          EtapaFenologica[]
+  plagas          PlagaEnfermedad[]
+  costosRef       CostoReferencia[]
+  curvaProduccion PuntoCurvaProduccion[]
+  cultivos        Cultivo[]
+
+  @@unique([variedadId, version])
+  @@map("fichas_tecnicas")
+}
+
+enum EstadoFicha {
+  BORRADOR
+  PUBLICADA
+  ARCHIVADA
+}
+
+model EtapaFenologica {
+  id              String  @id @default(cuid())
+  fichaId         String
+  orden           Int
+  nombre          String
+  duracionDiasMin Int?
+  duracionDiasMax Int?
+  descripcion     String?
+
+  ficha       FichaTecnica               @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+  actividades ActividadCalendario[]
+  nutrientes  RequerimientoNutricional[]
+  planesRiego PlanRiego[]
+
+  @@unique([fichaId, orden])
+  @@map("etapas_fenologicas")
+}
+
+model ActividadCalendario {
+  id                String       @id @default(cuid())
+  etapaId           String
+  nombre            String
+  tipoRegistro      TipoRegistro // reutiliza el enum existente de RegistroCultivo
+  diaInicioRelativo Int
+  diaFinRelativo    Int?
+  frecuenciaDias    Int?
+  obligatoria       Boolean      @default(false)
+  descripcion       String?
+
+  etapa EtapaFenologica @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+
+  @@map("actividades_calendario")
+}
+
+model RequerimientoNutricional {
+  id                   String  @id @default(cuid())
+  etapaId              String
+  nutriente            String
+  cantidadGramosPlanta Float?
+  unidad               String  @default("g/planta/aplicación")
+  frecuenciaDias       Int?
+  fuenteRecomendada    String?
+
+  etapa EtapaFenologica @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+
+  @@map("requerimientos_nutricionales")
+}
+
+model PlanRiego {
+  id                String  @id @default(cuid())
+  etapaId           String
+  litrosPlantaDia   Float?
+  frecuenciaDias    Int?
+  metodoRecomendado String?
+
+  etapa EtapaFenologica @relation(fields: [etapaId], references: [id], onDelete: Cascade)
+
+  @@map("planes_riego")
+}
+
+model PlagaEnfermedad {
+  id                 String              @id @default(cuid())
+  fichaId            String
+  nombre             String
+  tipo               TipoPlagaEnfermedad
+  sintomas           String?
+  imagenesRef        String[] // catálogo visual base para diagnóstico IA (RF15)
+  umbralAlerta       Json? // condiciones climáticas que disparan riesgo (RF17)
+  manejoRecomendado  String?
+  etapasSusceptibles Int[] // ordenes de EtapaFenologica afectadas
+
+  ficha FichaTecnica @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@map("plagas_enfermedades")
+}
+
+enum TipoPlagaEnfermedad {
+  PLAGA
+  ENFERMEDAD
+  DEFICIENCIA_NUTRICIONAL
+}
+
+model CostoReferencia {
+  id             String         @id @default(cuid())
+  fichaId        String
+  categoria      CategoriaGasto // reutiliza el enum existente de Gasto
+  etapaOrden     Int?
+  montoPorHa     Float?
+  montoPorPlanta Float?
+  frecuencia     String?
+  descripcion    String?
+
+  ficha FichaTecnica @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@map("costos_referencia")
+}
+
+model PuntoCurvaProduccion {
+  id                  String @id @default(cuid())
+  fichaId             String
+  anioProduccion      Int
+  kgPorPlantaEsperado Float?
+  kgPorHaEsperado     Float?
+
+  ficha FichaTecnica @relation(fields: [fichaId], references: [id], onDelete: Cascade)
+
+  @@unique([fichaId, anioProduccion])
+  @@map("curva_produccion")
 }
 
 // ─── CROPS / CULTIVOS ─────────────────────────────────────────────────────────
 
 model Cultivo {
-  id              String        @id @default(cuid())
-  loteId          String
-  lote            Lote          @relation(fields: [loteId], references: [id], onDelete: Cascade)
-  especie         String        @default("Aguacate")
-  variedad        String        @default("Hass")
-  especieId       String?
-  especieCultivo  EspecieCultivo? @relation(fields: [especieId], references: [id])
-  fechaSiembra    DateTime?
-  cantidadPlantas Int?
-  densidadHa      Int?
-  etapa           EtapaCultivo  @default(PREPARACION)
-  estado          EstadoCultivo @default(ACTIVO)
-  notas           String?
-  portainjerto    String?
+  id                String          @id @default(cuid())
+  loteId            String
+  lote              Lote            @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  especie           String          @default("Aguacate")
+  variedad          String          @default("Hass")
+  especieId         String?
+  especieCultivo    EspecieCultivo? @relation(fields: [especieId], references: [id])
+  // Motor de fichas técnicas (Fase 1) — pinneado a una versión concreta al
+  // crear el cultivo; ver CLAUDE.md §2.2 y docs/REQUERIMIENTOS.md ADR-002.
+  // Nombrado "variedadCatalogo" (no "variedad") porque ese nombre ya lo usa
+  // el campo legacy de texto libre `variedad` de arriba.
+  variedadId        String?
+  variedadCatalogo  Variedad?       @relation(fields: [variedadId], references: [id])
+  fichaTecnicaId    String?
+  fichaTecnica      FichaTecnica?   @relation(fields: [fichaTecnicaId], references: [id])
+  fechaSiembra      DateTime?
+  cantidadPlantas   Int?
+  densidadHa        Int?
+  etapa             EtapaCultivo    @default(PREPARACION)
+  estado            EstadoCultivo   @default(ACTIVO)
+  notas             String?
+  portainjerto      String?
   proveedorMaterial String?
-  sistemaSiembra  String?
-  distanciaSiembra String?
-  observaciones   String?
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  sistemaSiembra    String?
+  distanciaSiembra  String?
+  observaciones     String?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
-  registros       RegistroCultivo[]
-  gastos          Gasto[]
-  ingresos        Ingreso[]
-  jornales        Jornal[]
+  registros RegistroCultivo[]
+  gastos    Gasto[]
+  ingresos  Ingreso[]
+  jornales  Jornal[]
 
   @@map("cultivos")
 }
@@ -234,13 +513,13 @@ model Gasto {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  user           User           @relation(fields: [userId], references: [id])
-  finca          Finca          @relation(fields: [fincaId], references: [id])
-  lote           Lote?          @relation(fields: [loteId], references: [id])
-  cultivo        Cultivo?       @relation(fields: [cultivoId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  finca   Finca    @relation(fields: [fincaId], references: [id])
+  lote    Lote?    @relation(fields: [loteId], references: [id])
+  cultivo Cultivo? @relation(fields: [cultivoId], references: [id])
 
   // Back-relation: optional link from registro de cultivo
-  registro       RegistroCultivo?
+  registro RegistroCultivo?
 
   @@map("gastos")
 }
@@ -254,17 +533,17 @@ enum TipoGasto {
 // ─── BUDGET / PRESUPUESTO ─────────────────────────────────────────────────────
 
 model Presupuesto {
-  id             String         @id @default(cuid())
-  userId         String
-  fincaId        String
-  anio           Int
-  categoria      CategoriaGasto
-  montoPlaneado  Float
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
+  id            String         @id @default(cuid())
+  userId        String
+  fincaId       String
+  anio          Int
+  categoria     CategoriaGasto
+  montoPlaneado Float
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  user           User           @relation(fields: [userId], references: [id])
-  finca          Finca          @relation(fields: [fincaId], references: [id])
+  user  User  @relation(fields: [userId], references: [id])
+  finca Finca @relation(fields: [fincaId], references: [id])
 
   @@unique([fincaId, anio, categoria])
   @@map("presupuestos")
@@ -275,21 +554,21 @@ model Presupuesto {
 // Se relaciona con finanzas como gasto automático categoría MANO_OBRA.
 
 model Jornal {
-  id              String    @id @default(cuid())
+  id              String   @id @default(cuid())
   cultivoId       String?
-  cultivo         Cultivo?  @relation(fields: [cultivoId], references: [id])
+  cultivo         Cultivo? @relation(fields: [cultivoId], references: [id])
   loteId          String?
-  lote            Lote?     @relation(fields: [loteId], references: [id])
-  fecha           DateTime  @default(now())
-  operario        String                      // Nombre del trabajador
-  horasTrabajadas Float     @default(8)       // Horas del jornal (default: día completo)
-  valorDia        Float                       // Tarifa día completa en COP (ej: $50.000)
-  actividad       String                      // "Fumigada", "Abonada", "Limpia", "Riego manual"
-  descripcion     String?                     // Detalles adicionales
-  imagen          String?   @db.Text          // Base64 data URL or external URL
-  loteArea        String?                     // Si aplica a un área específica del lote
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  lote            Lote?    @relation(fields: [loteId], references: [id])
+  fecha           DateTime @default(now())
+  operario        String // Nombre del trabajador
+  horasTrabajadas Float    @default(8) // Horas del jornal (default: día completo)
+  valorDia        Float // Tarifa día completa en COP (ej: $50.000)
+  actividad       String // "Fumigada", "Abonada", "Limpia", "Riego manual"
+  descripcion     String? // Detalles adicionales
+  imagen          String?  @db.Text // Base64 data URL or external URL
+  loteArea        String? // Si aplica a un área específica del lote
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   @@map("jornales")
 }
@@ -311,22 +590,22 @@ enum CategoriaGasto {
 // ─── INCOME / INGRESOS ────────────────────────────────────────────────────────
 
 model Ingreso {
-  id          String    @id @default(cuid())
+  id          String     @id @default(cuid())
   cultivoId   String?
-  cultivo     Cultivo?  @relation(fields: [cultivoId], references: [id])
+  cultivo     Cultivo?   @relation(fields: [cultivoId], references: [id])
   compradorId String?
   comprador   Comprador? @relation(fields: [compradorId], references: [id])
   concepto    String
   monto       Float
   cantidadKg  Float?
   precioKg    Float?
-  fecha       DateTime  @default(now())
+  fecha       DateTime   @default(now())
   notas       String?
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   // Back-relation: optional link from registro de cultivo
-  registro    RegistroCultivo?
+  registro RegistroCultivo?
 
   @@map("ingresos")
 }
@@ -351,7 +630,7 @@ model Comprador {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  ingresos     Ingreso[]
+  ingresos Ingreso[]
 
   @@map("compradores")
 }
@@ -406,13 +685,13 @@ enum Severidad {
 // ─── AI CHAT / HISTORIAL IA ───────────────────────────────────────────────────
 
 model ChatMessage {
-  id        String      @id @default(cuid())
+  id        String   @id @default(cuid())
   userId    String
-  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   role      ChatRole
-  content   String      @db.Text
+  content   String   @db.Text
   tokens    Int?
-  createdAt DateTime    @default(now())
+  createdAt DateTime @default(now())
 
   @@map("chat_messages")
 }
@@ -425,25 +704,25 @@ enum ChatRole {
 // ─── USER PREFERENCES ─────────────────────────────────────────────────────────
 
 model UserPreferences {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tempMinAlert Float    @default(12)
-  tempMaxAlert Float    @default(32)
-  rainAlertMm  Float    @default(30)
-  windAlertKmh Float    @default(40)
-  droughtDays  Int      @default(5)
+  tempMinAlert Float @default(12)
+  tempMaxAlert Float @default(32)
+  rainAlertMm  Float @default(30)
+  windAlertKmh Float @default(40)
+  droughtDays  Int   @default(5)
 
-  lat          Float    @default(7.9273)
-  lng          Float    @default(-72.5078)
-  municipio    String   @default("Norte de Santander")
+  lat       Float  @default(7.9273)
+  lng       Float  @default(-72.5078)
+  municipio String @default("Norte de Santander")
 
-  emailAlerts  Boolean  @default(true)
-  pushAlerts   Boolean  @default(true)
+  emailAlerts Boolean @default(true)
+  pushAlerts  Boolean @default(true)
 
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@map("user_preferences")
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import {
   BarChart,
   Bar,
@@ -8,29 +9,17 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from "recharts";
 import { TrendingUp, Plus } from "lucide-react";
 import Link from "next/link";
 import { formatCOP, cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 
-const MONTHLY_DATA = [
-  { mes: "Ene", gastos: 820000, ingresos: 0 },
-  { mes: "Feb", gastos: 940000, ingresos: 0 },
-  { mes: "Mar", gastos: 760000, ingresos: 0 },
-  { mes: "Abr", gastos: 1180000, ingresos: 0 },
-  { mes: "May", gastos: 1140000, ingresos: 0 },
-  { mes: "Jun", gastos: 1310000, ingresos: 0 },
-  { mes: "Jul", gastos: 2450000, ingresos: 0 },
-  { mes: "Ago", gastos: 0, ingresos: 0 },
-  { mes: "Sep", gastos: 0, ingresos: 0 },
-  { mes: "Oct", gastos: 0, ingresos: 0 },
-  { mes: "Nov", gastos: 0, ingresos: 0 },
-  { mes: "Dic", gastos: 0, ingresos: 0 },
-];
-
-const totalGastos = MONTHLY_DATA.reduce((s, d) => s + d.gastos, 0);
+interface MonthlyData {
+  mes: string;
+  gastos: number;
+  ingresos: number;
+}
 
 const CustomTooltip = ({ active, payload, label }: any) => {
   if (active && payload?.length) {
@@ -49,22 +38,17 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 // ── FinancialChartSkeleton ────────────────────────────────────────────────────
-// Fallback skeleton that mirrors the chart card layout.
-// Use as the Suspense fallback while financial data loads from the server.
 
 export function FinancialChartSkeleton() {
-  // 12 month columns — same count as the real chart
   const bars = Array.from({ length: 12 });
 
   return (
     <div className="card p-5" aria-label="Cargando finanzas...">
-      {/* Header row */}
       <div className="flex items-center justify-between mb-5">
         <div className="space-y-1.5">
           <Skeleton variant="text" className="h-4 w-32 rounded-md" />
           <Skeleton variant="text" className="h-3 w-64 rounded-full" />
         </div>
-        {/* Legend + buttons placeholder */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-4">
             <Skeleton variant="text" className="h-3 w-14 rounded-full" />
@@ -74,22 +58,16 @@ export function FinancialChartSkeleton() {
           <Skeleton variant="text" className="h-7 w-28 rounded-[var(--radius-md)]" />
         </div>
       </div>
-
-      {/* Bar chart area */}
       <div className="flex items-end gap-[3px] h-[180px] px-1" aria-hidden="true">
         {bars.map((_, i) => {
-          // Vary heights to look natural (matching real bar shape)
           const heights = [42, 48, 38, 58, 56, 64, 76, 20, 20, 20, 20, 20];
           const h = heights[i] ?? 20;
           return (
             <div key={i} className="flex-1 flex flex-col justify-end gap-0.5">
               <div
-                className={cn(
-                  "animate-pulse bg-[var(--border-subtle)] rounded-t-[3px] w-full",
-                )}
+                className={cn("animate-pulse bg-[var(--border-subtle)] rounded-t-[3px] w-full")}
                 style={{ height: `${h}%` }}
               />
-              {/* Month label placeholder */}
               <div className="animate-pulse bg-[var(--border-subtle)] rounded-full h-2 w-full mt-1" />
             </div>
           );
@@ -102,19 +80,71 @@ export function FinancialChartSkeleton() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 interface FinancialChartProps {
-  userId: string;
+  initialData?: MonthlyData[];
+  totalGastos?: number;
+  totalIngresos?: number;
 }
 
-export function FinancialChart({ userId }: FinancialChartProps) {
+export function FinancialChart({ initialData, totalGastos: propTotalGastos, totalIngresos: propTotalIngresos }: FinancialChartProps) {
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>(initialData ?? []);
+  const [totalGastos, setTotalGastos] = useState(propTotalGastos ?? 0);
+  const [totalIngresos, setTotalIngresos] = useState(propTotalIngresos ?? 0);
+  const [loading, setLoading] = useState(!initialData);
+
+  useEffect(() => {
+    if (initialData) return; // Already have server-provided data
+
+    async function fetchData() {
+      try {
+        const res = await fetch("/api/gastos");
+        const { data: gastos } = await res.json();
+
+        const ingresoRes = await fetch("/api/ingresos");
+        const { data: ingresos } = await ingresoRes.json();
+
+        const year = new Date().getFullYear();
+        const months = Array.from({ length: 12 }, (_, i) => {
+          const mes = new Date(year, i, 1).toLocaleDateString("es-CO", { month: "short" });
+          const gastosMonth = (gastos ?? [])
+            .filter((g: any) => {
+              const d = new Date(g.fecha);
+              return d.getMonth() === i && d.getFullYear() === year;
+            })
+            .reduce((s: number, g: any) => s + g.monto, 0);
+          const ingresosMonth = (ingresos ?? [])
+            .filter((ing: any) => {
+              const d = new Date(ing.fecha);
+              return d.getMonth() === i && d.getFullYear() === year;
+            })
+            .reduce((s: number, ing: any) => s + ing.monto, 0);
+          return { mes, gastos: gastosMonth, ingresos: ingresosMonth };
+        });
+
+        setMonthlyData(months);
+        setTotalGastos(months.reduce((s, m) => s + m.gastos, 0));
+        setTotalIngresos(months.reduce((s, m) => s + m.ingresos, 0));
+      } catch {
+        // Keep empty state on error
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, [initialData]);
+
+  if (loading) return <FinancialChartSkeleton />;
+
   return (
     <div className="card p-5">
       <div className="flex items-center justify-between mb-5">
         <div>
           <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
-            Finanzas 2026
+            Finanzas {new Date().getFullYear()}
           </h2>
           <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
-            Gastos acumulados: {formatCOP(totalGastos)} · Ingresos: $0 (primer año de establecimiento)
+            Gastos acumulados: {formatCOP(totalGastos)}
+            {totalIngresos > 0 && ` · Ingresos: ${formatCOP(totalIngresos)}`}
+            {totalIngresos === 0 && " · Ingresos: $0 (primer año de establecimiento)"}
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -144,7 +174,7 @@ export function FinancialChart({ userId }: FinancialChartProps) {
       </div>
 
       <ResponsiveContainer width="100%" height={180}>
-        <BarChart data={MONTHLY_DATA} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+        <BarChart data={monthlyData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
           <XAxis
             dataKey="mes"

@@ -78,6 +78,58 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
   );
 }
 
+// ── Async Server Component: fetches financial data for FinancialChart ─────────
+async function FinancialChartLoader({ userId }: { userId: string }) {
+  const year = new Date().getFullYear();
+  const fechaInicio = new Date(year, 0, 1);
+  const fechaFin = new Date(year, 11, 31, 23, 59, 59);
+
+  const [gastos, ingresos] = await Promise.all([
+    db.gasto.findMany({
+      where: {
+        OR: [
+          { userId },
+          { cultivo: { lote: { finca: { userId } } } },
+        ],
+        fecha: { gte: fechaInicio, lte: fechaFin },
+      },
+      select: { monto: true, fecha: true },
+    }),
+    db.ingreso.findMany({
+      where: {
+        OR: [
+          { cultivo: { lote: { finca: { userId } } } },
+          { comprador: { userId } },
+        ],
+        fecha: { gte: fechaInicio, lte: fechaFin },
+      },
+      select: { monto: true, fecha: true },
+    }),
+  ]);
+
+  const monthlyData = Array.from({ length: 12 }, (_, i) => {
+    const mes = new Date(year, i, 1).toLocaleDateString("es-CO", { month: "short" });
+    const gastosMonth = gastos
+      .filter((g) => new Date(g.fecha).getMonth() === i)
+      .reduce((s, g) => s + g.monto, 0);
+    const ingresosMonth = ingresos
+      .filter((ing) => new Date(ing.fecha).getMonth() === i)
+      .reduce((s, ing) => s + ing.monto, 0);
+    return { mes, gastos: gastosMonth, ingresos: ingresosMonth };
+  });
+
+  const totalGastos = gastos.reduce((s, g) => s + g.monto, 0);
+  const totalIngresos = ingresos.reduce((s, i) => s + i.monto, 0);
+
+  return (
+    <FinancialChart
+      initialData={monthlyData}
+      totalGastos={totalGastos}
+      totalIngresos={totalIngresos}
+    />
+  );
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
@@ -127,7 +179,7 @@ export default async function DashboardPage() {
 
         {/* Row 3: Financial Chart */}
         <Suspense fallback={<FinancialChartSkeleton />}>
-          <FinancialChart userId={session.user.id} />
+          <FinancialChartLoader userId={session.user.id} />
         </Suspense>
 
         {/* Row 4: Buyers */}

@@ -56,7 +56,7 @@ export async function PUT(
       return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
     }
 
-    const { tipo, descripcion, fecha } = parsed.data;
+    const { tipo, descripcion, fecha, imagenes } = parsed.data;
 
     const updated = await db.registroCultivo.update({
       where: { id: registroId },
@@ -64,6 +64,7 @@ export async function PUT(
         ...(tipo !== undefined && { tipo }),
         ...(descripcion !== undefined && { descripcion }),
         ...(fecha !== undefined && { fecha: new Date(fecha) }),
+        ...(imagenes !== undefined && { imagenes }),
       },
     });
 

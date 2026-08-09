@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { resolverVariedad } from "@/lib/fichas-tecnicas";
 
 async function verifyCultivoOwnership(cultivoId: string, userId: string) {
   return db.cultivo.findFirst({
@@ -49,8 +50,29 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     // Build update data dynamically — only include fields that are present in the request
     const data: Record<string, unknown> = {};
-    if (body.especie !== undefined) data.especie = body.especie;
-    if (body.variedad !== undefined) data.variedad = body.variedad;
+
+    // Catálogo de fichas técnicas (RF5): igual que en la creación, el
+    // servidor resuelve especie/variedad/fichaTecnicaId a partir de
+    // variedadId — nunca se confía en lo que mande el cliente.
+    if (body.variedadId !== undefined) {
+      if (body.variedadId === null) {
+        data.variedadId = null;
+        data.fichaTecnicaId = null;
+      } else {
+        const resuelto = await resolverVariedad(body.variedadId);
+        if (!resuelto) {
+          return NextResponse.json({ error: "Variedad no encontrada en el catálogo" }, { status: 400 });
+        }
+        data.especie = resuelto.especie;
+        data.variedad = resuelto.variedad;
+        data.especieId = resuelto.especieId;
+        data.variedadId = resuelto.variedadId;
+        data.fichaTecnicaId = resuelto.fichaTecnicaId;
+      }
+    } else {
+      if (body.especie !== undefined) data.especie = body.especie;
+      if (body.variedad !== undefined) data.variedad = body.variedad;
+    }
     if (body.fechaSiembra !== undefined) data.fechaSiembra = body.fechaSiembra ? new Date(body.fechaSiembra) : null;
     if (body.cantidadPlantas !== undefined) data.cantidadPlantas = body.cantidadPlantas ? Number(body.cantidadPlantas) : null;
     if (body.densidadHa !== undefined) data.densidadHa = body.densidadHa ? Number(body.densidadHa) : null;
