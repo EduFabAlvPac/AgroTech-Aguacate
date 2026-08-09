@@ -16,6 +16,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
+  Wallet,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
@@ -26,6 +27,7 @@ const navItems = [
   { href: "/dashboard/cultivos",     icon: Sprout,          label: "Cultivos" },
   { href: "/dashboard/mapa",         icon: Map,             label: "Mapa" },
   { href: "/dashboard/finanzas",     icon: BarChart3,       label: "Finanzas" },
+  { href: "/dashboard/inversionistas", icon: Wallet,        label: "Inversionistas" },
   { href: "/dashboard/asistente",    icon: Bot,             label: "Asistente IA" },
   { href: "/dashboard/alertas",      icon: CloudLightning,  label: "Alertas" },
   { href: "/dashboard/compradores",  icon: Users,           label: "Compradores" },

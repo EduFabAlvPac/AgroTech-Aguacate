@@ -23,14 +23,15 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  fincas       Finca[]
-  compradores  Comprador[]
-  chatMessages ChatMessage[]
-  preferences  UserPreferences?
-  gastos       Gasto[]
-  presupuestos Presupuesto[]
-  membresias   Membresia[]
-  fincaAccesos FincaAcceso[]
+  fincas         Finca[]
+  compradores    Comprador[]
+  chatMessages   ChatMessage[]
+  preferences    UserPreferences?
+  gastos         Gasto[]
+  presupuestos   Presupuesto[]
+  membresias     Membresia[]
+  fincaAccesos   FincaAcceso[]
+  inversionistas Inversionista[]
 
   @@map("users")
 }
@@ -434,10 +435,11 @@ model Cultivo {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
-  registros RegistroCultivo[]
-  gastos    Gasto[]
-  ingresos  Ingreso[]
-  jornales  Jornal[]
+  registros   RegistroCultivo[]
+  gastos      Gasto[]
+  ingresos    Ingreso[]
+  jornales    Jornal[]
+  inversiones InversionCultivo[]
 
   @@map("cultivos")
 }
@@ -643,6 +645,75 @@ enum TipoComprador {
   PLAZA_MERCADO
   RESTAURANTE
   OTRO
+}
+
+// ─── INVESTORS / INVERSIONISTAS ────────────────────────────────────────────
+// Fase 3 (parcial) — ver CLAUDE.md §2.5 y docs/REQUERIMIENTOS.md ADR-003.
+// Mismo patrón que Comprador: un contacto gestionado por el productor
+// (userId = dueño de la finca que lo registra), NO un User con login propio
+// — el rol INVERSIONISTA con sesión y acceso scoped queda para cuando el
+// RBAC real (Fase 2) esté enforced en las rutas. Se puede agregar más
+// adelante un `cuentaUserId String?` opcional, igual que está previsto para
+// Comprador.userId en el gap analysis, sin romper este modelo.
+
+model Inversionista {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  nombre    String
+  email     String?
+  telefono  String?
+  notas     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inversiones InversionCultivo[]
+
+  @@map("inversionistas")
+}
+
+// Aporte de un inversionista a un cultivo ESPECÍFICO (no a la finca completa)
+// — requisito de negocio explícito: un inversionista puede financiar el lote
+// de cacao sin tener visibilidad ni participación en el de café.
+model InversionCultivo {
+  id                      String          @id @default(cuid())
+  cultivoId               String
+  cultivo                 Cultivo         @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+  inversionistaId         String
+  inversionista           Inversionista   @relation(fields: [inversionistaId], references: [id], onDelete: Cascade)
+  montoAportado           Float
+  fechaAporte             DateTime        @default(now())
+  moneda                  String          @default("COP")
+  porcentajeParticipacion Float
+  condiciones             String?
+  estado                  EstadoInversion @default(ACTIVA)
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  retornos RetornoInversion[]
+
+  @@map("inversiones_cultivo")
+}
+
+enum EstadoInversion {
+  ACTIVA
+  RETIRADA
+  FINALIZADA
+}
+
+// Historial de retornos entregados al inversionista — separado de Ingreso
+// (que es la venta del cultivo) porque un retorno es la distribución de
+// utilidad, no necesariamente 1:1 con una venta puntual.
+model RetornoInversion {
+  id          String           @id @default(cuid())
+  inversionId String
+  inversion   InversionCultivo @relation(fields: [inversionId], references: [id], onDelete: Cascade)
+  monto       Float
+  fecha       DateTime         @default(now())
+  concepto    String?
+  createdAt   DateTime         @default(now())
+
+  @@map("retornos_inversion")
 }
 
 // ─── WEATHER ALERTS / ALERTAS CLIMÁTICAS ─────────────────────────────────────
