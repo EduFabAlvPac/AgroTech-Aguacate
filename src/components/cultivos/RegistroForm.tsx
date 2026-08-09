@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Button, Select, Textarea, Input } from "@/components/ui";
 import { PhotoCapture } from "@/components/ui/PhotoCapture";
+import { VoiceRecorder } from "@/components/ui/VoiceRecorder";
 import { TIPO_REGISTRO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import { registroFormSchema } from "@/lib/validations";
@@ -131,6 +132,17 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
           error={errors.fecha}
         />
       </div>
+
+      <VoiceRecorder
+        label="¿Prefieres contarlo en vez de escribirlo?"
+        onTranscribed={(texto) => {
+          setForm((prev) => ({
+            ...prev,
+            descripcion: prev.descripcion ? `${prev.descripcion} ${texto}` : texto,
+          }));
+          if (errors.descripcion) setErrors((prev) => ({ ...prev, descripcion: undefined }));
+        }}
+      />
 
       <Textarea
         label="Descripción de la actividad"
