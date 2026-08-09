@@ -144,6 +144,7 @@ model Finca {
   gastos       Gasto[]
   presupuestos Presupuesto[]
   accesos      FincaAcceso[]
+  alertas      AlertaClimatica[]
 
   @@map("fincas")
 }
@@ -440,6 +441,7 @@ model Cultivo {
   ingresos    Ingreso[]
   jornales    Jornal[]
   inversiones InversionCultivo[]
+  alertas     AlertaClimatica[]
 
   @@map("cultivos")
 }
@@ -731,6 +733,16 @@ model AlertaClimatica {
   datos       Json?
   municipio   String?
   createdAt   DateTime   @default(now())
+
+  // Aislamiento por finca/cultivo — antes este modelo no tenía dueño y
+  // GET /api/alertas devolvía TODO a cualquier usuario autenticado. Ambos
+  // opcionales: las alertas climáticas (HELADA, LLUVIA_EXCESIVA, etc.) son
+  // a nivel finca; las de PLAGA (motor de fichas técnicas, Fase 5) son
+  // específicas de un cultivo. Ver prisma/backfill-alertas-finca.ts.
+  fincaId   String?
+  finca     Finca?   @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  cultivoId String?
+  cultivo   Cultivo? @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
 
   @@map("alertas_climaticas")
 }

@@ -10,7 +10,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const alerta = await db.alertaClimatica.findUnique({ where: { id } });
+    const alerta = await db.alertaClimatica.findFirst({
+      where: { id, finca: { userId: session.user.id } },
+    });
     if (!alerta) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
     return NextResponse.json({ data: alerta });
@@ -25,6 +27,12 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    const owned = await db.alertaClimatica.findFirst({
+      where: { id, finca: { userId: session.user.id } },
+      select: { id: true },
+    });
+    if (!owned) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
     const body = await req.json();
     const alerta = await db.alertaClimatica.update({
@@ -49,6 +57,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    const owned = await db.alertaClimatica.findFirst({
+      where: { id, finca: { userId: session.user.id } },
+      select: { id: true },
+    });
+    if (!owned) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
 
     await db.alertaClimatica.delete({ where: { id } });
     return NextResponse.json({ data: { deleted: true } });

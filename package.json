@@ -16,6 +16,7 @@
     "db:migrar-fichas": "tsx prisma/migrar-fichas-tecnicas.ts",
     "db:set-super-admin": "tsx prisma/set-super-admin.ts",
     "db:renombrar-especies": "tsx prisma/renombrar-especies-genericas.ts",
+    "db:backfill-alertas": "tsx prisma/backfill-alertas-finca.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed"
   },
   "dependencies": {
