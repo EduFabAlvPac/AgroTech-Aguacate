@@ -81,7 +81,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
         for (const especieItem of data ?? []) {
           for (const variedadItem of especieItem.variedades ?? []) {
             if (variedadItem.fichas.length > 0) {
-              opciones.push({ variedadId: variedadItem.id, label: especieItem.nombre });
+              opciones.push({ variedadId: variedadItem.id, label: `${especieItem.nombre} ${variedadItem.nombre}` });
             }
           }
         }

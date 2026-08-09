@@ -144,12 +144,17 @@ export function FichasTecnicasClient({ especies: initial }: { especies: EspecieC
           {especies.map((especie) => (
             <div key={especie.id} className="card p-4">
               <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{especie.nombre}</h3>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    {especie.slug}
-                    {especie.familia ? ` · ${especie.familia}` : ""}
-                  </p>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-agro-50 flex items-center justify-center flex-shrink-0">
+                    <Leaf size={18} className="text-agro-400" />
+                  </div>
+                  <div>
+                    <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{especie.nombre}</h3>
+                    <p className="text-[11px] text-[var(--text-muted)]">
+                      {especie.slug}
+                      {especie.familia ? ` · ${especie.familia}` : ""}
+                    </p>
+                  </div>
                 </div>
                 <Button
                   variant="secondary"
@@ -220,11 +225,15 @@ export function FichasTecnicasClient({ especies: initial }: { especies: EspecieC
       {/* Modal: nueva especie */}
       <Modal isOpen={showEspecieModal} onClose={() => setShowEspecieModal(false)} title="Nueva especie">
         <div className="space-y-3">
+          <p className="text-[12px] text-[var(--text-muted)] -mt-1">
+            Nombre genérico del cultivo, sin variedad — la variedad se agrega después con
+            "+ Variedad" dentro de la especie (ej. Hass, Papelillo, Choquette bajo "Aguacate").
+          </p>
           <Input
             label="Nombre *"
             value={especieForm.nombre}
             onChange={(e) => setEspecieForm({ ...especieForm, nombre: e.target.value })}
-            placeholder="Ej: Aguacate Lorena"
+            placeholder="Ej: Aguacate, Café, Cacao, Limón"
           />
           <Input
             label="Slug"

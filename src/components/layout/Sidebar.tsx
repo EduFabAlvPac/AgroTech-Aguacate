@@ -45,7 +45,7 @@ export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombr
   // CLAUDE.md §2.3). El flag viene del JWT, así que un cambio de esSuperAdmin
   // solo se refleja tras cerrar y volver a iniciar sesión.
   const items = session?.user?.esSuperAdmin
-    ? [...navItems, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas (Admin)" }]
+    ? [...navItems, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }]
     : navItems;
 
   return (
