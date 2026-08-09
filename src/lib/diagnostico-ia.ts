@@ -31,6 +31,10 @@ export interface DiagnosticoResultado {
   sintomasObservados: string;
   recomendacion: string;
   coincideCatalogo: boolean;
+  /** Razonamiento del modelo (diagnóstico diferencial) — separado de la
+   * respuesta final vía `reasoning_format: "parsed"` (ver diagnosticarImagen).
+   * Opcional: informativo para el productor, no crítico para el flujo. */
+  razonamiento?: string;
 }
 
 export class DiagnosticoError extends Error {
@@ -51,19 +55,21 @@ function construirPrompt(especie: string, variedad: string, catalogo: PlagaCatal
 
   return `Eres un agrónomo experto en diagnóstico de plagas, enfermedades y deficiencias nutricionales por imagen, especializado en ${especie} ${variedad}. Nunca uses conocimiento de otros cultivos (ej. no confundas plagas de café con las de aguacate o cacao).
 
-Analiza la imagen y responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con exactamente esta forma:
+Antes de responder, considera y descarta activamente los diagnósticos diferenciales más parecidos (plagas/enfermedades/deficiencias que producen síntomas similares) — pero en tu respuesta final da UN SOLO diagnóstico concluyente, el más probable, no una lista de posibilidades.
+
+Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con exactamente esta forma:
 {
-  "diagnostico": "nombre de la plaga/enfermedad/deficiencia detectada, o 'Sin evidencia de daño visible' si la planta se ve sana",
+  "diagnostico": "nombre concreto y único de la plaga/enfermedad/deficiencia detectada, o 'Sin evidencia de daño visible' si la planta se ve sana",
   "confianza": "alta" | "media" | "baja",
-  "sintomasObservados": "descripción breve y concreta de lo que ves en la imagen",
-  "recomendacion": "manejo recomendado en español colombiano campesino, con producto y dosis si aplica",
+  "sintomasObservados": "descripción breve y concreta de lo que ves en la imagen (color, patrón, ubicación en la planta)",
+  "recomendacion": "manejo recomendado en español colombiano campesino — SIEMPRE incluye: 1) producto/ingrediente activo concreto y dosis, 2) frecuencia de aplicación, 3) una medida cultural/preventiva adicional (poda, drenaje, distanciamiento, etc.)",
   "coincideCatalogo": true o false
 }
 
 Catálogo de plagas/enfermedades conocidas para ${especie} ${variedad}:
 ${listaCatalogo}
 
-Si lo que ves coincide con algo del catálogo, usa exactamente ese nombre en "diagnostico", basa "recomendacion" en su manejo recomendado, y pon coincideCatalogo=true. Si no coincide con el catálogo pero lo reconoces por tu conocimiento general, responde igual pero con coincideCatalogo=false. Si la imagen no permite diagnosticar (no es una planta, está borrosa, etc.), dilo claramente en "diagnostico" con confianza "baja".`;
+Si lo que ves coincide con algo del catálogo, usa exactamente ese nombre en "diagnostico", basa "recomendacion" en su manejo recomendado (amplíalo con dosis/frecuencia concretas aunque el catálogo no las tenga), y pon coincideCatalogo=true. Si no coincide con el catálogo pero lo reconoces por tu conocimiento general, responde igual pero con coincideCatalogo=false. Si la imagen no permite diagnosticar (no es una planta, está borrosa, muy poca evidencia visible, etc.), dilo claramente en "diagnostico" con confianza "baja" y en "recomendacion" pide una foto más clara o de otro ángulo en vez de inventar un tratamiento.`;
 }
 
 /**
@@ -98,7 +104,15 @@ export async function diagnosticarImagen(
           ],
         },
       ],
-      max_tokens: 600,
+      // qwen3.6-27b es un modelo "thinking": sin reasoning_format separado,
+      // su cadena de razonamiento sale mezclada dentro de `content` envuelta
+      // en <think>...</think> y puede agotar max_tokens antes de llegar al
+      // JSON final (bug real observado: la respuesta se cortaba a mitad del
+      // razonamiento). "parsed" la manda aparte a `message.reasoning` y deja
+      // `content` limpio — ver https://console.groq.com/docs/reasoning.
+      reasoning_effort: "default",
+      reasoning_format: "parsed",
+      max_tokens: 2000,
       temperature: 0.3,
     }),
   });
@@ -109,8 +123,12 @@ export async function diagnosticarImagen(
     throw new DiagnosticoError(data.error?.message || "Error del servicio de diagnóstico IA", 502);
   }
 
-  const texto: string = data.choices?.[0]?.message?.content ?? "";
-  return parsearRespuesta(texto);
+  const mensaje = data.choices?.[0]?.message ?? {};
+  const resultado = parsearRespuesta(mensaje.content ?? "");
+  if (typeof mensaje.reasoning === "string" && mensaje.reasoning.trim()) {
+    resultado.razonamiento = mensaje.reasoning.trim();
+  }
+  return resultado;
 }
 
 /**
@@ -119,7 +137,11 @@ export async function diagnosticarImagen(
  * instrucción) — nunca se le pide al usuario que confíe en un 500 por un
  * formato inesperado si se puede rescatar el diagnóstico igual.
  */
-function parsearRespuesta(texto: string): DiagnosticoResultado {
+function parsearRespuesta(textoOriginal: string): DiagnosticoResultado {
+  // Red de seguridad adicional a reasoning_format:"parsed" — si algún modelo
+  // futuro igual mezcla el pensamiento en `content`, no debe filtrarse al
+  // diagnóstico final.
+  const texto = textoOriginal.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
   const match = texto.match(/\{[\s\S]*\}/);
   if (match) {
     try {

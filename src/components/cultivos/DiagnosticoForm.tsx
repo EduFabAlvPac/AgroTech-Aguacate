@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Eye, Pill } from "lucide-react";
+import { Sparkles, Eye, Pill, ChevronDown, ChevronUp } from "lucide-react";
 import { Button, Textarea } from "@/components/ui";
 import { PhotoCapture } from "@/components/ui/PhotoCapture";
 import toast from "react-hot-toast";
@@ -14,6 +14,7 @@ interface DiagnosticoResultado {
   sintomasObservados: string;
   recomendacion: string;
   coincideCatalogo: boolean;
+  razonamiento?: string;
 }
 
 interface DiagnosticoFormProps {
@@ -33,6 +34,7 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
   const [descripcion, setDescripcion] = useState("");
   const [loading, setLoading] = useState(false);
   const [resultado, setResultado] = useState<DiagnosticoResultado | null>(null);
+  const [showRazonamiento, setShowRazonamiento] = useState(false);
 
   const handleAnalizar = async () => {
     if (!imagen) return toast.error("Toma o sube una foto primero");
@@ -92,6 +94,25 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
             </p>
           )}
         </div>
+        {resultado.razonamiento && (
+          <div>
+            <button
+              onClick={() => setShowRazonamiento((v) => !v)}
+              className="flex items-center gap-1 text-[11px] text-agro-400 hover:text-agro-600 font-medium"
+            >
+              {showRazonamiento ? (
+                <><ChevronUp size={12} /> Ocultar análisis del modelo</>
+              ) : (
+                <><ChevronDown size={12} /> Ver por qué el modelo llegó a este diagnóstico</>
+              )}
+            </button>
+            {showRazonamiento && (
+              <p className="mt-2 text-[11px] text-[var(--text-muted)] whitespace-pre-line bg-[var(--surface-page)] rounded-[var(--radius-md)] p-2 max-h-40 overflow-y-auto">
+                {resultado.razonamiento}
+              </p>
+            )}
+          </div>
+        )}
         <p className="text-[11px] text-agro-600 bg-agro-50 px-2 py-1.5 rounded">
           ✅ Se guardó como inspección en el cuaderno de campo.
         </p>
