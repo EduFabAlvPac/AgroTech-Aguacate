@@ -35,6 +35,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const cultivo = await db.cultivo.findFirst({
       where: { id, lote: { finca: { userId: session.user.id } } },
       include: {
+        lote: { select: { fincaId: true } },
         fichaTecnica: {
           include: {
             variedad: { include: { especie: true } },
@@ -69,7 +70,30 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    return NextResponse.json({ data: { diagnostico: resultado, registro } }, { status: 201 });
+    // Genera una alerta (además de la bitácora) cuando el diagnóstico
+    // encuentra un problema real con confianza suficiente — "sin evidencia
+    // de daño" o confianza baja no generan alerta, para no meter ruido.
+    const sinDano = /sin evidencia de daño/i.test(resultado.diagnostico);
+    let alertaCreada = null;
+    if (!sinDano && (resultado.confianza === "alta" || resultado.confianza === "media")) {
+      alertaCreada = await db.alertaClimatica.create({
+        data: {
+          tipo: "PLAGA",
+          titulo: `Diagnóstico IA: ${resultado.diagnostico} en ${especie} ${variedad}`.trim(),
+          descripcion: `${resultado.sintomasObservados ? `${resultado.sintomasObservados} ` : ""}${resultado.recomendacion}`,
+          severidad: resultado.confianza === "alta" ? "ALTA" : "MEDIA",
+          fechaInicio: new Date(),
+          activa: true,
+          leida: false,
+          datos: { diagnosticoIA: resultado, registroCultivoId: registro.id } as unknown as Prisma.InputJsonValue,
+          municipio: null,
+          fincaId: cultivo.lote.fincaId,
+          cultivoId: id,
+        },
+      });
+    }
+
+    return NextResponse.json({ data: { diagnostico: resultado, registro, alerta: alertaCreada } }, { status: 201 });
   } catch (error) {
     if (error instanceof DiagnosticoError) {
       return NextResponse.json({ error: error.message }, { status: error.status });

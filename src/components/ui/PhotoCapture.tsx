@@ -110,7 +110,7 @@ export function PhotoCapture({ onCapture, onRemove, preview, label }: PhotoCaptu
  * Compress an image file to a target max dimension and quality.
  * Returns a data URL string.
  */
-function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
+export function compressImage(file: File, maxWidth: number, quality: number): Promise<string> {
   return new Promise((resolve, reject) => {
     const img = new window.Image();
     const url = URL.createObjectURL(file);
