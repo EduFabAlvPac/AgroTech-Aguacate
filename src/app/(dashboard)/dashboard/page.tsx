@@ -25,6 +25,7 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
           include: {
             cultivos: {
               where: { estado: "ACTIVO" },
+              include: { especieCultivo: { select: { cicloMesesPrimeraCosecha: true } } },
             },
           },
         },
@@ -38,7 +39,9 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
       },
       _sum: { monto: true },
     }),
-    db.alertaClimatica.count({ where: { activa: true, leida: false } }),
+    // Antes esta consulta no tenía scoping (contaba alertas de TODA la BD,
+    // no solo las del usuario) — se corrige junto con el resto de RBAC (Fase 2).
+    db.alertaClimatica.count({ where: { activa: true, leida: false, finca: { userId } } }),
     db.ingreso.aggregate({
       where: {
         OR: [
@@ -65,6 +68,20 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
     ? Math.floor((Date.now() - new Date(primerCultivo.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24))
     : 30;
 
+  // Estimación de "días a la cosecha": solo si hay un cultivo activo real con
+  // fecha de siembra y la especie tiene un ciclo conocido — nunca un valor
+  // fijo ni asumiendo aguacate por defecto (motor de fichas técnicas, §4).
+  let cosechaEstimada: { dias: number; fechaLabel: string } | null = null;
+  const cicloMeses = primerCultivo?.especieCultivo?.cicloMesesPrimeraCosecha;
+  if (primerCultivo?.fechaSiembra && cicloMeses) {
+    const fechaEst = new Date(primerCultivo.fechaSiembra);
+    fechaEst.setMonth(fechaEst.getMonth() + cicloMeses);
+    cosechaEstimada = {
+      dias: Math.ceil((fechaEst.getTime() - Date.now()) / (1000 * 60 * 60 * 24)),
+      fechaLabel: fechaEst.toLocaleDateString("es-CO", { month: "short", year: "numeric" }),
+    };
+  }
+
   return (
     <KpiCards
       totalHa={totalHa}
@@ -74,6 +91,8 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
       ingresosTotal={ingresosTotal}
       etapaCultivo={etapaCultivo}
       diasDesdeSiembra={diasDesdeSiembra}
+      variedad={totalPlantas > 0 ? primerCultivo?.variedad : null}
+      cosechaEstimada={cosechaEstimada}
     />
   );
 }
