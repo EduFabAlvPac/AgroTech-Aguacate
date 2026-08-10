@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 /**
  * GET /api/reportes/finagro?desde=2026-01-01&hasta=2026-12-31
@@ -75,12 +76,20 @@ export async function GET(req: Request) {
     const desde = searchParams.get("desde") || "2026-01-01";
     const hasta = searchParams.get("hasta") || new Date().toISOString().split("T")[0];
 
-    const userId = session.user.id;
+    // Scoped a las fincas accesibles al usuario (dueño o vía FincaAcceso —
+    // Fase 2); antes filtraba por userId literal y un ADMIN_FINCA/COLABORADOR
+    // no podía generar el reporte de una finca que no fuera literalmente suya.
+    const fincaIds = await fincaIdsAccesibles(session);
+    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+      return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+    }
+    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
+    const fincaIdFilter = fincaIds === "ALL" ? undefined : { in: fincaIds };
 
     // ── Fetch all data in parallel ──────────────────────────────────────────────
     const [finca, jornales, gastos, ingresos, compradores] = await Promise.all([
       db.finca.findFirst({
-        where: { userId },
+        where: fincaWhere,
         include: {
           lotes: {
             include: {
@@ -97,8 +106,8 @@ export async function GET(req: Request) {
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
           OR: [
-            { lote: { finca: { userId } } },
-            { cultivo: { lote: { finca: { userId } } } },
+            { lote: { fincaId: fincaIdFilter } },
+            { cultivo: { lote: { fincaId: fincaIdFilter } } },
           ],
         },
         orderBy: { fecha: "desc" },
@@ -106,7 +115,7 @@ export async function GET(req: Request) {
       db.gasto.findMany({
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
-          cultivo: { lote: { finca: { userId } } },
+          fincaId: fincaIdFilter,
         },
         orderBy: { fecha: "desc" },
       }),
@@ -114,13 +123,13 @@ export async function GET(req: Request) {
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
           OR: [
-            { cultivo: { lote: { finca: { userId } } } },
-            { comprador: { userId } },
+            { cultivo: { lote: { fincaId: fincaIdFilter } } },
+            { comprador: { fincaId: fincaIdFilter } },
           ],
         },
       }),
       db.comprador.findMany({
-        where: { userId, precioKg: { not: null } },
+        where: { fincaId: fincaIdFilter, precioKg: { not: null } },
         select: { precioKg: true },
       }),
     ]);
@@ -192,8 +201,8 @@ export async function GET(req: Request) {
         municipio: finca.municipio,
         departamento: finca.departamento,
         areaTotal: finca.areaTotal,
-        cultivo: activeCultivo?.especie ?? "Aguacate",
-        variedad: activeCultivo?.variedad ?? "Hass",
+        cultivo: activeCultivo?.especie ?? "Sin cultivo activo",
+        variedad: activeCultivo?.variedad ?? "",
         etapa: activeCultivo?.etapa ?? "SIEMBRA",
         fechaSiembra: activeCultivo?.fechaSiembra?.toISOString().split("T")[0] ?? null,
         cantidadPlantas: totalPlantas,

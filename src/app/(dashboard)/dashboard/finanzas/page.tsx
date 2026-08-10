@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 export const metadata = { title: "Finanzas" };
 export const dynamic = "force-dynamic";
@@ -14,22 +15,20 @@ export default async function FinanzasPage() {
   if (!session?.user?.id) redirect("/login");
   if (!tieneModulo(session.user.modulosPermitidos, "finanzas")) redirect("/dashboard");
 
+  const fincaIds = await fincaIdsAccesibles(session);
+  const enFincas = fincaIds === "ALL" ? undefined : { in: fincaIds };
+
   const [gastos, ingresos, cultivos, compradores, finca, lotes, presupuestos] = await Promise.all([
     db.gasto.findMany({
-      where: {
-        OR: [
-          { userId: session.user.id },
-          { cultivo: { lote: { finca: { userId: session.user.id } } } },
-        ],
-      },
+      where: fincaIds === "ALL" ? undefined : { fincaId: enFincas },
       include: { cultivo: { include: { lote: true } }, lote: true },
       orderBy: { fecha: "desc" },
     }),
     db.ingreso.findMany({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId: session.user.id } } } },
-          { comprador: { userId: session.user.id } },
+          { cultivo: { lote: { fincaId: enFincas } } },
+          { comprador: { fincaId: enFincas } },
         ],
       },
       include: {
@@ -39,25 +38,25 @@ export default async function FinanzasPage() {
       orderBy: { fecha: "desc" },
     }),
     db.cultivo.findMany({
-      where: { lote: { finca: { userId: session.user.id } } },
+      where: { lote: { fincaId: enFincas } },
       include: { lote: true },
     }),
     db.comprador.findMany({
-      where: { userId: session.user.id, estado: "ACTIVO" },
+      where: { fincaId: enFincas, estado: "ACTIVO" },
       orderBy: { nombre: "asc" },
     }),
     db.finca.findFirst({
-      where: { userId: session.user.id },
+      where: fincaIds === "ALL" ? undefined : { id: enFincas },
       select: { nombre: true, lotes: { select: { id: true, nombre: true, areaHa: true } } },
     }),
     db.lote.findMany({
-      where: { finca: { userId: session.user.id } },
+      where: { fincaId: enFincas },
       select: { id: true, nombre: true, areaHa: true },
       orderBy: { nombre: "asc" },
     }),
     db.presupuesto.findMany({
       where: {
-        finca: { userId: session.user.id },
+        fincaId: enFincas,
         anio: new Date().getFullYear(),
       },
     }),

@@ -4,7 +4,6 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { tieneModulo } from "@/lib/modulos";
 
 export const metadata = { title: "Inversionistas" };
 export const dynamic = "force-dynamic";
@@ -12,7 +11,11 @@ export const dynamic = "force-dynamic";
 export default async function InversionistasPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
-  if (!tieneModulo(session.user.modulosPermitidos, "inversionistas")) redirect("/dashboard");
+  // Decisión de producto explícita (Fase 3): solo el dueño gestiona
+  // inversionistas, todavía no hay delegación a ADMIN_FINCA/COLABORADOR ni
+  // login de inversionista — no pasa por el sistema de módulos genérico
+  // (ver src/lib/modulos.ts). esSuperAdmin también puede entrar (soporte).
+  if (!session.user.esOwner && !session.user.esSuperAdmin) redirect("/dashboard");
 
   const [inversionistas, cultivos] = await Promise.all([
     db.inversionista.findMany({

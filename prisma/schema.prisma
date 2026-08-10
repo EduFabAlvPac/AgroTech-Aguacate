@@ -157,6 +157,7 @@ model Finca {
   presupuestos Presupuesto[]
   accesos      FincaAcceso[]
   alertas      AlertaClimatica[]
+  compradores  Comprador[]
 
   @@map("fincas")
 }
@@ -632,6 +633,13 @@ model Comprador {
   id           String        @id @default(cuid())
   userId       String
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Nullable durante la migración (mismo patrón que Finca.organizacionId en
+  // Fase 0) — se backfillea con prisma/backfill-compradores-finca.ts a la
+  // finca del userId creador. Habilita RBAC real (ADMIN_FINCA/COLABORADOR)
+  // sobre "comprador", ya contemplado en la matriz de authz.ts pero bloqueado
+  // hasta ahora porque el modelo solo tenía userId (deuda técnica, Fase 2).
+  fincaId      String?
+  finca        Finca?        @relation(fields: [fincaId], references: [id], onDelete: Cascade)
   nombre       String
   tipo         TipoComprador
   ciudad       String

@@ -6,9 +6,9 @@ import { requireAccess, AuthzError } from "@/lib/authz";
 import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 // GET /api/ingresos — ingresos accesibles al usuario. Un ingreso puede estar
-// ligado a un cultivo (se scopea por finca/organización, Fase 2) o a un
-// comprador (Compradores sigue sin migrar — ownership legacy por userId,
-// decisión explícita de alcance "núcleo operativo primero").
+// ligado a un cultivo o a un comprador — ambos ahora scopeados por
+// finca/organización (Fase 2; Comprador.fincaId se agregó junto con el resto
+// de esta migración, antes solo tenía userId).
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -23,14 +23,15 @@ export async function GET(req: Request) {
 
     const fincaIds = await fincaIdsAccesibles(session);
 
-    const where: Record<string, unknown> = {
-      OR: [
-        { comprador: { userId: session.user.id } },
-        fincaIds === "ALL"
-          ? { cultivoId: { not: null } }
-          : { cultivo: { lote: { fincaId: { in: fincaIds } } } },
-      ],
-    };
+    const where: Record<string, unknown> =
+      fincaIds === "ALL"
+        ? {}
+        : {
+            OR: [
+              { cultivo: { lote: { fincaId: { in: fincaIds } } } },
+              { comprador: { fincaId: { in: fincaIds } } },
+            ],
+          };
 
     if (cultivoId) where.cultivoId = cultivoId;
     if (compradorId) where.compradorId = compradorId;
@@ -92,17 +93,19 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify compradorId ownership if provided (Compradores: sin migrar aún)
+    // Verify compradorId access if provided (comprador → finca — RBAC real)
     if (compradorId) {
-      const comprador = await db.comprador.findFirst({
-        where: { id: compradorId, userId: session.user.id },
+      const comprador = await db.comprador.findUnique({
+        where: { id: compradorId },
+        select: { fincaId: true },
       });
-      if (!comprador) {
+      if (!comprador || !comprador.fincaId) {
         return NextResponse.json(
-          { error: "Comprador no encontrado o no autorizado" },
-          { status: 403 }
+          { error: "Comprador no encontrado" },
+          { status: 404 }
         );
       }
+      await requireAccess(session, "ingreso", "create", { fincaId: comprador.fincaId });
     }
 
     // Verify cultivoId access if provided (cultivo → lote → finca — RBAC real)
