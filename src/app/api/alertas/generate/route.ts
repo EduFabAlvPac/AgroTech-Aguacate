@@ -46,6 +46,8 @@ export async function POST() {
           id: true, especie: true, variedad: true, etapa: true,
           fichaTecnica: {
             select: {
+              tempMinC: true,
+              tempMaxC: true,
               variedad: { select: { especie: { select: { nombre: true } } } },
               plagas: { select: { id: true, nombre: true, tipo: true, manejoRecomendado: true, umbralAlerta: true } },
             },
@@ -63,20 +65,27 @@ export async function POST() {
     const lng = finca.lng ?? -73.337551;
     const municipio = finca.municipio ?? "Ocaña";
 
+    // Contexto descriptivo de las alertas climáticas (finca-wide): se usa el
+    // primer cultivo activo como referencia si existe, tanto para el texto
+    // como para los umbrales de temperatura reales de su ficha técnica.
+    const primero = cultivosActivos[0];
+    const cropName = primero ? `${primero.especie} ${primero.variedad ?? ""}`.trim() : "cultivo";
+    const cropStage = primero?.etapa ?? "SIEMBRA";
+
+    // Prioridad de umbrales: preferencia explícita del usuario > rango de la
+    // ficha técnica del cultivo (real, por especie/variedad) > default
+    // genérico. Antes usaba el mismo umbral de temperatura para cualquier
+    // cultivo (aguacate, café o cacao) — la ficha técnica ya trae tempMinC/
+    // tempMaxC específicos por especie (motor de fichas técnicas, §4).
+    const fichaTemp = primero?.fichaTecnica;
     const thresholds: AlertThresholds = {
-      tempMinAlert: userPrefs?.tempMinAlert ?? DEFAULT_THRESHOLDS.tempMinAlert,
+      tempMinAlert: userPrefs?.tempMinAlert ?? fichaTemp?.tempMinC ?? DEFAULT_THRESHOLDS.tempMinAlert,
       tempMinCritical: DEFAULT_THRESHOLDS.tempMinCritical,
-      tempMaxAlert: userPrefs?.tempMaxAlert ?? DEFAULT_THRESHOLDS.tempMaxAlert,
+      tempMaxAlert: userPrefs?.tempMaxAlert ?? fichaTemp?.tempMaxC ?? DEFAULT_THRESHOLDS.tempMaxAlert,
       rainAlertMm: userPrefs?.rainAlertMm ?? DEFAULT_THRESHOLDS.rainAlertMm,
       windAlertKmh: userPrefs?.windAlertKmh ?? DEFAULT_THRESHOLDS.windAlertKmh,
       droughtDays: userPrefs?.droughtDays ?? DEFAULT_THRESHOLDS.droughtDays,
     };
-
-    // Contexto descriptivo de las alertas climáticas (finca-wide): se usa el
-    // primer cultivo activo como referencia si existe, solo para el texto.
-    const primero = cultivosActivos[0];
-    const cropName = primero ? `${primero.especie} ${primero.variedad ?? ""}`.trim() : "cultivo";
-    const cropStage = primero?.etapa ?? "SIEMBRA";
 
     const weatherResult = await generateWeatherAlerts(lat, lng, municipio, finca.id, thresholds, { cropName, cropStage });
 

@@ -25,7 +25,7 @@ type GastoWithRelations = Gasto & { cultivo: (Cultivo & { lote: Lote }) | null; 
 interface FinanzasClientProps {
   gastos: GastoWithRelations[];
   ingresos: IngresoWithRelations[];
-  cultivos: (Cultivo & { lote: Lote })[];
+  cultivos: (Cultivo & { lote: Lote; especieCultivo: { produccionKgArbolAnual: number | null } | null })[];
   compradores: Comprador[];
   lotes: { id: string; nombre: string; areaHa: number }[];
   presupuestos: Presupuesto[];
@@ -219,16 +219,26 @@ export function FinanzasClient({
     const plantasActivas = cultivos.reduce((s, c) => s + (c.cantidadPlantas ?? 0), 0);
     const costoTotalPorHa = hectareasActivas > 0 ? totalGastos / hectareasActivas : 0;
     const costoTotalPorPlanta = plantasActivas > 0 ? totalGastos / plantasActivas : 0;
-    const produccionEstimadaKg = lotes.reduce((s, l) => s + l.areaHa * 8000, 0);
+    // Antes asumía 8 ton/ha fijas (rendimiento típico de aguacate en plena
+    // producción) para cualquier especie — ahora usa el rendimiento real por
+    // planta de la ficha técnica del cultivo (motor de fichas técnicas, §4);
+    // si no hay ficha con ese dato, la proyección queda en 0 en vez de
+    // inventar un número.
+    const produccionEstimadaKg = cultivos.reduce(
+      (s, c) => s + (c.cantidadPlantas ?? 0) * (c.especieCultivo?.produccionKgArbolAnual ?? 0), 0
+    );
     const puntoEquilibrioPrecio = produccionEstimadaKg > 0 ? totalGastos / produccionEstimadaKg : 0;
     const preciosCompradores = compradores.filter((c) => c.precioKg).map((c) => c.precioKg!);
     const precioPromedioCompradores = preciosCompradores.length > 0
       ? preciosCompradores.reduce((s, p) => s + p, 0) / preciosCompradores.length
-      : 3200;
+      : 0;
     const ingresoProyectado = produccionEstimadaKg * precioPromedioCompradores;
     const margenBruto = ingresoProyectado - totalGastos;
     const margenPorcentaje = ingresoProyectado > 0 ? (margenBruto / ingresoProyectado) * 100 : 0;
-    const roi = totalGastos > 0 ? ((ingresoProyectado - totalGastos) / totalGastos) * 100 : 0;
+    // Sin producción proyectada (sin ficha técnica con rendimiento) no hay
+    // base real para un ROI — se deja en 0 en vez de mostrar un engañoso
+    // "-100%" cuando en realidad es "sin datos suficientes".
+    const roi = totalGastos > 0 && ingresoProyectado > 0 ? ((ingresoProyectado - totalGastos) / totalGastos) * 100 : 0;
     return {
       hectareasActivas, plantasActivas, costoTotalPorHa, costoTotalPorPlanta,
       produccionEstimadaKg, puntoEquilibrioPrecio, precioPromedioCompradores,

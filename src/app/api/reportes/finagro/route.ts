@@ -63,6 +63,14 @@ export type ReporteFinagroData = {
     roi: number;
     cicloMesesRestantes: number;
   };
+  // Inversionistas (Fase 3) — capital de terceros aportado a los cultivos de
+  // esta finca. null si no hay ninguna inversión activa (no se fabrica una
+  // sección vacía en el PDF).
+  inversionistas: {
+    numInversionistas: number;
+    totalAportado: number;
+    totalRetornosPagados: number;
+  } | null;
 };
 
 export async function GET(req: Request) {
@@ -87,7 +95,7 @@ export async function GET(req: Request) {
     const fincaIdFilter = fincaIds === "ALL" ? undefined : { in: fincaIds };
 
     // ── Fetch all data in parallel ──────────────────────────────────────────────
-    const [finca, jornales, gastos, ingresos, compradores] = await Promise.all([
+    const [finca, jornales, gastos, ingresos, compradores, inversiones] = await Promise.all([
       db.finca.findFirst({
         where: fincaWhere,
         include: {
@@ -131,6 +139,15 @@ export async function GET(req: Request) {
       db.comprador.findMany({
         where: { fincaId: fincaIdFilter, precioKg: { not: null } },
         select: { precioKg: true },
+      }),
+      // Inversionistas: no está scoped por Inversionista.userId (esa es la
+      // capa "solo dueño" de la Fase 3, ver src/lib/modulos.ts) sino por los
+      // cultivos reales de esta finca — así el reporte muestra el capital de
+      // terceros comprometido en la finca sin importar quién registró cada
+      // Inversionista como contacto.
+      db.inversionCultivo.findMany({
+        where: { cultivo: { lote: { fincaId: fincaIdFilter } }, estado: "ACTIVA" },
+        select: { montoAportado: true, inversionistaId: true, retornos: { select: { monto: true } } },
       }),
     ]);
 
@@ -179,20 +196,29 @@ export async function GET(req: Request) {
     const saldoNeto = ingresosTotal - costoTotal;
 
     // ── Proyección ──────────────────────────────────────────────────────────────
-    const produccionPorArbol = especie?.produccionKgArbolAnual ?? 20;
+    // Sin ficha técnica pinneada no hay rendimiento/ciclo real que proyectar
+    // — antes usaba "20 kg/árbol" y "24 meses" fijos (valores típicos de
+    // aguacate) para cualquier especie; ahora en 0 si no hay dato real, para
+    // no fabricar una cifra en un reporte que puede terminar en un banco.
+    const produccionPorArbol = especie?.produccionKgArbolAnual ?? 0;
     const produccionEstimadaKg = totalPlantas * produccionPorArbol;
     const preciosCompradores = compradores.map((c) => c.precioKg!).filter(Boolean);
     const precioPromedioKg = preciosCompradores.length > 0
       ? preciosCompradores.reduce((s, p) => s + p, 0) / preciosCompradores.length
-      : 3200;
+      : 0;
     const ingresoProyectado = produccionEstimadaKg * precioPromedioKg;
-    const roi = costoTotal > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
+    const roi = costoTotal > 0 && ingresoProyectado > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
 
-    const cicloTotal = especie?.cicloMesesPrimeraCosecha ?? 24;
+    const cicloTotal = especie?.cicloMesesPrimeraCosecha ?? 0;
     const mesesTranscurridos = activeCultivo?.fechaSiembra
       ? Math.floor((Date.now() - new Date(activeCultivo.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24 * 30))
       : 0;
-    const cicloRestante = Math.max(0, cicloTotal - mesesTranscurridos);
+    const cicloRestante = cicloTotal > 0 ? Math.max(0, cicloTotal - mesesTranscurridos) : 0;
+
+    // ── Inversionistas ──────────────────────────────────────────────────────────
+    const numInversionistas = new Set(inversiones.map((i) => i.inversionistaId)).size;
+    const totalAportado = inversiones.reduce((s, i) => s + i.montoAportado, 0);
+    const totalRetornosPagados = inversiones.reduce((s, i) => s + i.retornos.reduce((rs, r) => rs + r.monto, 0), 0);
 
     // ── Build response ──────────────────────────────────────────────────────────
     const reporte: ReporteFinagroData = {
@@ -238,6 +264,9 @@ export async function GET(req: Request) {
         roi,
         cicloMesesRestantes: cicloRestante,
       },
+      inversionistas: numInversionistas > 0
+        ? { numInversionistas, totalAportado, totalRetornosPagados }
+        : null,
     };
 
     return NextResponse.json({ data: reporte });

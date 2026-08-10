@@ -39,7 +39,7 @@ export default async function FinanzasPage() {
     }),
     db.cultivo.findMany({
       where: { lote: { fincaId: enFincas } },
-      include: { lote: true },
+      include: { lote: true, especieCultivo: { select: { produccionKgArbolAnual: true } } },
     }),
     db.comprador.findMany({
       where: { fincaId: enFincas, estado: "ACTIVO" },
