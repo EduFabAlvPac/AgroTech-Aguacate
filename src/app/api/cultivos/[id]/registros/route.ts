@@ -2,6 +2,16 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
+
+// Ya no filtra por userId — la autorización real la hace requireAccess()
+// contra el fincaId del lote (Fase 2).
+async function fetchCultivoConFinca(cultivoId: string) {
+  return db.cultivo.findUnique({
+    where: { id: cultivoId },
+    include: { lote: { select: { fincaId: true } } },
+  });
+}
 
 // GET /api/cultivos/[id]/registros
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -10,16 +20,19 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+    const cultivo = await fetchCultivoConFinca(id);
+    if (!cultivo) return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
+    await requireAccess(session, "registroCultivo", "read", { fincaId: cultivo.lote.fincaId });
+
     const registros = await db.registroCultivo.findMany({
-      where: {
-        cultivoId: id,
-        cultivo: { lote: { finca: { userId: session.user.id } } },
-      },
+      where: { cultivoId: id },
       orderBy: { fecha: "desc" },
     });
 
     return NextResponse.json({ data: registros });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
+    console.error("[GET /api/cultivos/[id]/registros]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
 }
@@ -30,6 +43,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+
+    const cultivo = await fetchCultivoConFinca(id);
+    if (!cultivo) return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
+    await requireAccess(session, "registroCultivo", "create", { fincaId: cultivo.lote.fincaId });
 
     const body = await req.json();
     const { tipo, descripcion, fecha } = body;
@@ -58,12 +75,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     };
 
     if (body.costo && Number(body.costo) > 0 && TIPO_TO_CATEGORIA[tipo]) {
-      // Get the finca for ownership
-      const cultivo = await db.cultivo.findUnique({ where: { id }, include: { lote: { select: { fincaId: true } } } });
       const gasto = await db.gasto.create({
         data: {
           userId: session.user.id,
-          fincaId: cultivo?.lote.fincaId ?? "",
+          fincaId: cultivo.lote.fincaId,
           cultivoId: id,
           concepto: `${tipo.replace(/_/g, " ")} — ${descripcion.slice(0, 50)}`,
           categoria: TIPO_TO_CATEGORIA[tipo] as any,
@@ -99,6 +114,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     return NextResponse.json({ data: registro }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/cultivos/[id]/registros]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

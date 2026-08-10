@@ -17,6 +17,7 @@ import {
   PanelLeftOpen,
   ShieldCheck,
   Wallet,
+  UserPlus,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
@@ -43,12 +44,16 @@ export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombr
       ? pathname === "/dashboard"
       : pathname.startsWith(href);
 
-  // Panel de administración de fichas técnicas — solo Super Admin (ver
-  // CLAUDE.md §2.3). El flag viene del JWT, así que un cambio de esSuperAdmin
-  // solo se refleja tras cerrar y volver a iniciar sesión.
-  const items = session?.user?.esSuperAdmin
-    ? [...navItems, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }]
-    : navItems;
+  // Panel de administración de fichas técnicas — solo Super Admin; Equipo —
+  // solo dueños de organización (ver CLAUDE.md §2.3). Ambos flags vienen del
+  // JWT, así que un cambio solo se refleja tras cerrar y volver a iniciar sesión.
+  let items = navItems;
+  if (session?.user?.esOwner) {
+    items = [...items, { href: "/dashboard/equipo", icon: UserPlus, label: "Equipo" }];
+  }
+  if (session?.user?.esSuperAdmin) {
+    items = [...items, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }];
+  }
 
   return (
     <aside

@@ -3,9 +3,21 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { registroFormSchema } from "@/lib/validations";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
 // Schema parcial para actualización (todos opcionales, sin cultivoId)
 const registroUpdateSchema = registroFormSchema.omit({ cultivoId: true }).partial();
+
+// Ya no filtra por userId — la autorización real la hace requireAccess()
+// contra el fincaId del lote (Fase 2).
+async function fetchRegistroConFinca(registroId: string) {
+  return db.registroCultivo.findUnique({
+    where: { id: registroId },
+    include: {
+      cultivo: { include: { lote: { select: { fincaId: true } } } },
+    },
+  });
+}
 
 // PUT /api/cultivos/[id]/registros/[registroId] — actualizar un registro
 export async function PUT(
@@ -27,29 +39,11 @@ export async function PUT(
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
-    // Verificar que el registro existe y pertenece al usuario (ownership chain)
-    const registro = await db.registroCultivo.findUnique({
-      where: { id: registroId },
-      include: {
-        cultivo: {
-          include: {
-            lote: {
-              include: {
-                finca: { select: { userId: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
+    const registro = await fetchRegistroConFinca(registroId);
     if (!registro) {
       return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
     }
-
-    if (registro.cultivo.lote.finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    await requireAccess(session, "registroCultivo", "update", { fincaId: registro.cultivo.lote.fincaId });
 
     // Verificar que el registro pertenece al cultivo indicado en la URL
     if (registro.cultivoId !== id) {
@@ -70,6 +64,7 @@ export async function PUT(
 
     return NextResponse.json({ data: updated });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[PUT /api/cultivos/[id]/registros/[registroId]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -87,29 +82,11 @@ export async function DELETE(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Verificar que el registro existe y pertenece al usuario (ownership chain)
-    const registro = await db.registroCultivo.findUnique({
-      where: { id: registroId },
-      include: {
-        cultivo: {
-          include: {
-            lote: {
-              include: {
-                finca: { select: { userId: true } },
-              },
-            },
-          },
-        },
-      },
-    });
-
+    const registro = await fetchRegistroConFinca(registroId);
     if (!registro) {
       return NextResponse.json({ error: "Registro no encontrado" }, { status: 404 });
     }
-
-    if (registro.cultivo.lote.finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    await requireAccess(session, "registroCultivo", "delete", { fincaId: registro.cultivo.lote.fincaId });
 
     // Verificar que el registro pertenece al cultivo indicado en la URL
     if (registro.cultivoId !== id) {
@@ -120,6 +97,7 @@ export async function DELETE(
 
     return NextResponse.json({ data: { message: "Registro eliminado" } });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[DELETE /api/cultivos/[id]/registros/[registroId]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

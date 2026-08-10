@@ -4,55 +4,84 @@
  *
  * Decisión: no RLS nativo de Postgres en esta fase (frágil con el pooling de
  * Neon + Prisma). En su lugar, todo acceso a un modelo tenant-scoped desde una
- * API route debe pasar por `scopedDb(session)` en vez de `db` directo, para
- * que el filtro de organización no dependa de que cada desarrollador lo
- * recuerde en cada query.
+ * API route debe pasar por `scopedDb(session)`/`fincaIdsAccesibles(session)`
+ * en vez de `db` directo, para que el filtro de organización no dependa de
+ * que cada desarrollador lo recuerde en cada query.
  *
- * Estado: skeleton de Fase 0 con los 3 modelos de ejemplo del ADR-005 (finca,
- * lote, cultivo). Ampliar a gasto/ingreso/presupuesto/jornal/comprador/alerta
- * es trabajo de Fase 2, ruta por ruta, junto con `requireAccess()` — ver
- * `src/lib/authz.ts`. Aún NO se exige su uso en las rutas existentes.
+ * Fase 2: a diferencia del skeleton de Fase 0 (que solo filtraba por
+ * pertenencia a la organización, sin distinguir rol), esto ya respeta el
+ * scoping fino real: el OWNER ve todas las fincas de su organización; un
+ * ADMIN_FINCA/COLABORADOR solo ve las fincas donde tiene un FincaAcceso
+ * explícito — igual que ya exige `requireAccess()` en src/lib/authz.ts para
+ * mutaciones. Este helper es el equivalente para listados (GET).
  */
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { AuthzSession } from "@/lib/authz";
 
-async function organizacionIdsDeSesion(session: AuthzSession | null | undefined): Promise<string[] | "ALL"> {
+/**
+ * IDs de Finca a las que `session.user` tiene acceso de lectura como mínimo.
+ * "ALL" para Super Admin (sin restricción). Array vacío si no pertenece a
+ * ninguna organización o no tiene FincaAcceso a ninguna finca.
+ */
+export async function fincaIdsAccesibles(session: AuthzSession | null | undefined): Promise<string[] | "ALL"> {
   if (!session?.user?.id) return [];
+  const userId = session.user.id;
 
-  const user = await db.user.findUnique({ where: { id: session.user.id }, select: { esSuperAdmin: true } });
+  const user = await db.user.findUnique({ where: { id: userId }, select: { esSuperAdmin: true } });
   if (user?.esSuperAdmin) return "ALL";
 
   const membresias = await db.membresia.findMany({
-    where: { userId: session.user.id, aceptada: true },
-    select: { organizacionId: true },
+    where: { userId, aceptada: true },
+    select: { organizacionId: true, rol: true },
   });
-  return membresias.map((m) => m.organizacionId);
+  if (membresias.length === 0) return [];
+
+  const orgIdsComoOwner = membresias.filter((m) => m.rol === "OWNER").map((m) => m.organizacionId);
+  const orgIdsOtros = membresias.filter((m) => m.rol !== "OWNER").map((m) => m.organizacionId);
+
+  const [fincasComoOwner, accesos] = await Promise.all([
+    orgIdsComoOwner.length > 0
+      ? db.finca.findMany({ where: { organizacionId: { in: orgIdsComoOwner } }, select: { id: true } })
+      : Promise.resolve([]),
+    orgIdsOtros.length > 0
+      ? db.fincaAcceso.findMany({
+          where: { userId, finca: { organizacionId: { in: orgIdsOtros } } },
+          select: { fincaId: true },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return [...new Set([...fincasComoOwner.map((f) => f.id), ...accesos.map((a) => a.fincaId)])];
 }
 
 /**
- * Devuelve un cliente con métodos de lectura/escritura pre-filtrados por las
- * organizaciones a las que pertenece `session.user`. Los IDs de organización
- * se resuelven una sola vez por instancia (memoizados), no en cada llamada.
+ * Devuelve un cliente con métodos de lectura pre-filtrados por las fincas
+ * accesibles a `session.user`. El resultado de fincaIdsAccesibles se resuelve
+ * una sola vez por instancia (memoizado), no en cada llamada.
  */
 export function scopedDb(session: AuthzSession | null | undefined) {
   let cache: Promise<string[] | "ALL"> | null = null;
-  const orgIds = () => (cache ??= organizacionIdsDeSesion(session));
+  const fincaIds = () => (cache ??= fincaIdsAccesibles(session));
 
   async function fincaWhere(): Promise<Prisma.FincaWhereInput> {
-    const ids = await orgIds();
-    return ids === "ALL" ? {} : { organizacionId: { in: ids } };
+    const ids = await fincaIds();
+    return ids === "ALL" ? {} : { id: { in: ids } };
   }
   async function loteWhere(): Promise<Prisma.LoteWhereInput> {
-    const ids = await orgIds();
-    return ids === "ALL" ? {} : { finca: { organizacionId: { in: ids } } };
+    const ids = await fincaIds();
+    return ids === "ALL" ? {} : { fincaId: { in: ids } };
   }
   async function cultivoWhere(): Promise<Prisma.CultivoWhereInput> {
-    const ids = await orgIds();
-    return ids === "ALL" ? {} : { lote: { finca: { organizacionId: { in: ids } } } };
+    const ids = await fincaIds();
+    return ids === "ALL" ? {} : { lote: { fincaId: { in: ids } } };
   }
 
   return {
+    fincaIds,
+    fincaWhere,
+    loteWhere,
+    cultivoWhere,
     finca: {
       findMany: async (args: Prisma.FincaFindManyArgs = {}) =>
         db.finca.findMany({ ...args, where: { AND: [await fincaWhere(), args.where ?? {}] } }),

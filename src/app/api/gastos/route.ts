@@ -2,8 +2,10 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
-// GET /api/gastos — list + optional summary
+// GET /api/gastos — list + optional summary, scoped a las fincas accesibles (Fase 2)
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,19 +18,10 @@ export async function GET(req: Request) {
     const hasta = searchParams.get("hasta");
     const summary = searchParams.get("summary") === "true";
 
-    // Support both legacy (via cultivo) and new (via userId/fincaId) ownership
-    const finca = await db.finca.findFirst({
-      where: { userId: session.user.id },
-      select: { id: true },
-    });
+    const fincaIds = await fincaIdsAccesibles(session);
 
-    const where: any = {
-      OR: [
-        { userId: session.user.id },
-        { cultivo: { lote: { finca: { userId: session.user.id } } } },
-      ],
-    };
-
+    const where: any = {};
+    if (fincaIds !== "ALL") where.fincaId = { in: fincaIds };
     if (categoria) where.categoria = categoria;
     if (cultivoId) where.cultivoId = cultivoId;
     if (desde || hasta) {
@@ -72,6 +65,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ data: gastos });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/gastos]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -96,20 +90,37 @@ export async function POST(req: Request) {
       );
     }
 
-    // Get finca for ownership
-    const finca = await db.finca.findFirst({
-      where: { userId: session.user.id },
-      select: { id: true },
-    });
-
-    if (!finca) {
-      return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+    // Resolver la finca del gasto: si viene ligado a un cultivo o lote, se usa
+    // la finca de ese cultivo/lote (defensa: nunca se confía en un fincaId que
+    // mande el cliente sin relación real); si no, se usa la primera finca
+    // accesible al usuario (dueño o vía FincaAcceso — Fase 2).
+    let fincaId: string | undefined;
+    if (cultivoId) {
+      const cultivo = await db.cultivo.findUnique({ where: { id: cultivoId }, select: { lote: { select: { fincaId: true } } } });
+      if (!cultivo) return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
+      fincaId = cultivo.lote.fincaId;
+    } else if (loteId) {
+      const lote = await db.lote.findUnique({ where: { id: loteId }, select: { fincaId: true } });
+      if (!lote) return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
+      fincaId = lote.fincaId;
+    } else {
+      const fincaIds = await fincaIdsAccesibles(session);
+      const finca =
+        fincaIds === "ALL"
+          ? await db.finca.findFirst({ select: { id: true } })
+          : fincaIds.length > 0
+            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
+            : null;
+      if (!finca) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+      fincaId = finca.id;
     }
+
+    await requireAccess(session, "gasto", "create", { fincaId });
 
     const gasto = await db.gasto.create({
       data: {
         userId: session.user.id,
-        fincaId: finca.id,
+        fincaId,
         concepto,
         categoria,
         monto: Number(monto),
@@ -152,6 +163,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: gasto }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/gastos]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

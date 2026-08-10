@@ -3,8 +3,11 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverVariedad } from "@/lib/fichas-tecnicas";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
-// GET /api/cultivos — list all cultivos for the user's fincas
+// GET /api/cultivos — cultivos de todas las fincas accesibles al usuario
+// (como dueño, o vía FincaAcceso si es colaborador/admin de finca — Fase 2).
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -12,10 +15,13 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const fincaIds = await fincaIdsAccesibles(session);
+    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
     const cultivos = await db.cultivo.findMany({
-      where: {
-        lote: { finca: { userId: session.user.id } },
-      },
+      where: fincaIds === "ALL" ? undefined : { lote: { fincaId: { in: fincaIds } } },
       include: {
         lote: { include: { finca: true } },
         registros: { orderBy: { fecha: "desc" }, take: 5 },
@@ -26,6 +32,7 @@ export async function GET() {
 
     return NextResponse.json({ data: cultivos });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/cultivos]", error);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }
@@ -67,13 +74,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "loteId y especie son requeridos" }, { status: 400 });
     }
 
-    // Verify ownership
-    const lote = await db.lote.findFirst({
-      where: { id: loteId, finca: { userId: session.user.id } },
-    });
+    const lote = await db.lote.findUnique({ where: { id: loteId }, select: { id: true, fincaId: true } });
     if (!lote) {
       return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
     }
+    await requireAccess(session, "cultivo", "create", { fincaId: lote.fincaId });
 
     // Check if lote already has an active cultivo
     const existingActive = await db.cultivo.findFirst({
@@ -112,6 +117,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: cultivo }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/cultivos]", error);
     return NextResponse.json({ error: "Error interno del servidor" }, { status: 500 });
   }

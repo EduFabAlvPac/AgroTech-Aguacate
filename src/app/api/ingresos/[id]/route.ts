@@ -2,18 +2,40 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
-// Helper: verifica que el ingreso pertenece al usuario autenticado
-async function findOwnedIngreso(id: string, userId: string) {
-  return db.ingreso.findFirst({
-    where: {
-      id,
-      OR: [
-        { comprador: { userId } },
-        { cultivo: { lote: { finca: { userId } } } },
-      ],
+// Trae el ingreso con el contexto necesario para autorizar: si está ligado a
+// un cultivo, se autoriza vía finca/organización (RBAC real, Fase 2); si solo
+// está ligado a un comprador, se mantiene el chequeo legacy por userId
+// (Compradores sigue sin migrar — alcance "núcleo operativo primero").
+async function fetchIngresoConContexto(id: string) {
+  return db.ingreso.findUnique({
+    where: { id },
+    include: {
+      comprador: { select: { userId: true } },
+      cultivo: { include: { lote: { select: { fincaId: true } } } },
     },
   });
+}
+
+async function verificarAcceso(
+  session: { user: { id: string } },
+  existing: NonNullable<Awaited<ReturnType<typeof fetchIngresoConContexto>>>,
+  accion: "update" | "delete"
+) {
+  if (existing.cultivo) {
+    await requireAccess(session, "ingreso", accion, { fincaId: existing.cultivo.lote.fincaId });
+    return;
+  }
+  if (existing.comprador) {
+    if (existing.comprador.userId !== session.user.id) {
+      throw new AuthzError("Ingreso no encontrado o no autorizado");
+    }
+    return;
+  }
+  // Registro huérfano (sin cultivo ni comprador) — sin señal de pertenencia,
+  // se niega por defecto salvo Super Admin (requireAccess lo maneja).
+  await requireAccess(session, "ingreso", accion, {});
 }
 
 // PUT /api/ingresos/[id]
@@ -27,12 +49,13 @@ export async function PUT(
     if (!session?.user?.id)
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const existing = await findOwnedIngreso(id, session.user.id);
+    const existing = await fetchIngresoConContexto(id);
     if (!existing)
       return NextResponse.json(
         { error: "Ingreso no encontrado o no autorizado" },
         { status: 404 }
       );
+    await verificarAcceso(session as { user: { id: string } }, existing, "update");
 
     const body = await req.json();
     const {
@@ -46,7 +69,7 @@ export async function PUT(
       notas,
     } = body;
 
-    // Verify compradorId ownership if being changed
+    // Verify compradorId ownership if being changed (legacy — Compradores sin migrar)
     if (compradorId) {
       const comprador = await db.comprador.findFirst({
         where: { id: compradorId, userId: session.user.id },
@@ -58,16 +81,18 @@ export async function PUT(
         );
     }
 
-    // Verify cultivoId ownership if being changed
+    // Verify cultivoId access if being changed (RBAC real)
     if (cultivoId) {
-      const cultivo = await db.cultivo.findFirst({
-        where: { id: cultivoId, lote: { finca: { userId: session.user.id } } },
+      const cultivo = await db.cultivo.findUnique({
+        where: { id: cultivoId },
+        select: { lote: { select: { fincaId: true } } },
       });
       if (!cultivo)
         return NextResponse.json(
-          { error: "Cultivo no encontrado o no autorizado" },
-          { status: 403 }
+          { error: "Cultivo no encontrado" },
+          { status: 404 }
         );
+      await requireAccess(session, "ingreso", "update", { fincaId: cultivo.lote.fincaId });
     }
 
     const montoNum = monto !== undefined ? Number(monto) : undefined;
@@ -104,6 +129,7 @@ export async function PUT(
 
     return NextResponse.json({ data: ingreso });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[PUT /api/ingresos/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -120,16 +146,18 @@ export async function DELETE(
     if (!session?.user?.id)
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const existing = await findOwnedIngreso(id, session.user.id);
+    const existing = await fetchIngresoConContexto(id);
     if (!existing)
       return NextResponse.json(
         { error: "Ingreso no encontrado o no autorizado" },
         { status: 404 }
       );
+    await verificarAcceso(session as { user: { id: string } }, existing, "delete");
 
     await db.ingreso.delete({ where: { id } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[DELETE /api/ingresos/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

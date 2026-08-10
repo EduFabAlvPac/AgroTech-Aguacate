@@ -25,12 +25,21 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) return null;
 
+        // esOwner: ¿tiene alguna Membresia con rol OWNER? Determina si ve el
+        // panel "Equipo" (Fase 2) — igual que esSuperAdmin, es un hint para
+        // el JWT/UI, no la autorización real (esa se re-verifica en la API).
+        const esOwner = await db.membresia.findFirst({
+          where: { userId: user.id, rol: "OWNER", aceptada: true },
+          select: { id: true },
+        });
+
         return {
           id: user.id,
           email: user.email,
           name: user.name,
           role: user.role,
           esSuperAdmin: user.esSuperAdmin,
+          esOwner: !!esOwner,
         };
       },
     }),
@@ -41,6 +50,7 @@ export const authOptions: NextAuthOptions = {
         token.id = user.id;
         token.role = (user as any).role;
         token.esSuperAdmin = (user as any).esSuperAdmin ?? false;
+        token.esOwner = (user as any).esOwner ?? false;
       }
       return token;
     },
@@ -49,6 +59,7 @@ export const authOptions: NextAuthOptions = {
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).esSuperAdmin = token.esSuperAdmin ?? false;
+        (session.user as any).esOwner = token.esOwner ?? false;
       }
       return session;
     },

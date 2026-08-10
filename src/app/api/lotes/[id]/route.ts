@@ -3,6 +3,17 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loteUpdateWithGeoSchema, geoJsonPolygonSchema } from "@/lib/validations";
+import { requireAccess, AuthzError } from "@/lib/authz";
+
+// Ya no filtra por userId — la autorización real la hace requireAccess()
+// contra el fincaId del lote (Fase 2). Sigue sirviendo para saber si existe
+// y a qué finca pertenece.
+async function fetchLoteConFinca(loteId: string) {
+  return db.lote.findUnique({
+    where: { id: loteId },
+    select: { id: true, fincaId: true },
+  });
+}
 
 // GET /api/lotes/[id] — obtener un lote con cultivos activos
 export async function GET(
@@ -16,6 +27,12 @@ export async function GET(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const existente = await fetchLoteConFinca(id);
+    if (!existente) {
+      return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
+    }
+    await requireAccess(session, "lote", "read", { fincaId: existente.fincaId });
+
     const lote = await db.lote.findUnique({
       where: { id },
       include: {
@@ -26,16 +43,9 @@ export async function GET(
       },
     });
 
-    if (!lote) {
-      return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
-    }
-
-    if (lote.finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
-
     return NextResponse.json({ data: lote });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/lotes/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -71,19 +81,11 @@ export async function PUT(
       return NextResponse.json({ error: firstError }, { status: 400 });
     }
 
-    // Verificar que el lote existe y pertenece al usuario
-    const lote = await db.lote.findUnique({
-      where: { id },
-      include: { finca: { select: { userId: true } } },
-    });
-
-    if (!lote) {
+    const existente = await fetchLoteConFinca(id);
+    if (!existente) {
       return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
     }
-
-    if (lote.finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    await requireAccess(session, "lote", "update", { fincaId: existente.fincaId });
 
     const { nombre, areaHa, altitud, pendiente, notas } = parsed.data;
 
@@ -115,6 +117,7 @@ export async function PUT(
 
     return NextResponse.json({ data: updated });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[PUT /api/lotes/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -132,19 +135,11 @@ export async function DELETE(
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Verificar que el lote existe y pertenece al usuario
-    const lote = await db.lote.findUnique({
-      where: { id },
-      include: { finca: { select: { userId: true } } },
-    });
-
-    if (!lote) {
+    const existente = await fetchLoteConFinca(id);
+    if (!existente) {
       return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
     }
-
-    if (lote.finca.userId !== session.user.id) {
-      return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-    }
+    await requireAccess(session, "lote", "delete", { fincaId: existente.fincaId });
 
     // Verificar que no existan cultivos activos en el lote
     const activeCultivos = await db.cultivo.count({
@@ -165,6 +160,7 @@ export async function DELETE(
 
     return NextResponse.json({ data: { message: "Lote eliminado" } });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[DELETE /api/lotes/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
