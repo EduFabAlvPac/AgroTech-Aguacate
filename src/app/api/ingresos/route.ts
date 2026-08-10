@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
-// GET /api/ingresos — list all ingresos for the authenticated user's finca
+// GET /api/ingresos — ingresos accesibles al usuario. Un ingreso puede estar
+// ligado a un cultivo (se scopea por finca/organización, Fase 2) o a un
+// comprador (Compradores sigue sin migrar — ownership legacy por userId,
+// decisión explícita de alcance "núcleo operativo primero").
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -16,13 +21,14 @@ export async function GET(req: Request) {
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
 
+    const fincaIds = await fincaIdsAccesibles(session);
+
     const where: Record<string, unknown> = {
-      // Ownership: ingreso belongs to user either via comprador or via cultivo → lote → finca
       OR: [
         { comprador: { userId: session.user.id } },
-        { cultivo: { lote: { finca: { userId: session.user.id } } } },
-        // Ingresos without comprador and without cultivo won't appear unless filtered; handle by
-        // ensuring POST always associates at least one of the two. This OR covers all valid cases.
+        fincaIds === "ALL"
+          ? { cultivoId: { not: null } }
+          : { cultivo: { lote: { fincaId: { in: fincaIds } } } },
       ],
     };
 
@@ -45,6 +51,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ data: ingresos });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/ingresos]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -85,7 +92,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Verify compradorId ownership if provided
+    // Verify compradorId ownership if provided (Compradores: sin migrar aún)
     if (compradorId) {
       const comprador = await db.comprador.findFirst({
         where: { id: compradorId, userId: session.user.id },
@@ -98,20 +105,19 @@ export async function POST(req: Request) {
       }
     }
 
-    // Verify cultivoId ownership if provided (cultivo → lote → finca → user)
+    // Verify cultivoId access if provided (cultivo → lote → finca — RBAC real)
     if (cultivoId) {
-      const cultivo = await db.cultivo.findFirst({
-        where: {
-          id: cultivoId,
-          lote: { finca: { userId: session.user.id } },
-        },
+      const cultivo = await db.cultivo.findUnique({
+        where: { id: cultivoId },
+        select: { lote: { select: { fincaId: true } } },
       });
       if (!cultivo) {
         return NextResponse.json(
-          { error: "Cultivo no encontrado o no autorizado" },
-          { status: 403 }
+          { error: "Cultivo no encontrado" },
+          { status: 404 }
         );
       }
+      await requireAccess(session, "ingreso", "create", { fincaId: cultivo.lote.fincaId });
     }
 
     // Auto-calculate precioKg if cantidadKg and monto are provided and precioKg is not
@@ -162,6 +168,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: ingreso }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/ingresos]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

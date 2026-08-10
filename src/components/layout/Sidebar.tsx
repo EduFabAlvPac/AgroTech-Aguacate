@@ -17,20 +17,31 @@ import {
   PanelLeftOpen,
   ShieldCheck,
   Wallet,
+  UserPlus,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import type { ModuloKey } from "@/lib/modulos";
 
-const navItems = [
+interface NavItem {
+  href: string;
+  icon: React.ElementType;
+  label: string;
+  // Referencia a src/lib/modulos.ts — undefined significa "siempre visible"
+  // (Dashboard no es un módulo restringible).
+  modulo?: ModuloKey;
+}
+
+const navItems: NavItem[] = [
   { href: "/dashboard",              icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/dashboard/cultivos",     icon: Sprout,          label: "Cultivos" },
-  { href: "/dashboard/mapa",         icon: Map,             label: "Mapa" },
-  { href: "/dashboard/finanzas",     icon: BarChart3,       label: "Finanzas" },
-  { href: "/dashboard/inversionistas", icon: Wallet,        label: "Inversionistas" },
-  { href: "/dashboard/asistente",    icon: Bot,             label: "Asistente IA" },
-  { href: "/dashboard/alertas",      icon: CloudLightning,  label: "Alertas" },
-  { href: "/dashboard/compradores",  icon: Users,           label: "Compradores" },
+  { href: "/dashboard/cultivos",     icon: Sprout,          label: "Cultivos", modulo: "cultivos" },
+  { href: "/dashboard/mapa",         icon: Map,             label: "Mapa", modulo: "mapa" },
+  { href: "/dashboard/finanzas",     icon: BarChart3,       label: "Finanzas", modulo: "finanzas" },
+  { href: "/dashboard/inversionistas", icon: Wallet,        label: "Inversionistas", modulo: "inversionistas" },
+  { href: "/dashboard/asistente",    icon: Bot,             label: "Asistente IA", modulo: "asistente" },
+  { href: "/dashboard/alertas",      icon: CloudLightning,  label: "Alertas", modulo: "alertas" },
+  { href: "/dashboard/compradores",  icon: Users,           label: "Compradores", modulo: "compradores" },
 ];
 
 export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombre?: string | null; fincaUbicacion?: string | null; fincaArea?: number | null }) {
@@ -43,12 +54,25 @@ export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombr
       ? pathname === "/dashboard"
       : pathname.startsWith(href);
 
-  // Panel de administración de fichas técnicas — solo Super Admin (ver
-  // CLAUDE.md §2.3). El flag viene del JWT, así que un cambio de esSuperAdmin
-  // solo se refleja tras cerrar y volver a iniciar sesión.
-  const items = session?.user?.esSuperAdmin
-    ? [...navItems, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }]
-    : navItems;
+  // modulosPermitidos: qué menús ve un colaborador/administrador de finca,
+  // configurado por el dueño en el panel Equipo (src/lib/modulos.ts) — capa
+  // de navegación adicional al RBAC por recurso. "ALL" para dueño/Super
+  // Admin. Viene del JWT, así que un cambio solo se refleja tras cerrar y
+  // volver a iniciar sesión (mismo patrón que esOwner/esSuperAdmin).
+  const modulosPermitidos = session?.user?.modulosPermitidos ?? "ALL";
+  let items: NavItem[] = navItems.filter(
+    (item) => !item.modulo || modulosPermitidos === "ALL" || modulosPermitidos.includes(item.modulo)
+  );
+
+  // Panel de administración de fichas técnicas — solo Super Admin; Equipo —
+  // solo dueños de organización (ver CLAUDE.md §2.3). Ambos flags vienen del
+  // JWT, así que un cambio solo se refleja tras cerrar y volver a iniciar sesión.
+  if (session?.user?.esOwner) {
+    items = [...items, { href: "/dashboard/equipo", icon: UserPlus, label: "Equipo" }];
+  }
+  if (session?.user?.esSuperAdmin) {
+    items = [...items, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }];
+  }
 
   return (
     <aside

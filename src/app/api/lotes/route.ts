@@ -3,8 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
-// GET /api/lotes — listar todos los lotes de la finca del usuario
+// GET /api/lotes — lotes de todas las fincas accesibles al usuario (Fase 2)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -12,22 +14,24 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const finca = await db.finca.findFirst({
-      where: { userId: session.user.id },
+    const fincaIds = await fincaIdsAccesibles(session);
+    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+      return NextResponse.json({ data: [] });
+    }
+
+    const lotes = await db.lote.findMany({
+      where: fincaIds === "ALL" ? undefined : { fincaId: { in: fincaIds } },
       include: {
-        lotes: {
-          include: {
-            cultivos: {
-              where: { estado: "ACTIVO" },
-              take: 1,
-            },
-          },
+        cultivos: {
+          where: { estado: "ACTIVO" },
+          take: 1,
         },
       },
     });
 
-    return NextResponse.json({ data: finca?.lotes ?? [] });
+    return NextResponse.json({ data: lotes });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/lotes]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -43,34 +47,31 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // Si viene fincaId en el body, usarlo; si no, obtener la finca del usuario
-    let fincaId = body.fincaId;
+    // Si viene fincaId en el body, usarlo; si no, tomar la primera finca
+    // accesible al usuario (dueño o vía FincaAcceso — Fase 2).
+    let fincaId = body.fincaId as string | undefined;
 
     if (!fincaId) {
-      const finca = await db.finca.findFirst({
-        where: { userId: session.user.id },
-        select: { id: true },
-      });
+      const fincaIds = await fincaIdsAccesibles(session);
+      const finca =
+        fincaIds === "ALL"
+          ? await db.finca.findFirst({ select: { id: true } })
+          : fincaIds.length > 0
+            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
+            : null;
 
       if (!finca) {
         return NextResponse.json({ error: "Finca no encontrada. Configura tu finca primero." }, { status: 404 });
       }
       fincaId = finca.id;
     } else {
-      // Verificar que la finca pertenece al usuario autenticado
-      const finca = await db.finca.findUnique({
-        where: { id: fincaId },
-        select: { userId: true },
-      });
-
+      const finca = await db.finca.findUnique({ where: { id: fincaId }, select: { id: true } });
       if (!finca) {
         return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
       }
-
-      if (finca.userId !== session.user.id) {
-        return NextResponse.json({ error: "No autorizado" }, { status: 403 });
-      }
     }
+
+    await requireAccess(session, "lote", "create", { fincaId });
 
     // Validar campos requeridos
     const nombre = body.nombre?.trim();
@@ -99,6 +100,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: lote }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/lotes]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

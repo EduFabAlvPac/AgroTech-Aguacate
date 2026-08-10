@@ -70,7 +70,7 @@ const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Rec
     ingreso: ["create", "read", "update", "delete"],
     presupuesto: ["create", "read", "update", "delete"],
     jornal: ["create", "read", "update", "delete"],
-    alerta: ["read", "update"],
+    alerta: ["create", "read", "update", "delete"],
     comprador: ["create", "read", "update", "delete"],
     fichaTecnica: ["read"],
   },
@@ -82,7 +82,7 @@ const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Rec
     gasto: ["create", "read"],
     ingreso: ["create", "read"],
     jornal: ["create", "read"],
-    alerta: ["read"],
+    alerta: ["read", "update"],
     comprador: ["read"],
     fichaTecnica: ["read"],
   },
@@ -166,11 +166,14 @@ export async function requireAccess(
 
   const membresia = await db.membresia.findUnique({
     where: { userId_organizacionId: { userId, organizacionId } },
-    select: { rol: true, aceptada: true },
+    select: { rol: true, aceptada: true, activa: true },
   });
 
   if (!membresia?.aceptada) {
     throw new AuthzError("No perteneces a la organización de este recurso");
+  }
+  if (!membresia.activa) {
+    throw new AuthzError("Tu acceso a esta organización fue desactivado por el dueño");
   }
 
   if (membresia.rol === "OWNER") return; // acceso total dentro de su organización

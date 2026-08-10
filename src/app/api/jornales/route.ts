@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 // ── Vocabulario local para actividades de campo ────────────────────────────────
 const ACTIVIDADES_VALIDAS = [
@@ -20,7 +22,7 @@ const ACTIVIDADES_VALIDAS = [
   "Otro",
 ];
 
-// GET /api/jornales — list jornales for the authenticated user
+// GET /api/jornales — jornales de las fincas accesibles al usuario (Fase 2)
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -34,10 +36,12 @@ export async function GET(req: Request) {
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
 
+    const fincaIds = await fincaIdsAccesibles(session);
+
     const where: any = {
       OR: [
-        { lote: { finca: { userId: session.user.id } } },
-        { cultivo: { lote: { finca: { userId: session.user.id } } } },
+        fincaIds === "ALL" ? { loteId: { not: null } } : { lote: { fincaId: { in: fincaIds } } },
+        fincaIds === "ALL" ? { cultivoId: { not: null } } : { cultivo: { lote: { fincaId: { in: fincaIds } } } },
       ],
     };
 
@@ -60,6 +64,7 @@ export async function GET(req: Request) {
 
     return NextResponse.json({ data: jornales });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/jornales]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -87,24 +92,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "La actividad es requerida" }, { status: 400 });
     }
 
-    // Verify ownership of lote or cultivo
+    // Resolver la finca del jornal: si viene ligado a un lote o cultivo, se usa
+    // la finca real de ese registro (nunca se confía en un fincaId suelto del
+    // cliente); si no, la primera finca accesible al usuario (Fase 2).
+    let fincaId: string | undefined;
     if (loteId) {
-      const lote = await db.lote.findFirst({
-        where: { id: loteId, finca: { userId: session.user.id } },
-      });
+      const lote = await db.lote.findUnique({ where: { id: loteId }, select: { fincaId: true } });
       if (!lote) {
         return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
       }
-    }
-
-    if (cultivoId) {
-      const cultivo = await db.cultivo.findFirst({
-        where: { id: cultivoId, lote: { finca: { userId: session.user.id } } },
-      });
+      fincaId = lote.fincaId;
+    } else if (cultivoId) {
+      const cultivo = await db.cultivo.findUnique({ where: { id: cultivoId }, select: { lote: { select: { fincaId: true } } } });
       if (!cultivo) {
         return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
       }
+      fincaId = cultivo.lote.fincaId;
+    } else {
+      const fincaIds = await fincaIdsAccesibles(session);
+      const finca =
+        fincaIds === "ALL"
+          ? await db.finca.findFirst({ select: { id: true } })
+          : fincaIds.length > 0
+            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
+            : null;
+      if (!finca) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+      fincaId = finca.id;
     }
+
+    await requireAccess(session, "jornal", "create", { fincaId });
 
     const valorDiaNum = Number(valorDia);
     const horasNum = Number(horasTrabajadas) || 8;
@@ -129,11 +145,10 @@ export async function POST(req: Request) {
     });
 
     // ── Efecto colateral: crear gasto automático MANO_OBRA ──────────────────────
-    const finca = await db.finca.findFirst({ where: { userId: session.user.id }, select: { id: true } });
     await db.gasto.create({
       data: {
         userId: session.user.id,
-        fincaId: finca?.id ?? "",
+        fincaId,
         concepto: `Jornal ${operario.trim()} — ${actividad.trim()}`,
         categoria: "MANO_OBRA",
         monto: valorDiaNum,
@@ -146,6 +161,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ data: jornal }, { status: 201 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/jornales]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

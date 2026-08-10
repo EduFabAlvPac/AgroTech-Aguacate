@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { tieneModulo } from "@/lib/modulos";
 
 export const metadata = { title: "Asistente IA" };
 
@@ -14,6 +15,7 @@ export default async function AsistentePage({
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
+  if (!tieneModulo(session.user.modulosPermitidos, "asistente")) redirect("/dashboard");
 
   const params = await searchParams;
 

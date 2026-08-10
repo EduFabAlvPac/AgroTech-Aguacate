@@ -3,10 +3,15 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverVariedad } from "@/lib/fichas-tecnicas";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
-async function verifyCultivoOwnership(cultivoId: string, userId: string) {
-  return db.cultivo.findFirst({
-    where: { id: cultivoId, lote: { finca: { userId } } },
+// Ya no filtra por userId — la autorización real la hace requireAccess()
+// contra el fincaId del lote (Fase 2). Sigue sirviendo para saber si existe
+// y a qué finca pertenece.
+async function fetchCultivoConFinca(cultivoId: string) {
+  return db.cultivo.findUnique({
+    where: { id: cultivoId },
+    include: { lote: { select: { fincaId: true } } },
   });
 }
 
@@ -17,8 +22,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const cultivo = await db.cultivo.findFirst({
-      where: { id, lote: { finca: { userId: session.user.id } } },
+    const existente = await fetchCultivoConFinca(id);
+    if (!existente) return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
+    await requireAccess(session, "cultivo", "read", { fincaId: existente.lote.fincaId });
+
+    const cultivo = await db.cultivo.findUnique({
+      where: { id },
       include: {
         lote: { include: { finca: true } },
         registros: { orderBy: { fecha: "desc" } },
@@ -27,10 +36,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       },
     });
 
-    if (!cultivo) return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
-
     return NextResponse.json({ data: cultivo });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/cultivos/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -43,8 +51,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const owned = await verifyCultivoOwnership(id, session.user.id);
-    if (!owned) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    const existente = await fetchCultivoConFinca(id);
+    if (!existente) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    await requireAccess(session, "cultivo", "update", { fincaId: existente.lote.fincaId });
 
     const body = await req.json();
 
@@ -97,6 +106,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
 
     return NextResponse.json({ data: cultivo });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[PUT /api/cultivos/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -109,12 +119,14 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const owned = await verifyCultivoOwnership(id, session.user.id);
-    if (!owned) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    const existente = await fetchCultivoConFinca(id);
+    if (!existente) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+    await requireAccess(session, "cultivo", "delete", { fincaId: existente.lote.fincaId });
 
     await db.cultivo.delete({ where: { id } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[DELETE /api/cultivos/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

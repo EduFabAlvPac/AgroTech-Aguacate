@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw } from "lucide-react";
+import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -94,6 +94,20 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
 
   const markAllRead = async () => {
     setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
+  };
+
+  // Descartar (eliminar) una alerta — útil para limpiar alertas de prueba o
+  // que ya no aplican. El API la scopea a la finca del usuario (ver
+  // /api/alertas/[id]).
+  const dismissAlert = async (id: string) => {
+    try {
+      const res = await fetch(`/api/alertas/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      setAlertas((prev) => prev.filter((a) => a.id !== id));
+      toast.success("Alerta descartada");
+    } catch {
+      toast.error("No se pudo descartar la alerta");
+    }
   };
 
   const [generating, setGenerating] = useState(false);
@@ -284,9 +298,9 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                         {formatDate(alerta.fechaInicio, true)}
                         {alerta.municipio && ` · ${alerta.municipio}`}
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex items-center gap-2">
                         <Link
-                          href={`/dashboard/asistente?q=${encodeURIComponent(`Hay una alerta de ${TIPO_LABELS[alerta.tipo]}: ${alerta.titulo}. ¿Qué debo hacer para proteger mis plántulas de aguacate Hass?`)}`}
+                          href={`/dashboard/asistente?q=${encodeURIComponent(`Hay una alerta de ${TIPO_LABELS[alerta.tipo]}: ${alerta.titulo}. ¿Qué debo hacer para proteger mi cultivo?`)}`}
                           className="text-[12px] text-agro-400 hover:text-agro-600 font-medium"
                         >
                           Consultar al asistente →
@@ -299,6 +313,14 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                             Marcar leída
                           </button>
                         )}
+                        <button
+                          onClick={() => dismissAlert(alerta.id)}
+                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors"
+                          aria-label="Descartar alerta"
+                          title="Descartar"
+                        >
+                          <X size={13} className="text-[var(--text-muted)] hover:text-red-500" />
+                        </button>
                       </div>
                     </div>
                   </div>

@@ -1,8 +1,16 @@
 import { Sprout, Calendar, TrendingDown, AlertTriangle, TrendingUp } from "lucide-react";
 import { formatCOP, cn } from "@/lib/utils";
-import { differenceInDays } from "date-fns";
 import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
+
+// Estimación de cosecha calculada por el server component (KpiCardsLoader) a
+// partir del ciclo real de la especie (EspecieCultivo.cicloMesesPrimeraCosecha)
+// y la fecha de siembra del cultivo activo — nunca un valor fijo ni asumiendo
+// aguacate por defecto (ver CLAUDE.md §4).
+export interface CosechaEstimada {
+  dias: number;
+  fechaLabel: string;
+}
 
 interface KpiCardsProps {
   totalHa: number;
@@ -12,9 +20,9 @@ interface KpiCardsProps {
   ingresosTotal: number;
   etapaCultivo?: string;
   diasDesdeSiembra?: number;
+  variedad?: string | null;
+  cosechaEstimada?: CosechaEstimada | null;
 }
-
-const FECHA_COSECHA_EST = new Date("2028-01-15");
 
 const getProximaActividad = (etapa: string, diasDesdeSiembra: number) => {
   if (etapa === "PREPARACION") return { texto: "Iniciar siembra", icono: "🌱", urgencia: "alta" as const };
@@ -37,16 +45,19 @@ const URGENCIA_COLORS = {
   baja: { text: "text-agro-600", bg: "bg-agro-50" },
 };
 
-export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra }: KpiCardsProps) {
-  const diasAlCorte = differenceInDays(FECHA_COSECHA_EST, new Date());
-  const actividad = getProximaActividad(etapaCultivo ?? "SIEMBRA", diasDesdeSiembra ?? 30);
+export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra, variedad, cosechaEstimada }: KpiCardsProps) {
+  // Sin cultivo activo no hay etapa real que proyectar — se muestra un
+  // estado neutro en vez de asumir una etapa/actividad por defecto.
+  const actividad = etapaCultivo
+    ? getProximaActividad(etapaCultivo, diasDesdeSiembra ?? 30)
+    : { texto: "Registra un cultivo", icono: "🌱", urgencia: "baja" as const };
   const urgColors = URGENCIA_COLORS[actividad.urgencia];
 
   const kpis = [
     {
       label: "Hectáreas activas",
       value: `${totalHa.toFixed(1)} ha`,
-      sub: `${totalPlantas} plantas · Hass`,
+      sub: totalPlantas > 0 ? `${totalPlantas} plantas${variedad ? ` · ${variedad}` : ""}` : "Sin plantas registradas",
       icon: Sprout,
       iconColor: "text-agro-400",
       valueColor: "text-agro-600",
@@ -54,8 +65,8 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
     },
     {
       label: "Días a la cosecha",
-      value: `~${diasAlCorte}`,
-      sub: "Est. Ene 2028 · primera producción",
+      value: cosechaEstimada ? `~${Math.max(cosechaEstimada.dias, 0)}` : "—",
+      sub: cosechaEstimada ? `Est. ${cosechaEstimada.fechaLabel} · primera producción` : "Sin cultivo activo",
       icon: Calendar,
       iconColor: "text-harvest-200",
       valueColor: "text-[var(--text-primary)]",
@@ -64,7 +75,7 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
     {
       label: "Próxima actividad",
       value: `${actividad.icono} ${actividad.texto}`,
-      sub: `Urgencia ${actividad.urgencia}`,
+      sub: etapaCultivo ? `Urgencia ${actividad.urgencia}` : "Aún no hay cultivo activo",
       icon: Sprout,
       iconColor: urgColors.text,
       valueColor: urgColors.text,
