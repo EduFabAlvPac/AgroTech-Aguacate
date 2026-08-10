@@ -11,15 +11,26 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import type { AuthzSession } from "@/lib/authz";
 
 export const dynamic = "force-dynamic";
 
 // ── Async Server Component: fetches KPI data and renders KpiCards ─────────────
 // Wrapped in Suspense so the rest of the dashboard renders immediately.
-async function KpiCardsLoader({ userId }: { userId: string }) {
+async function KpiCardsLoader({ session }: { session: AuthzSession }) {
+  // Antes db.gasto.aggregate() de "gastos del mes" no tenía NINGÚN scoping —
+  // sumaba los gastos de TODA la base de datos (todos los tenants), no solo
+  // los del usuario. Se corrige junto con el resto (finca/alertas/ingresos
+  // ya tenían algún filtro, pero literal por userId — un ADMIN_FINCA/
+  // COLABORADOR no veía nada). Fase 2.
+  const fincaIds = await fincaIdsAccesibles(session);
+  const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
+  const enFincas = fincaIds === "ALL" ? undefined : { in: fincaIds };
+
   const [finca, gastosMes, alertas, ingresosAggregate] = await Promise.all([
     db.finca.findFirst({
-      where: { userId },
+      where: fincaWhere,
       include: {
         lotes: {
           include: {
@@ -33,20 +44,19 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
     }),
     db.gasto.aggregate({
       where: {
+        fincaId: enFincas,
         fecha: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         },
       },
       _sum: { monto: true },
     }),
-    // Antes esta consulta no tenía scoping (contaba alertas de TODA la BD,
-    // no solo las del usuario) — se corrige junto con el resto de RBAC (Fase 2).
-    db.alertaClimatica.count({ where: { activa: true, leida: false, finca: { userId } } }),
+    db.alertaClimatica.count({ where: { activa: true, leida: false, fincaId: enFincas } }),
     db.ingreso.aggregate({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId } } } },
-          { comprador: { userId } },
+          { cultivo: { lote: { fincaId: enFincas } } },
+          { comprador: { fincaId: enFincas } },
         ],
       },
       _sum: { monto: true },
@@ -100,18 +110,18 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
 }
 
 // ── Async Server Component: fetches financial data for FinancialChart ─────────
-async function FinancialChartLoader({ userId }: { userId: string }) {
+async function FinancialChartLoader({ session }: { session: AuthzSession }) {
   const year = new Date().getFullYear();
   const fechaInicio = new Date(year, 0, 1);
   const fechaFin = new Date(year, 11, 31, 23, 59, 59);
 
+  const fincaIds = await fincaIdsAccesibles(session);
+  const enFincas = fincaIds === "ALL" ? undefined : { in: fincaIds };
+
   const [gastos, ingresos] = await Promise.all([
     db.gasto.findMany({
       where: {
-        OR: [
-          { userId },
-          { cultivo: { lote: { finca: { userId } } } },
-        ],
+        fincaId: enFincas,
         fecha: { gte: fechaInicio, lte: fechaFin },
       },
       select: { monto: true, fecha: true },
@@ -119,8 +129,8 @@ async function FinancialChartLoader({ userId }: { userId: string }) {
     db.ingreso.findMany({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId } } } },
-          { comprador: { userId } },
+          { cultivo: { lote: { fincaId: enFincas } } },
+          { comprador: { fincaId: enFincas } },
         ],
         fecha: { gte: fechaInicio, lte: fechaFin },
       },
@@ -155,13 +165,18 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
 
+  // Antes filtraba por userId literal — un ADMIN_FINCA/COLABORADOR entraba al
+  // Dashboard (siempre visible, no pasa por el sistema de módulos) y no veía
+  // nada de la finca (mismo bug corregido en el resto de páginas, Fase 2).
+  const fincaIds = await fincaIdsAccesibles(session);
   const finca = await db.finca.findFirst({
-    where: { userId: session.user.id },
+    where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
     include: {
       lotes: {
         include: {
           cultivos: {
             where: { estado: "ACTIVO" },
+            include: { especieCultivo: { select: { cicloMesesPrimeraCosecha: true, produccionKgArbolAnual: true } } },
           },
         },
       },
@@ -179,7 +194,7 @@ export default async function DashboardPage() {
 
         {/* KPI Cards — streamed with skeleton fallback */}
         <Suspense fallback={<KpiCardsSkeleton />}>
-          <KpiCardsLoader userId={session.user.id} />
+          <KpiCardsLoader session={session} />
         </Suspense>
 
         {/* Row 1: Map + Weather/Alert */}
@@ -200,11 +215,11 @@ export default async function DashboardPage() {
 
         {/* Row 3: Financial Chart */}
         <Suspense fallback={<FinancialChartSkeleton />}>
-          <FinancialChartLoader userId={session.user.id} />
+          <FinancialChartLoader session={session} />
         </Suspense>
 
         {/* Row 4: Buyers */}
-        <BuyersPreview userId={session.user.id} />
+        <BuyersPreview session={session} />
 
       </main>
     </>

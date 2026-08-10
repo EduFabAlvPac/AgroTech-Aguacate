@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 // This route runs on Node.js runtime (NOT edge) so it can use Prisma
 // It provides dynamic farm context for AgroIA to personalize responses
@@ -59,12 +60,19 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const userId = session.user.id;
+    // Scoped a las fincas accesibles al usuario (dueño o vía FincaAcceso —
+    // Fase 2). Antes filtraba por userId literal: un ADMIN_FINCA/COLABORADOR
+    // con el módulo "Asistente IA" habilitado entraba al chat pero el
+    // contexto de su finca llegaba vacío (mismo bug que ya se corrigió en
+    // Finanzas/Compradores).
+    const fincaIds = await fincaIdsAccesibles(session);
+    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
+    const enFincas = fincaIds === "ALL" ? undefined : { in: fincaIds };
 
     // Parallel fetch: finca+cultivos, alertas, gastos recientes, ingresos recientes, aggregates
     const [finca, alertas, gastosRecientes, ingresosRecientes, gastosMesAgg, todosGastos, todosIngresos, jornalesAgg, compradores] = await Promise.all([
       db.finca.findFirst({
-        where: { userId },
+        where: fincaWhere,
         select: {
           nombre: true,
           municipio: true,
@@ -83,6 +91,7 @@ export async function GET() {
                   etapa: true,
                   fechaSiembra: true,
                   cantidadPlantas: true,
+                  especieCultivo: { select: { produccionKgArbolAnual: true } },
                 },
                 take: 1,
               },
@@ -91,13 +100,13 @@ export async function GET() {
         },
       }),
       db.alertaClimatica.findMany({
-        where: { activa: true, leida: false },
+        where: { activa: true, leida: false, fincaId: enFincas },
         select: { tipo: true, titulo: true, severidad: true },
         orderBy: { fechaInicio: "desc" },
         take: 5,
       }),
       db.gasto.findMany({
-        where: { cultivo: { lote: { finca: { userId } } } },
+        where: { fincaId: enFincas },
         select: { concepto: true, monto: true, categoria: true, fecha: true },
         orderBy: { fecha: "desc" },
         take: 3,
@@ -105,8 +114,8 @@ export async function GET() {
       db.ingreso.findMany({
         where: {
           OR: [
-            { cultivo: { lote: { finca: { userId } } } },
-            { comprador: { userId } },
+            { cultivo: { lote: { fincaId: enFincas } } },
+            { comprador: { fincaId: enFincas } },
           ],
         },
         select: { concepto: true, monto: true, fecha: true },
@@ -115,22 +124,22 @@ export async function GET() {
       }),
       db.gasto.aggregate({
         where: {
-          cultivo: { lote: { finca: { userId } } },
+          fincaId: enFincas,
           fecha: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) },
         },
         _sum: { monto: true },
       }),
       // All gastos for FINAGRO metrics
       db.gasto.findMany({
-        where: { cultivo: { lote: { finca: { userId } } } },
+        where: { fincaId: enFincas },
         select: { monto: true, categoria: true },
       }),
       // All ingresos for total
       db.ingreso.aggregate({
         where: {
           OR: [
-            { cultivo: { lote: { finca: { userId } } } },
-            { comprador: { userId } },
+            { cultivo: { lote: { fincaId: enFincas } } },
+            { comprador: { fincaId: enFincas } },
           ],
         },
         _sum: { monto: true },
@@ -139,8 +148,8 @@ export async function GET() {
       db.jornal.aggregate({
         where: {
           OR: [
-            { lote: { finca: { userId } } },
-            { cultivo: { lote: { finca: { userId } } } },
+            { lote: { fincaId: enFincas } },
+            { cultivo: { lote: { fincaId: enFincas } } },
           ],
         },
         _sum: { valorDia: true },
@@ -148,13 +157,13 @@ export async function GET() {
       }),
       // Compradores precios
       db.comprador.findMany({
-        where: { userId, precioKg: { not: null } },
+        where: { fincaId: enFincas, precioKg: { not: null } },
         select: { precioKg: true },
       }),
     ]);
 
     // Build cultivos array with days since planting
-    const cultivos = (finca?.lotes ?? []).flatMap((lote) =>
+    const cultivosConEspecie = (finca?.lotes ?? []).flatMap((lote) =>
       lote.cultivos.map((c) => ({
         especie: c.especie,
         variedad: c.variedad,
@@ -164,8 +173,10 @@ export async function GET() {
           ? Math.floor((Date.now() - new Date(c.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24))
           : null,
         cantidadPlantas: c.cantidadPlantas,
+        produccionKgArbolAnual: c.especieCultivo?.produccionKgArbolAnual ?? null,
       }))
     );
+    const cultivos = cultivosConEspecie.map(({ produccionKgArbolAnual, ...c }) => c);
 
     const context: FarmContext = {
       finca: finca
@@ -210,11 +221,14 @@ export async function GET() {
         const ingresosAcumulados = todosIngresos._sum.monto ?? 0;
         const saldoNeto = ingresosAcumulados - costoTotal;
 
-        // Projection
-        const totalPlantas = cultivos.reduce((s, c) => s + (c.cantidadPlantas ?? 0), 0);
-        const produccionProyectadaKg = totalPlantas * 20; // 20 kg/árbol plena producción Hass
+        // Projection — usa la producción real de la especie/variedad del
+        // cultivo activo (motor de fichas técnicas); si no hay ficha
+        // asociada, no inventa un rendimiento de aguacate por defecto.
+        const totalPlantas = cultivosConEspecie.reduce((s, c) => s + (c.cantidadPlantas ?? 0), 0);
+        const produccionPorArbol = cultivosConEspecie.find((c) => c.produccionKgArbolAnual)?.produccionKgArbolAnual ?? 0;
+        const produccionProyectadaKg = totalPlantas * produccionPorArbol;
         const precios = compradores.map((c) => c.precioKg!).filter(Boolean);
-        const precioPromedioKg = precios.length > 0 ? precios.reduce((s, p) => s + p, 0) / precios.length : 3200;
+        const precioPromedioKg = precios.length > 0 ? precios.reduce((s, p) => s + p, 0) / precios.length : 0;
         const ingresoProyectado = produccionProyectadaKg * precioPromedioKg;
         const roi = costoTotal > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
 
