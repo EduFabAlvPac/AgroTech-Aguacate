@@ -7,6 +7,7 @@ declare module "next-auth" {
       role?: string;
       esSuperAdmin?: boolean;
       esOwner?: boolean;
+      modulosPermitidos?: string[] | "ALL";
     } & DefaultSession["user"];
   }
 }

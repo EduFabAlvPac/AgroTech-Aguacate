@@ -80,6 +80,11 @@ model Membresia {
   rol            RolOrganizacion
   invitadoPorId  String?
   aceptada       Boolean         @default(true)
+  // Distinto de `aceptada` (que hoy siempre es true — no hay flujo de
+  // invitación por correo, ver CLAUDE.md §2.3). `activa` es el toggle del
+  // dueño para suspender el acceso de un colaborador sin borrar el registro
+  // (se conserva el historial en vez de un DELETE — ver panel Equipo).
+  activa         Boolean         @default(true)
   createdAt      DateTime        @default(now())
 
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -107,6 +112,13 @@ model FincaAcceso {
   rol         RolFinca @default(LECTURA)
   creadoPorId String?
   createdAt   DateTime @default(now())
+  // Menús/módulos del dashboard visibles y accesibles para este colaborador
+  // en esta finca (claves de MODULOS_DASHBOARD, ver src/lib/modulos.ts).
+  // Se inicializa con un default según `rol` al crear el acceso y el dueño
+  // lo puede personalizar por persona (ver panel Equipo). No reemplaza el
+  // RBAC por recurso/acción de authz.ts — es una capa adicional de qué
+  // secciones ve/navega, no de qué puede hacer dentro de cada una.
+  modulos     String[] @default([])
 
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   finca Finca @relation(fields: [fincaId], references: [id], onDelete: Cascade)

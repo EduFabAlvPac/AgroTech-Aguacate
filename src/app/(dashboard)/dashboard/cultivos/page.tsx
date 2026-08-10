@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { tieneModulo } from "@/lib/modulos";
 
 export const metadata = { title: "Cultivos" };
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function CultivosPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
+  if (!tieneModulo(session.user.modulosPermitidos, "cultivos")) redirect("/dashboard");
 
   const finca = await db.finca.findFirst({
     where: { userId: session.user.id },

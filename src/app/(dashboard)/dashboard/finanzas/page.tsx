@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { tieneModulo } from "@/lib/modulos";
 
 export const metadata = { title: "Finanzas" };
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function FinanzasPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
+  if (!tieneModulo(session.user.modulosPermitidos, "finanzas")) redirect("/dashboard");
 
   const [gastos, ingresos, cultivos, compradores, finca, lotes, presupuestos] = await Promise.all([
     db.gasto.findMany({

@@ -31,7 +31,7 @@ export default async function EquipoPage() {
 
   const accesos = await db.fincaAcceso.findMany({
     where: { fincaId: { in: fincas.map((f) => f.id) }, userId: { in: miembros.map((m) => m.userId) } },
-    select: { userId: true, fincaId: true, rol: true },
+    select: { userId: true, fincaId: true, rol: true, modulos: true },
   });
 
   const miembrosConAcceso = miembros.map((m) => ({
@@ -39,9 +39,10 @@ export default async function EquipoPage() {
     nombre: m.user.name,
     email: m.user.email,
     rol: m.rol,
+    activa: m.activa,
     fincas: accesos
       .filter((a) => a.userId === m.userId)
-      .map((a) => ({ fincaId: a.fincaId, nombre: fincas.find((f) => f.id === a.fincaId)?.nombre ?? "?", rol: a.rol })),
+      .map((a) => ({ fincaId: a.fincaId, nombre: fincas.find((f) => f.id === a.fincaId)?.nombre ?? "?", rol: a.rol, modulos: a.modulos })),
   }));
 
   return (

@@ -1,14 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Pencil, Power, PowerOff } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
+import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
 
 interface FincaOption {
   id: string;
   nombre: string;
+}
+
+interface FincaAccesoData {
+  fincaId: string;
+  nombre: string;
+  rol: string;
+  modulos: string[];
 }
 
 interface MiembroData {
@@ -16,7 +24,8 @@ interface MiembroData {
   nombre: string | null;
   email: string;
   rol: RolOrganizacion;
-  fincas: { fincaId: string; nombre: string; rol: string }[];
+  activa: boolean;
+  fincas: FincaAccesoData[];
 }
 
 const ROL_LABELS: Record<string, string> = {
@@ -29,7 +38,14 @@ const ROL_COLORS: Record<string, { bg: string; color: string }> = {
   COLABORADOR: { bg: "#EAF3DE", color: "#3B6D11" },
 };
 
-const emptyForm = { nombre: "", email: "", password: "", rol: "COLABORADOR" as RolOrganizacion, fincaId: "" };
+const emptyForm = {
+  nombre: "",
+  email: "",
+  password: "",
+  rol: "COLABORADOR" as RolOrganizacion,
+  fincaId: "",
+  modulos: modulosPorDefecto("OPERARIO") as string[],
+};
 
 export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroData[]; fincas: FincaOption[] }) {
   const [miembros, setMiembros] = useState(initial);
@@ -37,8 +53,17 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
   const [form, setForm] = useState(() => ({ ...emptyForm, fincaId: fincas[0]?.id ?? "" }));
   const [loading, setLoading] = useState(false);
 
+  const [editing, setEditing] = useState<MiembroData | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editLoading, setEditLoading] = useState(false);
+
   const [deleting, setDeleting] = useState<MiembroData | null>(null);
   const [deletingLoading, setDeletingLoading] = useState(false);
+
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+
+  const toggleModulo = (list: string[], key: string) =>
+    list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
 
   const handleAgregar = async () => {
     if (!form.email.trim()) return toast.error("El email es requerido");
@@ -58,7 +83,13 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
           nombre: json.data.nombre,
           email: json.data.email,
           rol: json.data.rol,
-          fincas: [{ fincaId: form.fincaId, nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?", rol: form.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO" }],
+          activa: true,
+          fincas: [{
+            fincaId: form.fincaId,
+            nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?",
+            rol: form.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO",
+            modulos: form.modulos,
+          }],
         },
         ...prev,
       ]);
@@ -69,6 +100,78 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
       toast.error(err instanceof Error ? err.message : "Error al agregar");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const abrirEditar = (m: MiembroData) => {
+    const acceso = m.fincas[0];
+    setEditForm({
+      nombre: m.nombre ?? "",
+      email: m.email,
+      password: "",
+      rol: m.rol,
+      fincaId: acceso?.fincaId ?? fincas[0]?.id ?? "",
+      modulos: acceso?.modulos && acceso.modulos.length > 0 ? acceso.modulos : modulosPorDefecto(m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"),
+    });
+    setEditing(m);
+  };
+
+  const handleGuardarEdicion = async () => {
+    if (!editing) return;
+    if (!editForm.fincaId) return toast.error("Selecciona la finca con acceso");
+    setEditLoading(true);
+    try {
+      const res = await fetch(`/api/equipo/${editing.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rol: editForm.rol, fincaId: editForm.fincaId, modulos: editForm.modulos }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error al guardar");
+      setMiembros((prev) =>
+        prev.map((m) =>
+          m.id === editing.id
+            ? {
+                ...m,
+                rol: editForm.rol,
+                fincas: [{
+                  fincaId: editForm.fincaId,
+                  nombre: fincas.find((f) => f.id === editForm.fincaId)?.nombre ?? "?",
+                  rol: editForm.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO",
+                  modulos: editForm.modulos,
+                }],
+              }
+            : m
+        )
+      );
+      toast.success("Cambios guardados");
+      setEditing(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleToggleActiva = async (m: MiembroData) => {
+    setTogglingId(m.id);
+    try {
+      const nuevaActiva = !m.activa;
+      const res = await fetch(`/api/equipo/${m.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ activa: nuevaActiva }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Error al actualizar");
+      }
+      setMiembros((prev) => prev.map((x) => (x.id === m.id ? { ...x, activa: nuevaActiva } : x)));
+      toast.success(nuevaActiva ? "Colaborador reactivado" : "Colaborador desactivado — no podrá iniciar sesión en tus fincas hasta que lo reactives.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al actualizar");
+    } finally {
+      setTogglingId(null);
     }
   };
 
@@ -109,7 +212,7 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
       ) : (
         <div className="space-y-2">
           {miembros.map((m) => (
-            <div key={m.id} className="card p-4 flex items-center justify-between flex-wrap gap-3">
+            <div key={m.id} className={`card p-4 flex items-center justify-between flex-wrap gap-3 ${!m.activa ? "opacity-60" : ""}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[var(--radius-md)] bg-agro-50 flex items-center justify-center flex-shrink-0">
                   {m.rol === "ADMIN_FINCA" ? <ShieldCheck size={18} className="text-agro-400" /> : <Wrench size={18} className="text-agro-400" />}
@@ -123,20 +226,56 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
                     >
                       {ROL_LABELS[m.rol] ?? m.rol}
                     </span>
+                    {!m.activa && (
+                      <span className="badge text-[10px] font-medium rounded-full px-2 py-0.5" style={{ background: "#F1EFE8", color: "#5F5E5A" }}>
+                        Inactivo
+                      </span>
+                    )}
                   </div>
                   <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     {m.email}
                     {m.fincas.length > 0 && ` · Acceso a: ${m.fincas.map((f) => f.nombre).join(", ")}`}
                   </p>
+                  {m.fincas[0] && (
+                    <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                      Menús: {m.fincas[0].modulos.length > 0
+                        ? m.fincas[0].modulos.map((k) => MODULOS_DASHBOARD.find((mm) => mm.key === k)?.label ?? k).join(", ")
+                        : "Ninguno personalizado"}
+                    </p>
+                  )}
                 </div>
               </div>
-              <button
-                onClick={() => setDeleting(m)}
-                className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors flex-shrink-0"
-                aria-label="Remover colaborador"
-              >
-                <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
-              </button>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => abrirEditar(m)}
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-agro-50 transition-colors flex-shrink-0"
+                  aria-label="Consultar y editar"
+                  title="Consultar y editar"
+                >
+                  <Pencil size={14} className="text-[var(--text-muted)] hover:text-agro-500" />
+                </button>
+                <button
+                  onClick={() => handleToggleActiva(m)}
+                  disabled={togglingId === m.id}
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-harvest-50 transition-colors flex-shrink-0 disabled:opacity-50"
+                  aria-label={m.activa ? "Inactivar" : "Reactivar"}
+                  title={m.activa ? "Inactivar" : "Reactivar"}
+                >
+                  {m.activa ? (
+                    <PowerOff size={14} className="text-[var(--text-muted)] hover:text-harvest-400" />
+                  ) : (
+                    <Power size={14} className="text-[var(--text-muted)] hover:text-agro-500" />
+                  )}
+                </button>
+                <button
+                  onClick={() => setDeleting(m)}
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors flex-shrink-0"
+                  aria-label="Remover colaborador"
+                  title="Eliminar"
+                >
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -173,7 +312,10 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
             <Select
               label="Rol"
               value={form.rol}
-              onChange={(e) => setForm({ ...form, rol: e.target.value as RolOrganizacion })}
+              onChange={(e) => {
+                const rol = e.target.value as RolOrganizacion;
+                setForm({ ...form, rol, modulos: modulosPorDefecto(rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO") });
+              }}
               options={[
                 { value: "COLABORADOR", label: "Colaborador de campo" },
                 { value: "ADMIN_FINCA", label: "Administrador de finca" },
@@ -186,11 +328,79 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
               options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
             />
           </div>
+          <div>
+            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+              Menús a los que puede ingresar
+            </label>
+            <div className="grid grid-cols-2 gap-1.5">
+              {MODULOS_DASHBOARD.map((mod) => (
+                <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+                  <input
+                    type="checkbox"
+                    checked={form.modulos.includes(mod.key)}
+                    onChange={() => setForm({ ...form, modulos: toggleModulo(form.modulos, mod.key) })}
+                  />
+                  {mod.label}
+                </label>
+              ))}
+            </div>
+          </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
             <Button loading={loading} onClick={handleAgregar}>Agregar</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal: consultar / editar colaborador */}
+      <Modal isOpen={!!editing} onClose={() => setEditing(null)} title="Consultar y editar colaborador">
+        {editing && (
+          <div className="space-y-3">
+            <div className="text-[13px] text-[var(--text-primary)] font-medium">{editing.nombre ?? editing.email}</div>
+            <div className="text-[12px] text-[var(--text-muted)] -mt-2">{editing.email}</div>
+            <div className="grid grid-cols-2 gap-3">
+              <Select
+                label="Rol"
+                value={editForm.rol}
+                onChange={(e) => {
+                  const rol = e.target.value as RolOrganizacion;
+                  setEditForm({ ...editForm, rol });
+                }}
+                options={[
+                  { value: "COLABORADOR", label: "Colaborador de campo" },
+                  { value: "ADMIN_FINCA", label: "Administrador de finca" },
+                ]}
+              />
+              <Select
+                label="Finca con acceso"
+                value={editForm.fincaId}
+                onChange={(e) => setEditForm({ ...editForm, fincaId: e.target.value })}
+                options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
+              />
+            </div>
+            <div>
+              <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+                Menús a los que puede ingresar
+              </label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {MODULOS_DASHBOARD.map((mod) => (
+                  <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+                    <input
+                      type="checkbox"
+                      checked={editForm.modulos.includes(mod.key)}
+                      onChange={() => setEditForm({ ...editForm, modulos: toggleModulo(editForm.modulos, mod.key) })}
+                    />
+                    {mod.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="secondary" onClick={() => setEditing(null)}>Cancelar</Button>
+              <Button loading={editLoading} onClick={handleGuardarEdicion}>Guardar cambios</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal: eliminar colaborador */}
@@ -199,7 +409,8 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
           <div className="space-y-4">
             <p className="text-[13px] text-[var(--text-secondary)]">
               ¿Remover a <strong>{deleting.nombre ?? deleting.email}</strong> de tu organización? Pierde acceso
-              inmediatamente a todas tus fincas. Su cuenta no se elimina, solo el acceso.
+              inmediatamente a todas tus fincas y se borra el registro. Su cuenta no se elimina, solo el acceso.
+              Si prefieres conservar el historial y solo suspender su acceso temporalmente, usa <strong>Inactivar</strong> en vez de esto.
             </p>
             <div className="flex gap-3 justify-end pt-2">
               <Button variant="secondary" onClick={() => setDeleting(null)}>Cancelar</Button>

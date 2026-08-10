@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { requireAccess, AuthzError } from "@/lib/authz";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 import {
   generateWeatherAlerts,
   generatePlagaAlerts,
@@ -11,7 +13,8 @@ import {
 
 // POST /api/alertas/generate — dispara la generación de alertas: climáticas
 // (a nivel finca) + de plaga por ficha técnica (por cada cultivo activo que
-// tenga una FichaTecnica pinneada con plagas configuradas — RF17).
+// tenga una FichaTecnica pinneada con plagas configuradas — RF17). Usa la
+// primera finca accesible al usuario (dueño o vía FincaAcceso — Fase 2).
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
@@ -19,9 +22,15 @@ export async function POST() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
+    const fincaIds = await fincaIdsAccesibles(session);
+    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+      return NextResponse.json({ error: "Registra una finca antes de generar alertas" }, { status: 400 });
+    }
+    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
+
     const [finca, userPrefs, cultivosActivos] = await Promise.all([
       db.finca.findFirst({
-        where: { userId: session.user.id },
+        where: fincaWhere,
         select: { id: true, lat: true, lng: true, municipio: true },
       }),
       db.userPreferences.findUnique({
@@ -32,7 +41,7 @@ export async function POST() {
         },
       }),
       db.cultivo.findMany({
-        where: { lote: { finca: { userId: session.user.id } }, estado: "ACTIVO" },
+        where: { lote: { fincaId: fincaIds === "ALL" ? undefined : { in: fincaIds } }, estado: "ACTIVO" },
         select: {
           id: true, especie: true, variedad: true, etapa: true,
           fichaTecnica: {
@@ -48,6 +57,7 @@ export async function POST() {
     if (!finca) {
       return NextResponse.json({ error: "Registra una finca antes de generar alertas" }, { status: 400 });
     }
+    await requireAccess(session, "alerta", "create", { fincaId: finca.id });
 
     const lat = finca.lat ?? 8.320589;
     const lng = finca.lng ?? -73.337551;

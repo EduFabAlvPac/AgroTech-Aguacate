@@ -4,6 +4,7 @@ import type { Prisma } from "@prisma/client";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { diagnosticarImagen, DiagnosticoError } from "@/lib/diagnostico-ia";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
 export const maxDuration = 45;
 
@@ -32,8 +33,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: "La imagen es demasiado grande" }, { status: 413 });
     }
 
-    const cultivo = await db.cultivo.findFirst({
-      where: { id, lote: { finca: { userId: session.user.id } } },
+    const cultivo = await db.cultivo.findUnique({
+      where: { id },
       include: {
         lote: { select: { fincaId: true } },
         fichaTecnica: {
@@ -48,6 +49,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (!cultivo) {
       return NextResponse.json({ error: "Cultivo no encontrado" }, { status: 404 });
     }
+    // El diagnóstico crea un RegistroCultivo (bitácora) y, si hay hallazgo,
+    // una AlertaClimatica — el permiso relevante es "crear registro", no
+    // "editar cultivo" (así lo puede usar un COLABORADOR de campo, no solo
+    // ADMIN_FINCA).
+    await requireAccess(session, "registroCultivo", "create", { fincaId: cultivo.lote.fincaId });
 
     const especie = cultivo.fichaTecnica?.variedad.especie.nombre ?? cultivo.especie;
     const variedad = cultivo.fichaTecnica?.variedad.nombre ?? cultivo.variedad ?? "";
@@ -98,6 +104,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     if (error instanceof DiagnosticoError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[POST /api/cultivos/[id]/diagnostico]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

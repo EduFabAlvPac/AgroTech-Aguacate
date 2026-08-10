@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
+import { membresiaOwner } from "@/lib/equipo";
 
 /**
  * Gestión de equipo (Fase 2) — ver CLAUDE.md §2.3 y docs/REQUERIMIENTOS.md §6.3.
@@ -13,11 +15,10 @@ import { db } from "@/lib/db";
  * patrón que ya usa el resto de la app en el contexto rural colombiano.
  */
 
-async function membresiaOwner(userId: string) {
-  return db.membresia.findFirst({
-    where: { userId, rol: "OWNER", aceptada: true },
-    select: { organizacionId: true },
-  });
+function modulosValidos(modulos: unknown): ModuloKey[] | null {
+  if (!Array.isArray(modulos)) return null;
+  const claves = new Set(MODULOS_DASHBOARD.map((m) => m.key));
+  return modulos.filter((m): m is ModuloKey => typeof m === "string" && claves.has(m as ModuloKey));
 }
 
 // GET /api/equipo — lista los miembros de la organización del usuario (dueño)
@@ -42,7 +43,7 @@ export async function GET() {
     const fincaIds = fincas.map((f) => f.id);
     const accesos = await db.fincaAcceso.findMany({
       where: { fincaId: { in: fincaIds }, userId: { in: miembros.map((m) => m.userId) } },
-      select: { userId: true, fincaId: true, rol: true },
+      select: { userId: true, fincaId: true, rol: true, modulos: true },
     });
 
     const data = miembros.map((m) => ({
@@ -50,12 +51,13 @@ export async function GET() {
       nombre: m.user.name,
       email: m.user.email,
       rol: m.rol,
+      activa: m.activa,
       fincas: accesos
         .filter((a) => a.userId === m.userId)
-        .map((a) => ({ fincaId: a.fincaId, nombre: fincas.find((f) => f.id === a.fincaId)?.nombre ?? "?", rol: a.rol })),
+        .map((a) => ({ fincaId: a.fincaId, nombre: fincas.find((f) => f.id === a.fincaId)?.nombre ?? "?", rol: a.rol, modulos: a.modulos })),
     }));
 
-    return NextResponse.json({ data, meta: { fincas } });
+    return NextResponse.json({ data, meta: { fincas, modulos: MODULOS_DASHBOARD } });
   } catch (error) {
     console.error("[GET /api/equipo]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
@@ -72,7 +74,7 @@ export async function POST(req: Request) {
     if (!propia) return NextResponse.json({ error: "Solo el dueño de la organización puede agregar colaboradores" }, { status: 403 });
 
     const body = await req.json();
-    const { nombre, email, password, rol, fincaId } = body;
+    const { nombre, email, password, rol, fincaId, modulos } = body;
 
     if (!email || !rol || !fincaId) {
       return NextResponse.json({ error: "email, rol y fincaId son requeridos" }, { status: 400 });
@@ -110,6 +112,7 @@ export async function POST(req: Request) {
     }
 
     const fincaRol = rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
+    const modulosFinal = modulosValidos(modulos) ?? modulosPorDefecto(fincaRol);
 
     const [membresia] = await db.$transaction([
       db.membresia.create({
@@ -117,8 +120,8 @@ export async function POST(req: Request) {
       }),
       db.fincaAcceso.upsert({
         where: { userId_fincaId: { userId: user.id, fincaId } },
-        update: { rol: fincaRol },
-        create: { userId: user.id, fincaId, rol: fincaRol, creadoPorId: session.user.id },
+        update: { rol: fincaRol, modulos: modulosFinal },
+        create: { userId: user.id, fincaId, rol: fincaRol, modulos: modulosFinal, creadoPorId: session.user.id },
       }),
     ]);
 

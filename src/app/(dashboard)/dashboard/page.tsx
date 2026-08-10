@@ -61,12 +61,14 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
   const gastosMesTotal = gastosMes._sum.monto ?? 0;
   const ingresosTotal = ingresosAggregate._sum.monto ?? 0;
 
-  // Get first active cultivo for "próxima actividad" KPI
+  // Get first active cultivo for "próxima actividad" KPI — sin cultivo activo
+  // no hay etapa/siembra real que proyectar, así que se deja undefined (la UI
+  // muestra un estado neutro en vez de asumir "riego cada 3 días" por defecto).
   const primerCultivo = finca?.lotes.flatMap((l) => l.cultivos).find((c) => c.estado === "ACTIVO");
-  const etapaCultivo = primerCultivo?.etapa ?? "SIEMBRA";
+  const etapaCultivo = primerCultivo?.etapa;
   const diasDesdeSiembra = primerCultivo?.fechaSiembra
     ? Math.floor((Date.now() - new Date(primerCultivo.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24))
-    : 30;
+    : undefined;
 
   // Estimación de "días a la cosecha": solo si hay un cultivo activo real con
   // fecha de siembra y la especie tiene un ciclo conocido — nunca un valor

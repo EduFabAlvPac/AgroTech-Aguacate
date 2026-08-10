@@ -46,7 +46,11 @@ const URGENCIA_COLORS = {
 };
 
 export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra, variedad, cosechaEstimada }: KpiCardsProps) {
-  const actividad = getProximaActividad(etapaCultivo ?? "SIEMBRA", diasDesdeSiembra ?? 30);
+  // Sin cultivo activo no hay etapa real que proyectar — se muestra un
+  // estado neutro en vez de asumir una etapa/actividad por defecto.
+  const actividad = etapaCultivo
+    ? getProximaActividad(etapaCultivo, diasDesdeSiembra ?? 30)
+    : { texto: "Registra un cultivo", icono: "🌱", urgencia: "baja" as const };
   const urgColors = URGENCIA_COLORS[actividad.urgencia];
 
   const kpis = [
@@ -71,7 +75,7 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
     {
       label: "Próxima actividad",
       value: `${actividad.icono} ${actividad.texto}`,
-      sub: `Urgencia ${actividad.urgencia}`,
+      sub: etapaCultivo ? `Urgencia ${actividad.urgencia}` : "Aún no hay cultivo activo",
       icon: Sprout,
       iconColor: urgColors.text,
       valueColor: urgColors.text,
