@@ -14,16 +14,21 @@ export type ModuloKey =
   | "cultivos"
   | "mapa"
   | "finanzas"
-  | "inversionistas"
   | "asistente"
   | "alertas"
   | "compradores";
 
+// "Inversionistas" NO está aquí a propósito: es una decisión de producto
+// explícita (Fase 3 — "solo gestión del dueño, sin login de inversionista
+// aún"), no un descuido. InversionCultivo/Inversionista ni siquiera están en
+// el enum Recurso de authz.ts — el módulo queda fuera del sistema de
+// delegación por completo (ver guard esOwner en dashboard/inversionistas/page.tsx),
+// en vez de ofrecer un checkbox que un ADMIN_FINCA podría marcar sin que
+// realmente le muestre datos (el modelo sigue scoped por userId del dueño).
 export const MODULOS_DASHBOARD: { key: ModuloKey; label: string; href: string }[] = [
   { key: "cultivos", label: "Cultivos", href: "/dashboard/cultivos" },
   { key: "mapa", label: "Mapa", href: "/dashboard/mapa" },
   { key: "finanzas", label: "Finanzas", href: "/dashboard/finanzas" },
-  { key: "inversionistas", label: "Inversionistas", href: "/dashboard/inversionistas" },
   { key: "asistente", label: "Asistente IA", href: "/dashboard/asistente" },
   { key: "alertas", label: "Alertas", href: "/dashboard/alertas" },
   { key: "compradores", label: "Compradores", href: "/dashboard/compradores" },

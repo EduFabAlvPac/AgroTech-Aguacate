@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown, Sparkles } from "lucide-react";
+import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown, Sparkles, Share2 } from "lucide-react";
 import Link from "next/link";
 import { Button, Modal, EmptyState } from "@/components/ui";
 import { RegistroForm } from "@/components/cultivos/RegistroForm";
 import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
+import { CompartirCultivoModal } from "@/components/cultivos/CompartirCultivoModal";
 import { ETAPA_LABELS, TIPO_REGISTRO_LABELS, CATEGORIA_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { differenceInDays } from "date-fns";
@@ -39,6 +40,7 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
   const [registros, setRegistros] = useState(cultivo.registros);
   const [showModal, setShowModal] = useState(false);
   const [showDiagnosticoModal, setShowDiagnosticoModal] = useState(false);
+  const [showCompartirModal, setShowCompartirModal] = useState(false);
   const [filterTipo, setFilterTipo] = useState("");
 
   const totalGastos = cultivo.gastos.reduce((s, g) => s + g.monto, 0);
@@ -99,6 +101,10 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
           </div>
 
           <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setShowCompartirModal(true)}>
+              <Share2 size={14} />
+              Compartir
+            </Button>
             <Button variant="secondary" onClick={() => setShowDiagnosticoModal(true)}>
               <Sparkles size={14} />
               Diagnóstico IA
@@ -233,6 +239,13 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
           onCancel={() => setShowDiagnosticoModal(false)}
         />
       </Modal>
+
+      <CompartirCultivoModal
+        isOpen={showCompartirModal}
+        onClose={() => setShowCompartirModal(false)}
+        cultivoId={cultivo.id}
+        cultivoLabel={`${cultivo.especie} ${cultivo.variedad}`}
+      />
     </div>
   );
 }

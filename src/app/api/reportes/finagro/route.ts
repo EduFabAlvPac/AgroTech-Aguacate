@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { fincaIdsAccesibles } from "@/lib/db/scoped";
 
 /**
  * GET /api/reportes/finagro?desde=2026-01-01&hasta=2026-12-31
@@ -62,6 +63,14 @@ export type ReporteFinagroData = {
     roi: number;
     cicloMesesRestantes: number;
   };
+  // Inversionistas (Fase 3) — capital de terceros aportado a los cultivos de
+  // esta finca. null si no hay ninguna inversión activa (no se fabrica una
+  // sección vacía en el PDF).
+  inversionistas: {
+    numInversionistas: number;
+    totalAportado: number;
+    totalRetornosPagados: number;
+  } | null;
 };
 
 export async function GET(req: Request) {
@@ -75,12 +84,20 @@ export async function GET(req: Request) {
     const desde = searchParams.get("desde") || "2026-01-01";
     const hasta = searchParams.get("hasta") || new Date().toISOString().split("T")[0];
 
-    const userId = session.user.id;
+    // Scoped a las fincas accesibles al usuario (dueño o vía FincaAcceso —
+    // Fase 2); antes filtraba por userId literal y un ADMIN_FINCA/COLABORADOR
+    // no podía generar el reporte de una finca que no fuera literalmente suya.
+    const fincaIds = await fincaIdsAccesibles(session);
+    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+      return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+    }
+    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
+    const fincaIdFilter = fincaIds === "ALL" ? undefined : { in: fincaIds };
 
     // ── Fetch all data in parallel ──────────────────────────────────────────────
-    const [finca, jornales, gastos, ingresos, compradores] = await Promise.all([
+    const [finca, jornales, gastos, ingresos, compradores, inversiones] = await Promise.all([
       db.finca.findFirst({
-        where: { userId },
+        where: fincaWhere,
         include: {
           lotes: {
             include: {
@@ -97,8 +114,8 @@ export async function GET(req: Request) {
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
           OR: [
-            { lote: { finca: { userId } } },
-            { cultivo: { lote: { finca: { userId } } } },
+            { lote: { fincaId: fincaIdFilter } },
+            { cultivo: { lote: { fincaId: fincaIdFilter } } },
           ],
         },
         orderBy: { fecha: "desc" },
@@ -106,7 +123,7 @@ export async function GET(req: Request) {
       db.gasto.findMany({
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
-          cultivo: { lote: { finca: { userId } } },
+          fincaId: fincaIdFilter,
         },
         orderBy: { fecha: "desc" },
       }),
@@ -114,14 +131,23 @@ export async function GET(req: Request) {
         where: {
           fecha: { gte: new Date(desde), lte: new Date(hasta) },
           OR: [
-            { cultivo: { lote: { finca: { userId } } } },
-            { comprador: { userId } },
+            { cultivo: { lote: { fincaId: fincaIdFilter } } },
+            { comprador: { fincaId: fincaIdFilter } },
           ],
         },
       }),
       db.comprador.findMany({
-        where: { userId, precioKg: { not: null } },
+        where: { fincaId: fincaIdFilter, precioKg: { not: null } },
         select: { precioKg: true },
+      }),
+      // Inversionistas: no está scoped por Inversionista.userId (esa es la
+      // capa "solo dueño" de la Fase 3, ver src/lib/modulos.ts) sino por los
+      // cultivos reales de esta finca — así el reporte muestra el capital de
+      // terceros comprometido en la finca sin importar quién registró cada
+      // Inversionista como contacto.
+      db.inversionCultivo.findMany({
+        where: { cultivo: { lote: { fincaId: fincaIdFilter } }, estado: "ACTIVA" },
+        select: { montoAportado: true, inversionistaId: true, retornos: { select: { monto: true } } },
       }),
     ]);
 
@@ -170,20 +196,29 @@ export async function GET(req: Request) {
     const saldoNeto = ingresosTotal - costoTotal;
 
     // ── Proyección ──────────────────────────────────────────────────────────────
-    const produccionPorArbol = especie?.produccionKgArbolAnual ?? 20;
+    // Sin ficha técnica pinneada no hay rendimiento/ciclo real que proyectar
+    // — antes usaba "20 kg/árbol" y "24 meses" fijos (valores típicos de
+    // aguacate) para cualquier especie; ahora en 0 si no hay dato real, para
+    // no fabricar una cifra en un reporte que puede terminar en un banco.
+    const produccionPorArbol = especie?.produccionKgArbolAnual ?? 0;
     const produccionEstimadaKg = totalPlantas * produccionPorArbol;
     const preciosCompradores = compradores.map((c) => c.precioKg!).filter(Boolean);
     const precioPromedioKg = preciosCompradores.length > 0
       ? preciosCompradores.reduce((s, p) => s + p, 0) / preciosCompradores.length
-      : 3200;
+      : 0;
     const ingresoProyectado = produccionEstimadaKg * precioPromedioKg;
-    const roi = costoTotal > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
+    const roi = costoTotal > 0 && ingresoProyectado > 0 ? ((ingresoProyectado - costoTotal) / costoTotal) * 100 : 0;
 
-    const cicloTotal = especie?.cicloMesesPrimeraCosecha ?? 24;
+    const cicloTotal = especie?.cicloMesesPrimeraCosecha ?? 0;
     const mesesTranscurridos = activeCultivo?.fechaSiembra
       ? Math.floor((Date.now() - new Date(activeCultivo.fechaSiembra).getTime()) / (1000 * 60 * 60 * 24 * 30))
       : 0;
-    const cicloRestante = Math.max(0, cicloTotal - mesesTranscurridos);
+    const cicloRestante = cicloTotal > 0 ? Math.max(0, cicloTotal - mesesTranscurridos) : 0;
+
+    // ── Inversionistas ──────────────────────────────────────────────────────────
+    const numInversionistas = new Set(inversiones.map((i) => i.inversionistaId)).size;
+    const totalAportado = inversiones.reduce((s, i) => s + i.montoAportado, 0);
+    const totalRetornosPagados = inversiones.reduce((s, i) => s + i.retornos.reduce((rs, r) => rs + r.monto, 0), 0);
 
     // ── Build response ──────────────────────────────────────────────────────────
     const reporte: ReporteFinagroData = {
@@ -192,8 +227,8 @@ export async function GET(req: Request) {
         municipio: finca.municipio,
         departamento: finca.departamento,
         areaTotal: finca.areaTotal,
-        cultivo: activeCultivo?.especie ?? "Aguacate",
-        variedad: activeCultivo?.variedad ?? "Hass",
+        cultivo: activeCultivo?.especie ?? "Sin cultivo activo",
+        variedad: activeCultivo?.variedad ?? "",
         etapa: activeCultivo?.etapa ?? "SIEMBRA",
         fechaSiembra: activeCultivo?.fechaSiembra?.toISOString().split("T")[0] ?? null,
         cantidadPlantas: totalPlantas,
@@ -229,6 +264,9 @@ export async function GET(req: Request) {
         roi,
         cicloMesesRestantes: cicloRestante,
       },
+      inversionistas: numInversionistas > 0
+        ? { numInversionistas, totalAportado, totalRetornosPagados }
+        : null,
     };
 
     return NextResponse.json({ data: reporte });

@@ -4,15 +4,14 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 
-// Trae el ingreso con el contexto necesario para autorizar: si está ligado a
-// un cultivo, se autoriza vía finca/organización (RBAC real, Fase 2); si solo
-// está ligado a un comprador, se mantiene el chequeo legacy por userId
-// (Compradores sigue sin migrar — alcance "núcleo operativo primero").
+// Trae el ingreso con el contexto necesario para autorizar: ligado a un
+// cultivo o a un comprador, ambos scopeados por finca/organización (RBAC
+// real, Fase 2 — Comprador.fincaId se agregó junto con esta migración).
 async function fetchIngresoConContexto(id: string) {
   return db.ingreso.findUnique({
     where: { id },
     include: {
-      comprador: { select: { userId: true } },
+      comprador: { select: { fincaId: true } },
       cultivo: { include: { lote: { select: { fincaId: true } } } },
     },
   });
@@ -23,19 +22,11 @@ async function verificarAcceso(
   existing: NonNullable<Awaited<ReturnType<typeof fetchIngresoConContexto>>>,
   accion: "update" | "delete"
 ) {
-  if (existing.cultivo) {
-    await requireAccess(session, "ingreso", accion, { fincaId: existing.cultivo.lote.fincaId });
-    return;
-  }
-  if (existing.comprador) {
-    if (existing.comprador.userId !== session.user.id) {
-      throw new AuthzError("Ingreso no encontrado o no autorizado");
-    }
-    return;
-  }
-  // Registro huérfano (sin cultivo ni comprador) — sin señal de pertenencia,
-  // se niega por defecto salvo Super Admin (requireAccess lo maneja).
-  await requireAccess(session, "ingreso", accion, {});
+  const fincaId = existing.cultivo?.lote.fincaId ?? existing.comprador?.fincaId;
+  // Registro huérfano (sin cultivo ni comprador, o comprador sin fincaId
+  // pre-backfill) — sin señal de pertenencia, se niega por defecto salvo
+  // Super Admin (requireAccess lo maneja).
+  await requireAccess(session, "ingreso", accion, fincaId ? { fincaId } : {});
 }
 
 // PUT /api/ingresos/[id]
@@ -69,16 +60,18 @@ export async function PUT(
       notas,
     } = body;
 
-    // Verify compradorId ownership if being changed (legacy — Compradores sin migrar)
+    // Verify compradorId access if being changed (comprador → finca — RBAC real)
     if (compradorId) {
-      const comprador = await db.comprador.findFirst({
-        where: { id: compradorId, userId: session.user.id },
+      const comprador = await db.comprador.findUnique({
+        where: { id: compradorId },
+        select: { fincaId: true },
       });
-      if (!comprador)
+      if (!comprador || !comprador.fincaId)
         return NextResponse.json(
-          { error: "Comprador no encontrado o no autorizado" },
-          { status: 403 }
+          { error: "Comprador no encontrado" },
+          { status: 404 }
         );
+      await requireAccess(session, "ingreso", "update", { fincaId: comprador.fincaId });
     }
 
     // Verify cultivoId access if being changed (RBAC real)

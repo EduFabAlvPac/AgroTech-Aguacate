@@ -11,42 +11,49 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL as SIN_FINCA } from "@/lib/finca-activa";
 
 export const dynamic = "force-dynamic";
 
 // ── Async Server Component: fetches KPI data and renders KpiCards ─────────────
 // Wrapped in Suspense so the rest of the dashboard renders immediately.
-async function KpiCardsLoader({ userId }: { userId: string }) {
+async function KpiCardsLoader({ fincaActivaId }: { fincaActivaId: string | null }) {
+  // Antes db.gasto.aggregate() de "gastos del mes" no tenía NINGÚN scoping —
+  // sumaba los gastos de TODA la base de datos (todos los tenants), no solo
+  // los de la finca activa. Se corrige junto con el resto (funcionalidad de
+  // fincas: ahora todo se scopea a UNA finca activa, no a "todas las
+  // accesibles" — ver src/lib/finca-activa.ts).
   const [finca, gastosMes, alertas, ingresosAggregate] = await Promise.all([
-    db.finca.findFirst({
-      where: { userId },
-      include: {
-        lotes: {
+    fincaActivaId
+      ? db.finca.findUnique({
+          where: { id: fincaActivaId },
           include: {
-            cultivos: {
-              where: { estado: "ACTIVO" },
-              include: { especieCultivo: { select: { cicloMesesPrimeraCosecha: true } } },
+            lotes: {
+              include: {
+                cultivos: {
+                  where: { estado: "ACTIVO" },
+                  include: { especieCultivo: { select: { cicloMesesPrimeraCosecha: true } } },
+                },
+              },
             },
           },
-        },
-      },
-    }),
+        })
+      : null,
     db.gasto.aggregate({
       where: {
+        fincaId: fincaActivaId ?? SIN_FINCA,
         fecha: {
           gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1),
         },
       },
       _sum: { monto: true },
     }),
-    // Antes esta consulta no tenía scoping (contaba alertas de TODA la BD,
-    // no solo las del usuario) — se corrige junto con el resto de RBAC (Fase 2).
-    db.alertaClimatica.count({ where: { activa: true, leida: false, finca: { userId } } }),
+    db.alertaClimatica.count({ where: { activa: true, leida: false, fincaId: fincaActivaId ?? SIN_FINCA } }),
     db.ingreso.aggregate({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId } } } },
-          { comprador: { userId } },
+          { cultivo: { lote: { fincaId: fincaActivaId ?? SIN_FINCA } } },
+          { comprador: { fincaId: fincaActivaId ?? SIN_FINCA } },
         ],
       },
       _sum: { monto: true },
@@ -100,7 +107,7 @@ async function KpiCardsLoader({ userId }: { userId: string }) {
 }
 
 // ── Async Server Component: fetches financial data for FinancialChart ─────────
-async function FinancialChartLoader({ userId }: { userId: string }) {
+async function FinancialChartLoader({ fincaActivaId }: { fincaActivaId: string | null }) {
   const year = new Date().getFullYear();
   const fechaInicio = new Date(year, 0, 1);
   const fechaFin = new Date(year, 11, 31, 23, 59, 59);
@@ -108,10 +115,7 @@ async function FinancialChartLoader({ userId }: { userId: string }) {
   const [gastos, ingresos] = await Promise.all([
     db.gasto.findMany({
       where: {
-        OR: [
-          { userId },
-          { cultivo: { lote: { finca: { userId } } } },
-        ],
+        fincaId: fincaActivaId ?? SIN_FINCA,
         fecha: { gte: fechaInicio, lte: fechaFin },
       },
       select: { monto: true, fecha: true },
@@ -119,8 +123,8 @@ async function FinancialChartLoader({ userId }: { userId: string }) {
     db.ingreso.findMany({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId } } } },
-          { comprador: { userId } },
+          { cultivo: { lote: { fincaId: fincaActivaId ?? SIN_FINCA } } },
+          { comprador: { fincaId: fincaActivaId ?? SIN_FINCA } },
         ],
         fecha: { gte: fechaInicio, lte: fechaFin },
       },
@@ -155,31 +159,37 @@ export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
 
-  const finca = await db.finca.findFirst({
-    where: { userId: session.user.id },
-    include: {
-      lotes: {
+  // Todas las páginas se scopean a UNA finca activa (funcionalidad de fincas)
+  // en vez de "la primera finca accesible" arbitraria.
+  const { fincaActivaId } = await resolverFincaActiva(session);
+  const finca = fincaActivaId
+    ? await db.finca.findUnique({
+        where: { id: fincaActivaId },
         include: {
-          cultivos: {
-            where: { estado: "ACTIVO" },
+          lotes: {
+            include: {
+              cultivos: {
+                where: { estado: "ACTIVO" },
+                include: { especieCultivo: { select: { cicloMesesPrimeraCosecha: true, produccionKgArbolAnual: true } } },
+              },
+            },
           },
         },
-      },
-    },
-  });
+      })
+    : null;
 
   return (
     <>
       <Header
         title="Dashboard"
-        subtitle={`${finca?.nombre ?? "Mi Finca"} · ${finca?.municipio}`}
+        subtitle={finca ? `${finca.nombre} · ${finca.municipio}` : "Sin finca seleccionada"}
       />
 
       <main className="page-scroll space-y-6 animate-fade-in">
 
         {/* KPI Cards — streamed with skeleton fallback */}
         <Suspense fallback={<KpiCardsSkeleton />}>
-          <KpiCardsLoader userId={session.user.id} />
+          <KpiCardsLoader fincaActivaId={fincaActivaId} />
         </Suspense>
 
         {/* Row 1: Map + Weather/Alert */}
@@ -200,11 +210,11 @@ export default async function DashboardPage() {
 
         {/* Row 3: Financial Chart */}
         <Suspense fallback={<FinancialChartSkeleton />}>
-          <FinancialChartLoader userId={session.user.id} />
+          <FinancialChartLoader fincaActivaId={fincaActivaId} />
         </Suspense>
 
         {/* Row 4: Buyers */}
-        <BuyersPreview userId={session.user.id} />
+        <BuyersPreview fincaActivaId={fincaActivaId} />
 
       </main>
     </>

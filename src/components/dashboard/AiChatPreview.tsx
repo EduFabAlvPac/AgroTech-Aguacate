@@ -5,23 +5,23 @@ const PREVIEW_MESSAGES = [
   {
     role: "assistant" as const,
     content:
-      "Hola Eduard, con siembra hoy en Norte de Santander (1,850 msnm) recomiendo riego cada 3 días las primeras 4 semanas. Revisa la alerta de helada del sábado.",
+      "Hola, cuéntame qué cultivo tienes y en qué etapa está — te doy recomendaciones de riego, plagas y fertilización específicas para tu finca.",
   },
   {
     role: "user" as const,
-    content: "¿Cuánto fertilizante para 2 ha en establecimiento?",
+    content: "¿Cuánto fertilizante necesito para 2 ha en establecimiento?",
   },
   {
     role: "assistant" as const,
     content:
-      "Para 320 plantas: 160 kg de 8-20-20 (500 g/planta) al mes 2. Aplicar en 2 dosis de 80 kg. Costo estimado: $480,000 COP.",
+      "Depende del cultivo y la densidad de siembra que tengas registrada — dime cuál es y te doy la dosis y el costo estimado.",
   },
 ];
 
 const SUGGESTIONS = [
-  "¿Cómo prevenir la antracnosis en plántulas Hass?",
-  "Plan de riego semanas 1 a 8 post-siembra",
-  "Plagas más comunes en Norte de Santander",
+  "¿Qué plagas debo vigilar en mi cultivo?",
+  "Plan de riego para las primeras semanas post-siembra",
+  "¿Cuánto debería invertir este mes?",
 ];
 
 export function AiChatPreview() {
@@ -40,7 +40,7 @@ export function AiChatPreview() {
             <div className="flex items-center gap-1 mt-0.5">
               <span className="stage-dot w-2 h-2 bg-green-400"></span>
               <span className="text-[11px] text-[var(--text-muted)]">
-                Especialista en aguacate
+                Aguacate, café y cacao
               </span>
             </div>
           </div>

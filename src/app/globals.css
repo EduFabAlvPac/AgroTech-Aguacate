@@ -233,3 +233,103 @@ body {
     padding-right: 12px;
   }
 }
+
+/* ── Portal de Compradores (Fase 4) — página pública standalone ────────────
+   No usa el layout del dashboard (sin sidebar/sesión); mobile-first, mismos
+   tokens de color que el resto de la app (verde AgroTech #639922) pero con
+   valores hex directos porque esta página no depende de las CSS vars del
+   tema del dashboard. */
+.portal-shell {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 20px 16px 32px;
+  min-height: 100vh;
+  background: #FAFAF7;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.portal-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.portal-logo {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #639922;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.portal-card {
+  background: white;
+  border: 1px solid #EDEBE3;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.portal-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: #BA7517;
+  background: #FBF0DD;
+  padding: 3px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.portal-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid #EDEBE3;
+}
+
+.portal-stat {
+  text-align: center;
+  background: #FAFAF7;
+  border-radius: 10px;
+  padding: 8px 4px;
+}
+
+.portal-stat-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1A2B14;
+}
+
+.portal-stat-label {
+  font-size: 10px;
+  color: #8A8880;
+  margin-top: 2px;
+}
+
+.portal-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+}
+
+.portal-photo {
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: 10px;
+  background: #F1EFE8;
+}
+
+.portal-footer {
+  text-align: center;
+  font-size: 11px;
+  color: #8A8880;
+  margin-top: 8px;
+  padding-top: 12px;
+}

@@ -7,6 +7,7 @@ import {
   groupForecastByDay,
 } from "@/lib/weather";
 import { db } from "@/lib/db";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 
 // GET /api/weather?type=current|forecast|daily
 export async function GET(req: Request) {
@@ -19,11 +20,14 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") ?? "current";
 
-    // Get user's finca coordinates
-    const finca = await db.finca.findFirst({
-      where: { userId: session.user.id },
-      select: { lat: true, lng: true, municipio: true },
-    });
+    // Coordenadas de la finca activa (funcionalidad de fincas)
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    const finca = fincaActivaId
+      ? await db.finca.findUnique({
+          where: { id: fincaActivaId },
+          select: { lat: true, lng: true, municipio: true },
+        })
+      : null;
 
     const lat = finca?.lat ?? 8.320589;
     const lng = finca?.lng ?? -73.337551;

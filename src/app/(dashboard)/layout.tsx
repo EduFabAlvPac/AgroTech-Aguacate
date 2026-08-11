@@ -9,6 +9,7 @@ import { SessionProvider } from "@/components/providers/SessionProvider";
 import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { MobileFAB } from "@/components/ui/MobileFAB";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 
 export default async function DashboardLayout({
   children,
@@ -18,9 +19,11 @@ export default async function DashboardLayout({
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
 
-  const finca = await db.finca.findFirst({
-    where: { userId: session.user.id },
-    select: { nombre: true, municipio: true, areaTotal: true },
+  const { fincaIds, fincaActivaId } = await resolverFincaActiva(session);
+  const fincas = await db.finca.findMany({
+    where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
+    select: { id: true, nombre: true, municipio: true, departamento: true, areaTotal: true },
+    orderBy: { createdAt: "asc" },
   });
 
   return (
@@ -29,7 +32,7 @@ export default async function DashboardLayout({
         <div className="flex flex-col h-screen">
           <OfflineBanner />
           <div className="app-shell flex-1 min-h-0">
-            <Sidebar fincaNombre={finca?.nombre} fincaUbicacion={finca?.municipio} fincaArea={finca?.areaTotal} />
+            <Sidebar fincas={fincas} fincaActivaId={fincaActivaId} />
             {/* Overlay closes sidebar when tapping outside on mobile */}
             <SidebarOverlay />
             <DashboardContent>{children}</DashboardContent>

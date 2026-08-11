@@ -29,7 +29,7 @@ export default async function AsistentePage({
     <>
       <Header
         title="Asistente AgroIA"
-        subtitle="Especialista en aguacate Hass · Norte de Santander"
+        subtitle="Aguacate, café y cacao · Norte de Santander"
       />
       <div className="flex-1 overflow-hidden" style={{ height: "calc(100vh - 64px)" }}>
         <ChatInterface

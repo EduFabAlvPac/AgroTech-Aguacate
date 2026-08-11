@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 
-// GET /api/finanzas/resumen — KPIs financieros calculados
+// GET /api/finanzas/resumen — KPIs financieros calculados (finca activa)
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -12,16 +13,19 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const anio = Number(searchParams.get("anio")) || new Date().getFullYear();
 
-    const finca = await db.finca.findFirst({
-      where: { userId: session.user.id },
-      include: {
-        lotes: {
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    const finca = fincaActivaId
+      ? await db.finca.findUnique({
+          where: { id: fincaActivaId },
           include: {
-            cultivos: { where: { estado: "ACTIVO" } },
+            lotes: {
+              include: {
+                cultivos: { where: { estado: "ACTIVO" } },
+              },
+            },
           },
-        },
-      },
-    });
+        })
+      : null;
 
     if (!finca) {
       return NextResponse.json({ data: null, error: "No se encontró finca" }, { status: 404 });
@@ -52,9 +56,11 @@ export async function GET(req: Request) {
       where: { fincaId: finca.id, anio },
     });
 
-    // Fetch compradores for pricing
+    // Fetch compradores for pricing (Comprador ahora es finca-scoped, no
+    // userId — bug real encontrado de paso en esta ruta, aunque hoy no la
+    // usa ningún componente del frontend).
     const compradores = await db.comprador.findMany({
-      where: { userId: session.user.id, estado: "ACTIVO" },
+      where: { fincaId: finca.id, estado: "ACTIVO" },
       select: { precioKg: true },
     });
 

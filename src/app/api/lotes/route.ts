@@ -4,9 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import type { Prisma } from "@prisma/client";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
-// GET /api/lotes — lotes de todas las fincas accesibles al usuario (Fase 2)
+// GET /api/lotes — lotes de la finca activa (funcionalidad de fincas)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -14,13 +14,10 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const fincaIds = await fincaIdsAccesibles(session);
-    if (fincaIds !== "ALL" && fincaIds.length === 0) {
-      return NextResponse.json({ data: [] });
-    }
+    const { fincaActivaId } = await resolverFincaActiva(session);
 
     const lotes = await db.lote.findMany({
-      where: fincaIds === "ALL" ? undefined : { fincaId: { in: fincaIds } },
+      where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
       include: {
         cultivos: {
           where: { estado: "ACTIVO" },
@@ -47,23 +44,16 @@ export async function POST(req: Request) {
 
     const body = await req.json();
 
-    // Si viene fincaId en el body, usarlo; si no, tomar la primera finca
-    // accesible al usuario (dueño o vía FincaAcceso — Fase 2).
+    // Si viene fincaId en el body, usarlo; si no, la finca activa del
+    // selector del sidebar (funcionalidad de fincas).
     let fincaId = body.fincaId as string | undefined;
 
     if (!fincaId) {
-      const fincaIds = await fincaIdsAccesibles(session);
-      const finca =
-        fincaIds === "ALL"
-          ? await db.finca.findFirst({ select: { id: true } })
-          : fincaIds.length > 0
-            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
-            : null;
-
-      if (!finca) {
+      const { fincaActivaId } = await resolverFincaActiva(session);
+      if (!fincaActivaId) {
         return NextResponse.json({ error: "Finca no encontrada. Configura tu finca primero." }, { status: 404 });
       }
-      fincaId = finca.id;
+      fincaId = fincaActivaId;
     } else {
       const finca = await db.finca.findUnique({ where: { id: fincaId }, select: { id: true } });
       if (!finca) {

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
 export const metadata = { title: "Compradores" };
 export const dynamic = "force-dynamic";
@@ -14,8 +15,9 @@ export default async function CompradoresPage() {
   if (!session?.user?.id) redirect("/login");
   if (!tieneModulo(session.user.modulosPermitidos, "compradores")) redirect("/dashboard");
 
+  const { fincaActivaId } = await resolverFincaActiva(session);
   const compradores = await db.comprador.findMany({
-    where: { userId: session.user.id },
+    where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
     include: { _count: { select: { ingresos: true } } },
     orderBy: { createdAt: "desc" },
   });

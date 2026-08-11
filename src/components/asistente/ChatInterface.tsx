@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { Send, RotateCcw, Mic, Image as ImageIcon, X, Eye, Pill } from "lucide-react";
 import { Button, Select } from "@/components/ui";
 import { VoiceRecorder } from "@/components/ui/VoiceRecorder";
@@ -87,6 +88,8 @@ function buildContextString(ctx: any): string {
 }
 
 export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
+  const { data: session } = useSession();
+  const nombreUsuario = session?.user?.name?.split(" ")[0] ?? "Productor";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -300,20 +303,20 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
                 🌿
               </div>
               <h2 style={{ fontSize: 20, fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>
-                Hola Eduard, soy AgroIA
+                Hola {nombreUsuario}, soy AgroIA
               </h2>
               <p style={{ fontSize: 14, color: "var(--text-secondary)", maxWidth: 340, lineHeight: 1.6, marginBottom: 32 }}>
-                Soy tu asistente especializado en aguacate Hass para Norte de Santander.
+                Soy tu asistente para aguacate, café y cacao en la región Andina colombiana.
                 Pregúntame sobre plagas, riego, fertilización, clima, o adjunta una foto de tu cultivo.
               </p>
 
               {/* Categorías de preguntas */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10, width: "100%", maxWidth: 480, marginBottom: 24 }}>
                 {[
-                  { emoji: "🐛", titulo: "Plagas y enfermedades", prompt: "¿Qué plagas son más comunes en aguacate Hass en Norte de Santander y cómo las controlo?" },
-                  { emoji: "💧", titulo: "Riego y nutrición", prompt: "¿Cuál es el plan de riego óptimo para aguacate Hass en la etapa de siembra?" },
-                  { emoji: "🌡️", titulo: "Clima y alertas", prompt: "¿Cómo protejo mis plantas de aguacate ante una helada nocturna?" },
-                  { emoji: "💰", titulo: "Costos y finanzas", prompt: "¿Cuánto debería invertir en fertilizantes para 2 hectáreas de aguacate en establecimiento?" },
+                  { emoji: "🐛", titulo: "Plagas y enfermedades", prompt: "¿Qué plagas son más comunes en mi cultivo y cómo las controlo?" },
+                  { emoji: "💧", titulo: "Riego y nutrición", prompt: "¿Cuál es el plan de riego óptimo para mi cultivo en esta etapa?" },
+                  { emoji: "🌡️", titulo: "Clima y alertas", prompt: "¿Cómo protejo mi cultivo ante una helada nocturna?" },
+                  { emoji: "💰", titulo: "Costos y finanzas", prompt: "¿Cuánto debería invertir en fertilizantes para mi área en establecimiento?" },
                 ].map(({ emoji, titulo, prompt }) => (
                   <button
                     key={titulo}

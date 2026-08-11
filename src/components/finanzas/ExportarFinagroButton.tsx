@@ -223,6 +223,28 @@ function generatePDF(data: ReporteFinagroData) {
   });
   y = (doc as any).lastAutoTable.finalY + 12;
 
+  // ── 6. Inversionistas (Fase 3) — solo si hay capital de terceros comprometido ──
+  if (data.inversionistas) {
+    if (y > 240) { doc.addPage(); y = 20; }
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("6. INVERSIONISTAS Y CAPITAL APORTADO", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      theme: "grid",
+      headStyles: { fillColor: [99, 153, 34] },
+      body: [
+        ["Inversionistas activos", data.inversionistas.numInversionistas.toString()],
+        ["Capital total aportado", formatCOPFull(data.inversionistas.totalAportado)],
+        ["Retornos ya pagados", formatCOPFull(data.inversionistas.totalRetornosPagados)],
+      ],
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 80 } },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+  }
+
   // ── Footer ────────────────────────────────────────────────────────────────────
   doc.setFontSize(8);
   doc.setFont("helvetica", "italic");

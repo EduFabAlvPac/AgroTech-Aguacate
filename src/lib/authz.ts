@@ -30,7 +30,8 @@ export type Recurso =
   | "jornal"
   | "alerta"
   | "comprador"
-  | "fichaTecnica";
+  | "fichaTecnica"
+  | "enlaceCompartido";
 
 export type Accion = "create" | "read" | "update" | "delete";
 
@@ -73,6 +74,7 @@ const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Rec
     alerta: ["create", "read", "update", "delete"],
     comprador: ["create", "read", "update", "delete"],
     fichaTecnica: ["read"],
+    enlaceCompartido: ["create", "read", "update", "delete"],
   },
   COLABORADOR: {
     finca: ["read"],

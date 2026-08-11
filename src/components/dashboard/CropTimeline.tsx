@@ -1,71 +1,58 @@
 import { Check, Sprout, Leaf, TreePine, Apple, Scissors } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { Finca, Lote, Cultivo } from "@prisma/client";
+import type { Finca, Lote, Cultivo, EspecieCultivo } from "@prisma/client";
 
-type FincaWithLotes = (Finca & { lotes: (Lote & { cultivos: Cultivo[] })[] }) | null;
+type CultivoConEspecie = Cultivo & {
+  especieCultivo: Pick<EspecieCultivo, "cicloMesesPrimeraCosecha" | "produccionKgArbolAnual"> | null;
+};
+type FincaWithLotes = (Finca & { lotes: (Lote & { cultivos: CultivoConEspecie[] })[] }) | null;
 
 interface CropTimelineProps {
   finca: FincaWithLotes;
 }
 
+// Genérico — mismas etapas fenológicas del enum EtapaCultivo, sin asumir
+// duración/fecha específica de ningún cultivo (antes tenía fechas y
+// toneladas fijas de ejemplo hardcodeadas para aguacate Hass — CLAUDE.md §4).
 const STAGES = [
-  {
-    key: "PREPARACION",
-    label: "Preparación del terreno",
-    icon: Scissors,
-    description: "Subsolado, nivelación y trazado",
-    dateRange: "01 – 08 Jul 2026",
-  },
-  {
-    key: "SIEMBRA",
-    label: "Siembra",
-    icon: Sprout,
-    description: "320 plantas · 160/ha · Hass",
-    dateRange: "09 Jul 2026 · en progreso",
-    inProgress: true,
-  },
-  {
-    key: "ESTABLECIMIENTO",
-    label: "Establecimiento",
-    icon: Leaf,
-    description: "Arraigo y primeras hojas",
-    dateRange: "Sep 2026 – Mar 2027",
-  },
-  {
-    key: "CRECIMIENTO",
-    label: "Crecimiento vegetativo",
-    icon: TreePine,
-    description: "Desarrollo de copa y raíces",
-    dateRange: "Abr – Oct 2027",
-  },
-  {
-    key: "PRODUCCION",
-    label: "Producción inicial",
-    icon: Apple,
-    description: "Primera floración y amarre",
-    dateRange: "Nov 2027 – Ene 2028",
-  },
-  {
-    key: "COSECHA",
-    label: "Cosecha",
-    icon: Apple,
-    description: "8–12 ton/ha estimadas",
-    dateRange: "Ene 2028 en adelante",
-  },
+  { key: "PREPARACION", label: "Preparación del terreno", icon: Scissors, description: "Subsolado, nivelación y trazado" },
+  { key: "SIEMBRA", label: "Siembra", icon: Sprout, description: "Plantación y primer riego" },
+  { key: "ESTABLECIMIENTO", label: "Establecimiento", icon: Leaf, description: "Arraigo y primeras hojas" },
+  { key: "CRECIMIENTO", label: "Crecimiento vegetativo", icon: TreePine, description: "Desarrollo de copa y raíces" },
+  { key: "PRODUCCION", label: "Producción inicial", icon: Apple, description: "Primera floración y amarre" },
+  { key: "COSECHA", label: "Cosecha", icon: Apple, description: "Recolección" },
 ];
 
 export function CropTimeline({ finca }: CropTimelineProps) {
   const firstCultivo = finca?.lotes[0]?.cultivos[0];
-  const fechaSiembra = firstCultivo?.fechaSiembra
-    ? new Date(firstCultivo.fechaSiembra)
-    : new Date("2026-07-09");
-
   const currentEtapa = firstCultivo?.etapa ?? "PREPARACION";
   const currentIndex = STAGES.findIndex((s) => s.key === currentEtapa);
-  const diasTotal = differenceInDays(new Date("2028-01-15"), fechaSiembra);
-  const diasTranscurridos = differenceInDays(new Date(), fechaSiembra);
-  const progreso = Math.min(Math.max((diasTranscurridos / diasTotal) * 100, 0), 100);
+
+  const fechaSiembra = firstCultivo?.fechaSiembra ? new Date(firstCultivo.fechaSiembra) : null;
+  const cicloMeses = firstCultivo?.especieCultivo?.cicloMesesPrimeraCosecha;
+
+  // Proyección real: solo si hay cultivo + fecha de siembra + ciclo conocido
+  // de la especie (motor de fichas técnicas) — nunca una fecha/tonelaje
+  // inventados.
+  let fechaCosechaEst: Date | null = null;
+  let diasTotal = 0;
+  let diasTranscurridos = 0;
+  if (fechaSiembra && cicloMeses) {
+    fechaCosechaEst = new Date(fechaSiembra);
+    fechaCosechaEst.setMonth(fechaCosechaEst.getMonth() + cicloMeses);
+    diasTotal = differenceInDays(fechaCosechaEst, fechaSiembra);
+    diasTranscurridos = differenceInDays(new Date(), fechaSiembra);
+  }
+  const progreso = diasTotal > 0 ? Math.min(Math.max((diasTranscurridos / diasTotal) * 100, 0), 100) : 0;
+
+  const especieLabel = firstCultivo
+    ? `${firstCultivo.especie}${firstCultivo.variedad ? ` ${firstCultivo.variedad}` : ""}`
+    : "Sin cultivo activo";
+
+  const totalPlantas = finca?.lotes.reduce((s, l) => s + l.cultivos.reduce((cs, c) => cs + (c.cantidadPlantas ?? 0), 0), 0) ?? 0;
+  const produccionPorArbol = firstCultivo?.especieCultivo?.produccionKgArbolAnual;
+  const produccionEstimadaKg = produccionPorArbol && totalPlantas > 0 ? totalPlantas * produccionPorArbol : null;
 
   return (
     <div className="card p-5">
@@ -76,7 +63,7 @@ export function CropTimeline({ finca }: CropTimelineProps) {
             Ciclo del cultivo
           </h2>
           <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
-            Aguacate Hass · Finca Álvarez Pacheco
+            {especieLabel}{finca?.nombre ? ` · ${finca.nombre}` : ""}
           </p>
         </div>
         <span className="badge badge-warning">
@@ -87,8 +74,8 @@ export function CropTimeline({ finca }: CropTimelineProps) {
       {/* Global progress */}
       <div className="mb-5">
         <div className="flex justify-between text-[11px] text-[var(--text-muted)] mb-1.5">
-          <span>Siembra {format(fechaSiembra, "dd MMM yyyy", { locale: es })}</span>
-          <span>Cosecha est. Ene 2028</span>
+          <span>{fechaSiembra ? `Siembra ${format(fechaSiembra, "dd MMM yyyy", { locale: es })}` : "Sin fecha de siembra"}</span>
+          <span>{fechaCosechaEst ? `Cosecha est. ${format(fechaCosechaEst, "MMM yyyy", { locale: es })}` : "Sin proyección"}</span>
         </div>
         <div className="h-1.5 bg-[var(--surface-page)] rounded-full overflow-hidden">
           <div
@@ -97,7 +84,9 @@ export function CropTimeline({ finca }: CropTimelineProps) {
           />
         </div>
         <div className="text-[11px] text-agro-400 mt-1">
-          {progreso.toFixed(0)}% completado · ~{differenceInDays(new Date("2028-01-15"), new Date())} días restantes
+          {fechaCosechaEst
+            ? `${progreso.toFixed(0)}% completado · ~${Math.max(differenceInDays(fechaCosechaEst, new Date()), 0)} días restantes`
+            : "Registra la especie y fecha de siembra del cultivo para proyectar la cosecha"}
         </div>
       </div>
 
@@ -159,9 +148,6 @@ export function CropTimeline({ finca }: CropTimelineProps) {
                 <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                   {stage.description}
                 </div>
-                <div className="text-[11px] text-[var(--text-secondary)] mt-0.5">
-                  {stage.dateRange}
-                </div>
               </div>
             </div>
           );
@@ -169,12 +155,21 @@ export function CropTimeline({ finca }: CropTimelineProps) {
       </div>
 
       <div className="mt-4 p-3 bg-agro-50 rounded-[var(--radius-md)] text-center">
-        <span className="text-[12px] text-[var(--text-secondary)]">
-          Primera cosecha estimada:{" "}
-        </span>
-        <span className="text-[12px] font-semibold text-agro-600">
-          Enero 2028 · 16–24 toneladas
-        </span>
+        {fechaCosechaEst ? (
+          <>
+            <span className="text-[12px] text-[var(--text-secondary)]">
+              Primera cosecha estimada:{" "}
+            </span>
+            <span className="text-[12px] font-semibold text-agro-600">
+              {format(fechaCosechaEst, "MMMM yyyy", { locale: es })}
+              {produccionEstimadaKg ? ` · ${Math.round(produccionEstimadaKg).toLocaleString("es-CO")} kg estimados` : ""}
+            </span>
+          </>
+        ) : (
+          <span className="text-[12px] text-[var(--text-muted)]">
+            Registra un cultivo con fecha de siembra para ver la proyección de cosecha
+          </span>
+        )}
       </div>
     </div>
   );

@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
 export const metadata = { title: "Finanzas" };
 export const dynamic = "force-dynamic";
@@ -14,22 +15,22 @@ export default async function FinanzasPage() {
   if (!session?.user?.id) redirect("/login");
   if (!tieneModulo(session.user.modulosPermitidos, "finanzas")) redirect("/dashboard");
 
+  // Scopeado a UNA finca activa (funcionalidad de fincas), no a "todas las
+  // accesibles" — ver src/lib/finca-activa.ts.
+  const { fincaActivaId } = await resolverFincaActiva(session);
+  const fincaId = fincaActivaId ?? SIN_FINCA_SENTINEL;
+
   const [gastos, ingresos, cultivos, compradores, finca, lotes, presupuestos] = await Promise.all([
     db.gasto.findMany({
-      where: {
-        OR: [
-          { userId: session.user.id },
-          { cultivo: { lote: { finca: { userId: session.user.id } } } },
-        ],
-      },
+      where: { fincaId },
       include: { cultivo: { include: { lote: true } }, lote: true },
       orderBy: { fecha: "desc" },
     }),
     db.ingreso.findMany({
       where: {
         OR: [
-          { cultivo: { lote: { finca: { userId: session.user.id } } } },
-          { comprador: { userId: session.user.id } },
+          { cultivo: { lote: { fincaId } } },
+          { comprador: { fincaId } },
         ],
       },
       include: {
@@ -39,25 +40,27 @@ export default async function FinanzasPage() {
       orderBy: { fecha: "desc" },
     }),
     db.cultivo.findMany({
-      where: { lote: { finca: { userId: session.user.id } } },
-      include: { lote: true },
+      where: { lote: { fincaId } },
+      include: { lote: true, especieCultivo: { select: { produccionKgArbolAnual: true } } },
     }),
     db.comprador.findMany({
-      where: { userId: session.user.id, estado: "ACTIVO" },
+      where: { fincaId, estado: "ACTIVO" },
       orderBy: { nombre: "asc" },
     }),
-    db.finca.findFirst({
-      where: { userId: session.user.id },
-      select: { nombre: true, lotes: { select: { id: true, nombre: true, areaHa: true } } },
-    }),
+    fincaActivaId
+      ? db.finca.findUnique({
+          where: { id: fincaActivaId },
+          select: { nombre: true, lotes: { select: { id: true, nombre: true, areaHa: true } } },
+        })
+      : null,
     db.lote.findMany({
-      where: { finca: { userId: session.user.id } },
+      where: { fincaId },
       select: { id: true, nombre: true, areaHa: true },
       orderBy: { nombre: "asc" },
     }),
     db.presupuesto.findMany({
       where: {
-        finca: { userId: session.user.id },
+        fincaId,
         anio: new Date().getFullYear(),
       },
     }),
