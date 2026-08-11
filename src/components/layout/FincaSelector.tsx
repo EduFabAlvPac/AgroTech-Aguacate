@@ -12,6 +12,9 @@ export interface FincaOption {
   municipio: string;
   departamento: string;
   areaTotal: number | null;
+  lat: number | null;
+  lng: number | null;
+  altitud: number | null;
 }
 
 interface FincaSelectorProps {
@@ -21,7 +24,7 @@ interface FincaSelectorProps {
   collapsed: boolean;
 }
 
-const emptyForm = { nombre: "", municipio: "", departamento: "", altitud: "", areaTotal: "" };
+const emptyForm = { nombre: "", municipio: "", departamento: "", altitud: "", areaTotal: "", lat: "", lng: "" };
 type FincaFormState = typeof emptyForm;
 
 export function FincaSelector({ fincas, fincaActivaId, puedeCrear, collapsed }: FincaSelectorProps) {
@@ -80,8 +83,10 @@ export function FincaSelector({ fincas, fincaActivaId, puedeCrear, collapsed }: 
       nombre: f.nombre,
       municipio: f.municipio,
       departamento: f.departamento,
-      altitud: "",
+      altitud: f.altitud?.toString() ?? "",
       areaTotal: f.areaTotal?.toString() ?? "",
+      lat: f.lat?.toString() ?? "",
+      lng: f.lng?.toString() ?? "",
     });
     setEditando(f);
     setOpen(false);
@@ -299,19 +304,40 @@ function FincaFormModal({
             placeholder="Ej: Norte de Santander"
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <Input
-            label="Altitud (msnm)"
+            label="Latitud"
             type="number"
-            value={form.altitud}
-            onChange={(e) => setForm({ ...form, altitud: e.target.value })}
+            step="0.0001"
+            value={form.lat}
+            onChange={(e) => setForm({ ...form, lat: e.target.value })}
+            placeholder="8.320589"
+          />
+          <Input
+            label="Longitud"
+            type="number"
+            step="0.0001"
+            value={form.lng}
+            onChange={(e) => setForm({ ...form, lng: e.target.value })}
+            placeholder="-73.337551"
           />
           <Input
             label="Área total (ha)"
             type="number"
+            step="0.1"
             value={form.areaTotal}
             onChange={(e) => setForm({ ...form, areaTotal: e.target.value })}
           />
+        </div>
+        <Input
+          label="Altitud (msnm)"
+          type="number"
+          value={form.altitud}
+          onChange={(e) => setForm({ ...form, altitud: e.target.value })}
+        />
+        <div className="p-3 bg-agro-50 rounded-[var(--radius-md)] text-[12px] text-agro-600">
+          💡 Las coordenadas GPS se usan para el mapa interactivo y las alertas climáticas.
+          Puedes obtenerlas desde Google Maps haciendo clic derecho en tu finca.
         </div>
         {!editando && (
           <p className="text-[11px] text-[var(--text-muted)]">
