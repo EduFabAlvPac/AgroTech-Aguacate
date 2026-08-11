@@ -116,11 +116,12 @@ export function FincaSelector({ fincas, fincaActivaId, puedeCrear, collapsed }: 
   }
 
   return (
-    <div className="relative mx-3 my-3" ref={ref}>
+    <div className="relative mx-3 my-3" ref={ref} suppressHydrationWarning>
       <button
         onClick={() => setOpen((o) => !o)}
         className={`w-full text-left px-3 py-2.5 bg-agro-50 rounded-[var(--radius-md)] border border-agro-100 hover:bg-agro-100 transition-colors ${collapsed ? "flex justify-center" : ""}`}
         title={collapsed ? activa.nombre : undefined}
+        suppressHydrationWarning
       >
         {collapsed ? (
           <MapPin size={16} className="text-agro-400" />
@@ -133,7 +134,13 @@ export function FincaSelector({ fincas, fincaActivaId, puedeCrear, collapsed }: 
                 {activa.municipio}{activa.areaTotal ? ` · ${activa.areaTotal} ha` : ""}
               </div>
             </div>
-            {fincas.length > 1 && <ChevronDown size={14} className="text-agro-400 flex-shrink-0 mt-0.5" />}
+            {/* Antes solo se mostraba con >1 finca — con una sola finca el
+                cuadro se veía idéntico al texto estático de antes, sin pista
+                de que ahora es clickeable. Se muestra siempre que haya algo
+                que hacer (cambiar o agregar). */}
+            {(fincas.length > 1 || puedeCrear) && (
+              <ChevronDown size={14} className={`text-agro-400 flex-shrink-0 mt-0.5 transition-transform ${open ? "rotate-180" : ""}`} />
+            )}
           </div>
         )}
       </button>
