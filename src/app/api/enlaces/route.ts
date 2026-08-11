@@ -69,6 +69,13 @@ export async function POST(req: Request) {
       }
     }
 
+    // El <input type="date"> del formulario manda solo "YYYY-MM-DD". Si se
+    // interpreta como `new Date("YYYY-MM-DD")` queda en medianoche UTC de
+    // ese día — en Colombia (UTC-5) eso ya pasó desde las 7pm del día
+    // anterior, así que un enlace "vence hoy" nacía expirado. Se interpreta
+    // como fin de ese día en hora de Colombia.
+    const expiraEnDate = expiraEn ? new Date(`${expiraEn}T23:59:59-05:00`) : null;
+
     const enlace = await db.enlaceCompartido.create({
       data: {
         token: generarToken(),
@@ -76,7 +83,7 @@ export async function POST(req: Request) {
         compradorId: compradorId || null,
         creadoPorId: session.user.id,
         nota: nota || null,
-        expiraEn: expiraEn ? new Date(expiraEn) : null,
+        expiraEn: expiraEnDate,
       },
       include: { comprador: { select: { nombre: true } } },
     });
