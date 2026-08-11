@@ -32,6 +32,7 @@ model User {
   membresias     Membresia[]
   fincaAccesos   FincaAcceso[]
   inversionistas Inversionista[]
+  enlacesCreados EnlaceCompartido[]
 
   @@map("users")
 }
@@ -455,6 +456,7 @@ model Cultivo {
   jornales    Jornal[]
   inversiones InversionCultivo[]
   alertas     AlertaClimatica[]
+  enlaces     EnlaceCompartido[]
 
   @@map("cultivos")
 }
@@ -655,6 +657,7 @@ model Comprador {
   updatedAt    DateTime      @updatedAt
 
   ingresos Ingreso[]
+  enlaces  EnlaceCompartido[]
 
   @@map("compradores")
 }
@@ -828,4 +831,34 @@ model UserPreferences {
   updatedAt DateTime @updatedAt
 
   @@map("user_preferences")
+}
+
+// ─── PORTAL DE COMPRADORES (Fase 4) ────────────────────────────────────────────
+// Enlace de solo lectura, sin necesidad de cuenta, para que un comprador
+// externo vea el estado de un cultivo (etapa, proyección de cosecha, fotos
+// recientes) sin exponer datos financieros/de costos de la finca — ver
+// CLAUDE.md §2 y docs/REQUERIMIENTOS.md §9 (Fase 4, ADR pendiente de
+// formalizar). `token` es el identificador público (alta entropía,
+// generado con crypto.randomBytes — no usar `id` en la URL pública).
+
+model EnlaceCompartido {
+  id          String  @id @default(cuid())
+  token       String  @unique
+  cultivoId   String
+  cultivo     Cultivo @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+  compradorId String?
+  comprador   Comprador? @relation(fields: [compradorId], references: [id], onDelete: SetNull)
+  creadoPorId String
+  creadoPor   User    @relation(fields: [creadoPorId], references: [id])
+
+  nota     String? // mensaje opcional del productor, visible en el portal público
+  expiraEn DateTime?
+  revocado Boolean   @default(false)
+
+  vistas        Int       @default(0)
+  ultimaVistaEn DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@map("enlaces_compartidos")
 }
