@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 
 // ── Vocabulario local para actividades de campo ────────────────────────────────
 const ACTIVIDADES_VALIDAS = [
@@ -36,12 +36,12 @@ export async function GET(req: Request) {
     const desde = searchParams.get("desde");
     const hasta = searchParams.get("hasta");
 
-    const fincaIds = await fincaIdsAccesibles(session);
+    const { fincaActivaId } = await resolverFincaActiva(session);
 
     const where: any = {
       OR: [
-        fincaIds === "ALL" ? { loteId: { not: null } } : { lote: { fincaId: { in: fincaIds } } },
-        fincaIds === "ALL" ? { cultivoId: { not: null } } : { cultivo: { lote: { fincaId: { in: fincaIds } } } },
+        { lote: { fincaId: fincaActivaId } },
+        { cultivo: { lote: { fincaId: fincaActivaId } } },
       ],
     };
 
@@ -94,7 +94,8 @@ export async function POST(req: Request) {
 
     // Resolver la finca del jornal: si viene ligado a un lote o cultivo, se usa
     // la finca real de ese registro (nunca se confía en un fincaId suelto del
-    // cliente); si no, la primera finca accesible al usuario (Fase 2).
+    // cliente); si no, la finca activa del selector del sidebar (funcionalidad
+    // de fincas).
     let fincaId: string | undefined;
     if (loteId) {
       const lote = await db.lote.findUnique({ where: { id: loteId }, select: { fincaId: true } });
@@ -109,15 +110,9 @@ export async function POST(req: Request) {
       }
       fincaId = cultivo.lote.fincaId;
     } else {
-      const fincaIds = await fincaIdsAccesibles(session);
-      const finca =
-        fincaIds === "ALL"
-          ? await db.finca.findFirst({ select: { id: true } })
-          : fincaIds.length > 0
-            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
-            : null;
-      if (!finca) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
-      fincaId = finca.id;
+      const { fincaActivaId } = await resolverFincaActiva(session);
+      if (!fincaActivaId) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+      fincaId = fincaActivaId;
     }
 
     await requireAccess(session, "jornal", "create", { fincaId });

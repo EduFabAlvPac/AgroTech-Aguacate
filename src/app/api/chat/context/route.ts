@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
 // This route runs on Node.js runtime (NOT edge) so it can use Prisma
 // It provides dynamic farm context for AgroIA to personalize responses
@@ -60,14 +60,14 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    // Scoped a las fincas accesibles al usuario (dueño o vía FincaAcceso —
-    // Fase 2). Antes filtraba por userId literal: un ADMIN_FINCA/COLABORADOR
+    // Scoped a la finca activa del selector del sidebar (funcionalidad de
+    // fincas). Antes filtraba por userId literal: un ADMIN_FINCA/COLABORADOR
     // con el módulo "Asistente IA" habilitado entraba al chat pero el
     // contexto de su finca llegaba vacío (mismo bug que ya se corrigió en
     // Finanzas/Compradores).
-    const fincaIds = await fincaIdsAccesibles(session);
-    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
-    const enFincas = fincaIds === "ALL" ? undefined : { in: fincaIds };
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    const fincaWhere = fincaActivaId ? { id: fincaActivaId } : { id: SIN_FINCA_SENTINEL };
+    const enFincas = fincaActivaId ?? SIN_FINCA_SENTINEL;
 
     // Parallel fetch: finca+cultivos, alertas, gastos recientes, ingresos recientes, aggregates
     const [finca, alertas, gastosRecientes, ingresosRecientes, gastosMesAgg, todosGastos, todosIngresos, jornalesAgg, compradores] = await Promise.all([

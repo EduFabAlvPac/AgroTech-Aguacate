@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 import {
   generateWeatherAlerts,
   generatePlagaAlerts,
@@ -16,7 +16,7 @@ import {
 // (a nivel finca), de plaga por ficha técnica (RF17) y de calendario de
 // manejo proyectado (RF17/RF18 — riego/fertilización/poda/inspección según
 // ActividadCalendario de la ficha técnica de cada cultivo activo). Usa la
-// primera finca accesible al usuario (dueño o vía FincaAcceso — Fase 2).
+// finca activa del selector del sidebar (funcionalidad de fincas).
 export async function POST() {
   try {
     const session = await getServerSession(authOptions);
@@ -24,15 +24,14 @@ export async function POST() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const fincaIds = await fincaIdsAccesibles(session);
-    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    if (!fincaActivaId) {
       return NextResponse.json({ error: "Registra una finca antes de generar alertas" }, { status: 400 });
     }
-    const fincaWhere = fincaIds === "ALL" ? {} : { id: { in: fincaIds } };
 
     const [finca, userPrefs, cultivosActivos] = await Promise.all([
-      db.finca.findFirst({
-        where: fincaWhere,
+      db.finca.findUnique({
+        where: { id: fincaActivaId },
         select: { id: true, lat: true, lng: true, municipio: true },
       }),
       db.userPreferences.findUnique({
@@ -43,7 +42,7 @@ export async function POST() {
         },
       }),
       db.cultivo.findMany({
-        where: { lote: { fincaId: fincaIds === "ALL" ? undefined : { in: fincaIds } }, estado: "ACTIVO" },
+        where: { lote: { fincaId: fincaActivaId }, estado: "ACTIVO" },
         select: {
           id: true, especie: true, variedad: true, etapa: true, fechaSiembra: true, fichaTecnicaId: true,
           fichaTecnica: {

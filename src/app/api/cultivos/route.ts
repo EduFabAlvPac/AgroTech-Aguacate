@@ -4,10 +4,9 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverVariedad } from "@/lib/fichas-tecnicas";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva } from "@/lib/finca-activa";
 
-// GET /api/cultivos — cultivos de todas las fincas accesibles al usuario
-// (como dueño, o vía FincaAcceso si es colaborador/admin de finca — Fase 2).
+// GET /api/cultivos — cultivos de la finca activa (funcionalidad de fincas)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
@@ -15,13 +14,13 @@ export async function GET() {
       return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const fincaIds = await fincaIdsAccesibles(session);
-    if (fincaIds !== "ALL" && fincaIds.length === 0) {
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    if (!fincaActivaId) {
       return NextResponse.json({ data: [] });
     }
 
     const cultivos = await db.cultivo.findMany({
-      where: fincaIds === "ALL" ? undefined : { lote: { fincaId: { in: fincaIds } } },
+      where: { lote: { fincaId: fincaActivaId } },
       include: {
         lote: { include: { finca: true } },
         registros: { orderBy: { fecha: "desc" }, take: 5 },

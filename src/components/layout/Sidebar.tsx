@@ -23,6 +23,7 @@ import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import type { ModuloKey } from "@/lib/modulos";
+import { FincaSelector, type FincaOption } from "@/components/layout/FincaSelector";
 
 interface NavItem {
   href: string;
@@ -43,7 +44,12 @@ const navItems: NavItem[] = [
   { href: "/dashboard/compradores",  icon: Users,           label: "Compradores", modulo: "compradores" },
 ];
 
-export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombre?: string | null; fincaUbicacion?: string | null; fincaArea?: number | null }) {
+interface SidebarProps {
+  fincas: FincaOption[];
+  fincaActivaId: string | null;
+}
+
+export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { sidebarOpen, setSidebarOpen, collapsed, toggleCollapsed } = useSidebar();
@@ -117,18 +123,13 @@ export function Sidebar({ fincaNombre, fincaUbicacion, fincaArea }: { fincaNombr
         )}
       </div>
 
-      {/* Finca info — hidden when collapsed */}
-      {!collapsed && (
-        <div className="mx-3 my-3 px-3 py-2.5 bg-agro-50 rounded-[var(--radius-md)] border border-agro-100">
-          <div className="text-[11px] text-agro-400 font-medium mb-0.5">Finca activa</div>
-          <div className="text-[12px] text-agro-600 font-medium leading-tight">
-            {fincaNombre ?? "Mi Finca"}
-          </div>
-          <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-            {fincaUbicacion ?? "Colombia"}{fincaArea ? ` · ${fincaArea} ha` : ""}
-          </div>
-        </div>
-      )}
+      {/* Selector de finca activa — funcionalidad de fincas (multi-finca real) */}
+      <FincaSelector
+        fincas={fincas}
+        fincaActivaId={fincaActivaId}
+        puedeCrear={!!session?.user?.esOwner}
+        collapsed={collapsed}
+      />
 
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">

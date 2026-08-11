@@ -2,11 +2,10 @@ import { Users, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/utils";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
-import type { AuthzSession } from "@/lib/authz";
+import { SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
 interface BuyersPreviewProps {
-  session: AuthzSession;
+  fincaActivaId: string | null;
 }
 
 const TIPO_LABELS: Record<string, string> = {
@@ -19,10 +18,9 @@ const TIPO_LABELS: Record<string, string> = {
   OTRO: "Otro",
 };
 
-export async function BuyersPreview({ session }: BuyersPreviewProps) {
-  const fincaIds = await fincaIdsAccesibles(session);
+export async function BuyersPreview({ fincaActivaId }: BuyersPreviewProps) {
   const compradores = await db.comprador.findMany({
-    where: fincaIds === "ALL" ? undefined : { fincaId: { in: fincaIds } },
+    where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
     orderBy: { createdAt: "desc" },
     take: 3,
   });

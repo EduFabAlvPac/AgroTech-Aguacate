@@ -3,21 +3,18 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
-// GET /api/compradores — compradores de las fincas accesibles al usuario (Fase 2)
+// GET /api/compradores — compradores de la finca activa (funcionalidad de fincas)
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const fincaIds = await fincaIdsAccesibles(session);
-    if (fincaIds !== "ALL" && fincaIds.length === 0) {
-      return NextResponse.json({ data: [] });
-    }
+    const { fincaActivaId } = await resolverFincaActiva(session);
 
     const compradores = await db.comprador.findMany({
-      where: fincaIds === "ALL" ? undefined : { fincaId: { in: fincaIds } },
+      where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
       include: { _count: { select: { ingresos: true } } },
       orderBy: { createdAt: "desc" },
     });
@@ -36,17 +33,11 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const fincaIds = await fincaIdsAccesibles(session);
-    const finca =
-      fincaIds === "ALL"
-        ? await db.finca.findFirst({ select: { id: true } })
-        : fincaIds.length > 0
-          ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
-          : null;
-    if (!finca) {
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    if (!fincaActivaId) {
       return NextResponse.json({ error: "Registra una finca antes de agregar compradores" }, { status: 400 });
     }
-    await requireAccess(session, "comprador", "create", { fincaId: finca.id });
+    await requireAccess(session, "comprador", "create", { fincaId: fincaActivaId });
 
     const body = await req.json();
     const { nombre, tipo, ciudad, departamento, contacto, email, telefono, capacidadTon, precioKg, notas, estado } = body;
@@ -58,7 +49,7 @@ export async function POST(req: Request) {
     const comprador = await db.comprador.create({
       data: {
         userId: session.user.id,
-        fincaId: finca.id,
+        fincaId: fincaActivaId,
         nombre,
         tipo,
         ciudad,

@@ -3,6 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import bcrypt from "bcryptjs";
+import { resolverFincaActiva } from "@/lib/finca-activa";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
 // GET /api/configuracion
 export async function GET() {
@@ -10,16 +12,19 @@ export async function GET() {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
+    const { fincaActivaId } = await resolverFincaActiva(session);
     const [user, prefs, finca] = await Promise.all([
       db.user.findUnique({
         where: { id: session.user.id },
         select: { id: true, name: true, email: true, telefono: true, role: true },
       }),
       db.userPreferences.findUnique({ where: { userId: session.user.id } }),
-      db.finca.findFirst({
-        where: { userId: session.user.id },
-        select: { id: true, nombre: true, municipio: true, departamento: true, lat: true, lng: true, areaTotal: true },
-      }),
+      fincaActivaId
+        ? db.finca.findUnique({
+            where: { id: fincaActivaId },
+            select: { id: true, nombre: true, municipio: true, departamento: true, lat: true, lng: true, areaTotal: true },
+          })
+        : null,
     ]);
 
     return NextResponse.json({ data: { user, prefs, finca } });
@@ -55,10 +60,14 @@ export async function PUT(req: Request) {
     }
 
     if (section === "finca") {
-      const existing = await db.finca.findFirst({ where: { userId: session.user.id } });
-      if (!existing) return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+      // Edita la finca activa (funcionalidad de fincas) — antes tomaba "la
+      // primera finca del usuario" literal, sin importar cuál tuviera
+      // seleccionada en el sidebar.
+      const { fincaActivaId } = await resolverFincaActiva(session);
+      if (!fincaActivaId) return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+      await requireAccess(session, "finca", "update", { fincaId: fincaActivaId });
       const updated = await db.finca.update({
-        where: { id: existing.id },
+        where: { id: fincaActivaId },
         data: {
           nombre: data.nombre,
           municipio: data.municipio,
@@ -99,6 +108,7 @@ export async function PUT(req: Request) {
 
     return NextResponse.json({ error: "Sección no válida" }, { status: 400 });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[PUT /api/configuracion]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

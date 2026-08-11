@@ -3,9 +3,9 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
-import { fincaIdsAccesibles } from "@/lib/db/scoped";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 
-// GET /api/gastos — list + optional summary, scoped a las fincas accesibles (Fase 2)
+// GET /api/gastos — list + optional summary, scoped a la finca activa (funcionalidad de fincas)
 export async function GET(req: Request) {
   try {
     const session = await getServerSession(authOptions);
@@ -18,10 +18,9 @@ export async function GET(req: Request) {
     const hasta = searchParams.get("hasta");
     const summary = searchParams.get("summary") === "true";
 
-    const fincaIds = await fincaIdsAccesibles(session);
+    const { fincaActivaId } = await resolverFincaActiva(session);
 
-    const where: any = {};
-    if (fincaIds !== "ALL") where.fincaId = { in: fincaIds };
+    const where: any = { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL };
     if (categoria) where.categoria = categoria;
     if (cultivoId) where.cultivoId = cultivoId;
     if (desde || hasta) {
@@ -92,8 +91,8 @@ export async function POST(req: Request) {
 
     // Resolver la finca del gasto: si viene ligado a un cultivo o lote, se usa
     // la finca de ese cultivo/lote (defensa: nunca se confía en un fincaId que
-    // mande el cliente sin relación real); si no, se usa la primera finca
-    // accesible al usuario (dueño o vía FincaAcceso — Fase 2).
+    // mande el cliente sin relación real); si no, la finca activa del
+    // selector del sidebar (funcionalidad de fincas).
     let fincaId: string | undefined;
     if (cultivoId) {
       const cultivo = await db.cultivo.findUnique({ where: { id: cultivoId }, select: { lote: { select: { fincaId: true } } } });
@@ -104,15 +103,9 @@ export async function POST(req: Request) {
       if (!lote) return NextResponse.json({ error: "Lote no encontrado" }, { status: 404 });
       fincaId = lote.fincaId;
     } else {
-      const fincaIds = await fincaIdsAccesibles(session);
-      const finca =
-        fincaIds === "ALL"
-          ? await db.finca.findFirst({ select: { id: true } })
-          : fincaIds.length > 0
-            ? await db.finca.findFirst({ where: { id: { in: fincaIds } }, select: { id: true } })
-            : null;
-      if (!finca) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
-      fincaId = finca.id;
+      const { fincaActivaId } = await resolverFincaActiva(session);
+      if (!fincaActivaId) return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
+      fincaId = fincaActivaId;
     }
 
     await requireAccess(session, "gasto", "create", { fincaId });
