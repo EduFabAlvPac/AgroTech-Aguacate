@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X } from "lucide-react";
+import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -16,6 +16,7 @@ const TIPO_ICONS: Record<TipoAlerta, React.ElementType> = {
   TEMPERATURA_ALTA: Thermometer,
   GRANIZO: CloudLightning,
   PLAGA: AlertTriangle,
+  ACTIVIDAD: CalendarClock,
   OTRO: AlertTriangle,
 };
 
@@ -34,6 +35,7 @@ const TIPO_LABELS: Record<TipoAlerta, string> = {
   TEMPERATURA_ALTA: "Temperatura alta",
   GRANIZO: "Granizo",
   PLAGA: "Alerta de plaga",
+  ACTIVIDAD: "Recordatorio de manejo",
   OTRO: "Otro",
 };
 

@@ -280,3 +280,92 @@ export async function generatePlagaAlerts(
 
   return persistAlerts(potentialAlerts);
 }
+
+// ── Calendario de actividades proyectado (ActividadCalendario) ──────────────────
+// A diferencia de las alertas de clima/plaga, esta no reacciona a nada
+// externo — proyecta desde Cultivo.fechaSiembra + la ficha técnica qué
+// manejo (riego/fertilización/poda/inspección) corresponde ahora, según la
+// etapa que el productor tiene marcada en el cultivo. Antes el motor de
+// alertas solo reaccionaba al clima; esta es la brecha "no solo de datos"
+// documentada en docs/REQUERIMIENTOS.md RF17/RF18.
+
+// EtapaFenologica.orden se asume 1:1 con la posición del enum EtapaCultivo
+// (mismo criterio ya usado en src/components/dashboard/CropTimeline.tsx y en
+// el seed de fichas técnicas) — no hay un campo que los enlace explícitamente.
+const ORDEN_POR_ETAPA: Record<string, number> = {
+  PREPARACION: 1,
+  SIEMBRA: 2,
+  ESTABLECIMIENTO: 3,
+  CRECIMIENTO: 4,
+  PRODUCCION: 5,
+  COSECHA: 6,
+};
+
+export async function generateActividadAlerts(
+  municipio: string,
+  fincaId: string,
+  cultivoId: string,
+  cropName: string,
+  fechaSiembra: Date,
+  etapaActual: string,
+  fichaTecnicaId: string
+): Promise<{ created: number; skipped: number }> {
+  const orden = ORDEN_POR_ETAPA[etapaActual];
+  if (!orden) return { created: 0, skipped: 0 };
+
+  const etapaFicha = await db.etapaFenologica.findFirst({
+    where: { fichaId: fichaTecnicaId, orden },
+    include: { actividades: true },
+  });
+  if (!etapaFicha || etapaFicha.actividades.length === 0) return { created: 0, skipped: 0 };
+
+  // diaInicioRelativo/diaFinRelativo/frecuenciaDias se interpretan como días
+  // desde Cultivo.fechaSiembra (no desde el inicio de la etapa — evita
+  // depender de que TODAS las etapas previas tengan duración configurada,
+  // que hoy no es el caso). Documentado aquí porque es la única fuente de
+  // verdad de esa convención hasta que exista un admin UI para esto.
+  const diasDesdeSiembra = Math.floor((Date.now() - fechaSiembra.getTime()) / 86400000);
+  if (diasDesdeSiembra < 0) return { created: 0, skipped: 0 };
+
+  const potentialAlerts: GeneratedAlert[] = [];
+
+  for (const act of etapaFicha.actividades) {
+    const inicio = act.diaInicioRelativo;
+    const fin = act.diaFinRelativo ?? inicio;
+    if (diasDesdeSiembra < inicio || diasDesdeSiembra > fin) continue;
+
+    const enVentana = act.frecuenciaDias && act.frecuenciaDias > 0
+      ? (diasDesdeSiembra - inicio) % act.frecuenciaDias === 0
+      : true;
+    if (!enVentana) continue;
+
+    // No molestar si el productor ya registró esta actividad recientemente
+    // (dentro de la frecuencia esperada, o en los últimos 3 días si es puntual).
+    const ventanaChequeo = act.frecuenciaDias ?? 3;
+    const yaRegistrada = await db.registroCultivo.findFirst({
+      where: {
+        cultivoId,
+        tipo: act.tipoRegistro,
+        fecha: { gte: new Date(Date.now() - ventanaChequeo * 86400000) },
+      },
+      select: { id: true },
+    });
+    if (yaRegistrada) continue;
+
+    potentialAlerts.push({
+      tipo: "ACTIVIDAD",
+      titulo: `${act.nombre} — ${cropName}`,
+      descripcion:
+        (act.descripcion || `Según la ficha técnica de ${cropName}, corresponde ${act.nombre.toLowerCase()} en esta etapa del cultivo.`) +
+        (act.obligatoria ? " Es una actividad crítica para el desarrollo del cultivo." : ""),
+      severidad: act.obligatoria ? "ALTA" : "MEDIA",
+      fechaInicio: new Date(),
+      datos: { diasDesdeSiembra, etapa: etapaActual, tipoRegistro: act.tipoRegistro, fuente: "FichaTecnica" },
+      municipio,
+      fincaId,
+      cultivoId,
+    });
+  }
+
+  return persistAlerts(potentialAlerts);
+}

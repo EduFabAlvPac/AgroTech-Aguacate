@@ -778,6 +778,11 @@ enum TipoAlerta {
   TEMPERATURA_ALTA
   GRANIZO
   PLAGA
+  // Recordatorio proactivo de manejo (riego/fertilización/poda/inspección)
+  // proyectado desde ActividadCalendario de la ficha técnica del cultivo —
+  // no reacciona a clima, reacciona al calendario agronómico. Ver RF17/RF18
+  // en docs/REQUERIMIENTOS.md ("brecha funcional real, no solo de datos").
+  ACTIVIDAD
   OTRO
 }
 

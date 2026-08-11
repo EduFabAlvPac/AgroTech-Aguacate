@@ -7,13 +7,15 @@ import { fincaIdsAccesibles } from "@/lib/db/scoped";
 import {
   generateWeatherAlerts,
   generatePlagaAlerts,
+  generateActividadAlerts,
   DEFAULT_THRESHOLDS,
   type AlertThresholds,
 } from "@/lib/alert-engine";
 
 // POST /api/alertas/generate — dispara la generación de alertas: climáticas
-// (a nivel finca) + de plaga por ficha técnica (por cada cultivo activo que
-// tenga una FichaTecnica pinneada con plagas configuradas — RF17). Usa la
+// (a nivel finca), de plaga por ficha técnica (RF17) y de calendario de
+// manejo proyectado (RF17/RF18 — riego/fertilización/poda/inspección según
+// ActividadCalendario de la ficha técnica de cada cultivo activo). Usa la
 // primera finca accesible al usuario (dueño o vía FincaAcceso — Fase 2).
 export async function POST() {
   try {
@@ -43,7 +45,7 @@ export async function POST() {
       db.cultivo.findMany({
         where: { lote: { fincaId: fincaIds === "ALL" ? undefined : { in: fincaIds } }, estado: "ACTIVO" },
         select: {
-          id: true, especie: true, variedad: true, etapa: true,
+          id: true, especie: true, variedad: true, etapa: true, fechaSiembra: true, fichaTecnicaId: true,
           fichaTecnica: {
             select: {
               tempMinC: true,
@@ -103,15 +105,33 @@ export async function POST() {
       plagaSkipped += result.skipped;
     }
 
-    const created = weatherResult.created + plagaCreated;
-    const skipped = weatherResult.skipped + plagaSkipped;
+    // Calendario de actividades — un recordatorio por cultivo activo con
+    // ficha técnica pinneada, según la etapa que el productor tiene marcada.
+    let actividadCreated = 0;
+    let actividadSkipped = 0;
+    for (const cultivo of cultivosActivos) {
+      if (!cultivo.fichaTecnicaId || !cultivo.fechaSiembra) continue;
+      const nombreCultivo = `${cultivo.especie} ${cultivo.variedad ?? ""}`.trim();
+      const result = await generateActividadAlerts(
+        municipio, finca.id, cultivo.id, nombreCultivo, cultivo.fechaSiembra, cultivo.etapa, cultivo.fichaTecnicaId
+      );
+      actividadCreated += result.created;
+      actividadSkipped += result.skipped;
+    }
+
+    const created = weatherResult.created + plagaCreated + actividadCreated;
+    const skipped = weatherResult.skipped + plagaSkipped + actividadSkipped;
 
     return NextResponse.json({
       data: {
         message: `Generación completada: ${created} alertas creadas, ${skipped} omitidas (duplicadas)`,
         created,
         skipped,
-        detalle: { clima: weatherResult, plaga: { created: plagaCreated, skipped: plagaSkipped } },
+        detalle: {
+          clima: weatherResult,
+          plaga: { created: plagaCreated, skipped: plagaSkipped },
+          actividad: { created: actividadCreated, skipped: actividadSkipped },
+        },
       },
     });
   } catch (error) {
