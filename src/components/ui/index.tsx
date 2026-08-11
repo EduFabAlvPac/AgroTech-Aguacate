@@ -1,6 +1,7 @@
 "use client";
 
-import { forwardRef, useEffect } from "react";
+import { forwardRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -179,6 +180,15 @@ interface ModalProps {
 }
 
 export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalProps) {
+  // Portal a document.body: si el Modal se renderiza dentro de un ancestro
+  // con `transform` (ej. el <aside> del Sidebar, que usa translate-x para la
+  // animación de abrir/cerrar en mobile), `position: fixed` deja de
+  // posicionarse contra el viewport y se confina a ese ancestro — el modal
+  // se ve "encajonado" en una esquina en vez de centrado en pantalla. Portal
+  // evita esto sin importar dónde se invoque el componente.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = "hidden";
@@ -188,7 +198,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
     return () => { document.body.style.overflow = ""; };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !mounted) return null;
 
   // On mobile: full-width bottom-sheet. On sm+: centered dialog with max-width.
   const sizeClasses = {
@@ -197,7 +207,7 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
     lg: "sm:max-w-2xl",
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-[2px]"
@@ -225,7 +235,8 @@ export function Modal({ isOpen, onClose, title, children, size = "md" }: ModalPr
         {/* Body — scrollable so tall forms don't overflow viewport on small screens */}
         <div className="p-4 sm:p-6 max-h-[75vh] overflow-y-auto">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

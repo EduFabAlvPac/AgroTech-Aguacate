@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   const { fincaIds, fincaActivaId } = await resolverFincaActiva(session);
   const fincas = await db.finca.findMany({
     where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
-    select: { id: true, nombre: true, municipio: true, departamento: true, areaTotal: true },
+    select: { id: true, nombre: true, municipio: true, departamento: true, areaTotal: true, lat: true, lng: true, altitud: true },
     orderBy: { createdAt: "asc" },
   });
 
