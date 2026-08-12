@@ -7,11 +7,12 @@ import {
 } from "recharts";
 import {
   Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet,
-  FileDown, Users, Pencil, BarChart3, Calculator, ClipboardList, PiggyBank,
+  FileDown, Users, Pencil, BarChart3, Calculator, ClipboardList, PiggyBank, Receipt,
 } from "lucide-react";
 import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
 import { RegistroJornalForm } from "@/components/finanzas/RegistroJornalForm";
 import { ExportarFinagroButton } from "@/components/finanzas/ExportarFinagroButton";
+import { EstadoResultadosTab } from "@/components/finanzas/EstadoResultadosTab";
 import { CATEGORIA_LABELS, TIPO_GASTO_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { gastoFormSchema, ingresoFormSchema } from "@/lib/validations";
@@ -48,6 +49,7 @@ const CATEGORIA_COLORS: Record<string, string> = {
 
 const TABS = [
   { id: "resumen", label: "Resumen", icon: BarChart3 },
+  { id: "pyg", label: "Estado de resultados", icon: Receipt },
   { id: "costos", label: "Costos", icon: Calculator },
   { id: "presupuesto", label: "Presupuesto", icon: PiggyBank },
   { id: "registros", label: "Registros", icon: ClipboardList },
@@ -635,6 +637,11 @@ export function FinanzasClient({
             </div>
           )}
         </div>
+      )}
+
+      {/* ════════ TAB: ESTADO DE RESULTADOS (PyG) ════════ */}
+      {activeTab === "pyg" && (
+        <EstadoResultadosTab cultivos={cultivos} nombreFinca={nombreFinca} />
       )}
 
       {/* ════════ TAB: COSTOS ════════ */}
