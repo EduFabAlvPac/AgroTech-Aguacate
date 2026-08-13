@@ -68,12 +68,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
     const resultado = await diagnosticarImagen(imagen, especie, variedad, catalogo, descripcion);
 
+    // La imagen se envía al modelo de visión (Groq) para el diagnóstico pero
+    // NO se persiste: guardarla en base64 en Postgres crece la BD con cada
+    // foto (costo en Neon) sin presupuesto asignado para eso todavía — ver
+    // decisión explícita del producto (no Vercel Blob por ahora). Solo queda
+    // el resultado textual en la bitácora; el usuario ya ve la foto que tomó
+    // en su propia sesión (viene de su estado local, no de esta respuesta).
     const registro = await db.registroCultivo.create({
       data: {
         cultivoId: id,
         tipo: "INSPECCION",
-        descripcion: `🤖 Diagnóstico IA: ${resultado.diagnostico}${descripcion ? ` — ${descripcion}` : ""}`,
-        imagenes: [imagen],
+        descripcion: `🤖 Diagnóstico IA: ${resultado.diagnostico}${descripcion ? ` — ${descripcion}` : ""} (foto no archivada)`,
+        imagenes: [],
         datos: { diagnosticoIA: resultado } as unknown as Prisma.InputJsonValue,
       },
     });
