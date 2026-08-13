@@ -181,6 +181,7 @@ export const compradorFormSchema = z.object({
     .optional(),
   notas: z.string().max(1000, "Las notas no pueden superar los 1000 caracteres").optional(),
   estado: z.string().min(1, "El estado es requerido"),
+  especiesInteres: z.array(z.string()).optional(),
 });
 
 export type CompradorFormData = z.infer<typeof compradorFormSchema>;

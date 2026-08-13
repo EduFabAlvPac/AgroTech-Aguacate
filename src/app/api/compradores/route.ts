@@ -40,7 +40,7 @@ export async function POST(req: Request) {
     await requireAccess(session, "comprador", "create", { fincaId: fincaActivaId });
 
     const body = await req.json();
-    const { nombre, tipo, ciudad, departamento, contacto, email, telefono, capacidadTon, precioKg, notas, estado } = body;
+    const { nombre, tipo, ciudad, departamento, contacto, email, telefono, capacidadTon, precioKg, notas, estado, especiesInteres } = body;
 
     if (!nombre || !tipo || !ciudad) {
       return NextResponse.json({ error: "nombre, tipo y ciudad son requeridos" }, { status: 400 });
@@ -61,6 +61,7 @@ export async function POST(req: Request) {
         precioKg: precioKg ? Number(precioKg) : undefined,
         notas: notas || undefined,
         estado: estado ?? "ACTIVO",
+        especiesInteres: Array.isArray(especiesInteres) ? especiesInteres : [],
       },
     });
 

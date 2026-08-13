@@ -65,6 +65,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
         precioKg: body.precioKg ? Number(body.precioKg) : undefined,
         notas: body.notas,
         estado: body.estado,
+        especiesInteres: Array.isArray(body.especiesInteres) ? body.especiesInteres : undefined,
       },
     });
 

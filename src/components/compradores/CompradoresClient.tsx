@@ -13,6 +13,7 @@ type CompradorWithCount = Comprador & { _count: { ingresos: number } };
 
 interface CompradoresClientProps {
   compradores: CompradorWithCount[];
+  especiesDisponibles?: string[];
 }
 
 const TIPO_COLORS: Record<string, string> = {
@@ -38,9 +39,10 @@ const emptyForm = {
   ciudad: "", departamento: "", contacto: "",
   email: "", telefono: "", capacidadTon: "",
   precioKg: "", notas: "", estado: "ACTIVO",
+  especiesInteres: [] as string[],
 };
 
-export function CompradoresClient({ compradores: initial }: CompradoresClientProps) {
+export function CompradoresClient({ compradores: initial, especiesDisponibles = [] }: CompradoresClientProps) {
   const [compradores, setCompradores] = useState(initial);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -48,6 +50,7 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
   const [form, setForm] = useState(emptyForm);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [filtroTipo, setFiltroTipo] = useState("Todos");
+  const [filtroEspecie, setFiltroEspecie] = useState("Todos");
 
   const FILTRO_TIPOS = ["Todos", "COOPERATIVA", "EXPORTADOR", "MAYORISTA", "SUPERMERCADO", "PLAZA_MERCADO", "RESTAURANTE", "OTRO"];
   const FILTRO_LABELS: Record<string, string> = {
@@ -56,9 +59,9 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
     "RESTAURANTE": "Restaurante", "OTRO": "Otro",
   };
 
-  const compradoresFiltrados = filtroTipo === "Todos"
-    ? compradores
-    : compradores.filter((c) => c.tipo === filtroTipo);
+  const compradoresFiltrados = compradores
+    .filter((c) => filtroTipo === "Todos" || c.tipo === filtroTipo)
+    .filter((c) => filtroEspecie === "Todos" || c.especiesInteres.includes(filtroEspecie));
 
   const initials = (name: string) =>
     name.split(" ").map((n) => n[0]).slice(0, 2).join("").toUpperCase();
@@ -78,6 +81,7 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
         capacidadTon: c.capacidadTon?.toString() ?? "",
         precioKg: c.precioKg?.toString() ?? "",
         notas: c.notas ?? "", estado: c.estado,
+        especiesInteres: c.especiesInteres ?? [],
       });
     } else {
       setEditingId(null);
@@ -231,6 +235,33 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
         ))}
       </div>
 
+      {/* Filter pills — por cultivo de interés (multi-cultivo) */}
+      {especiesDisponibles.length > 0 && (
+        <div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
+          {["Todos", ...especiesDisponibles].map((especie) => (
+            <button
+              key={especie}
+              onClick={() => setFiltroEspecie(especie)}
+              style={{
+                padding: "5px 12px",
+                borderRadius: 20,
+                border: "1px solid",
+                borderColor: filtroEspecie === especie ? "#1D9E75" : "var(--border-default)",
+                background: filtroEspecie === especie ? "#E6F5F0" : "transparent",
+                color: filtroEspecie === especie ? "#127257" : "var(--text-secondary)",
+                fontSize: 11,
+                fontWeight: filtroEspecie === especie ? 600 : 400,
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                transition: "all 0.15s",
+              }}
+            >
+              {especie === "Todos" ? "🌱 Todos los cultivos" : especie}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Grid */}
       {compradoresFiltrados.length === 0 ? (
         <EmptyState
@@ -294,6 +325,11 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
                 >
                   {c.estado}
                 </button>
+                {c.especiesInteres.map((especie) => (
+                  <span key={especie} className="badge text-[10px]" style={{ background: "#E6F5F0", color: "#127257", border: "1px solid #BEE8DA" }}>
+                    {especie}
+                  </span>
+                ))}
               </div>
 
               {/* Details */}
@@ -484,6 +520,40 @@ export function CompradoresClient({ compradores: initial }: CompradoresClientPro
             placeholder="Nombre del contacto"
             error={errors.contacto}
           />
+
+          {especiesDisponibles.length > 0 && (
+            <div>
+              <label className="text-[12px] font-medium text-[var(--text-secondary)] block mb-1.5">
+                Cultivos que compra
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {especiesDisponibles.map((especie) => {
+                  const checked = form.especiesInteres.includes(especie);
+                  return (
+                    <button
+                      key={especie}
+                      type="button"
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          especiesInteres: checked
+                            ? form.especiesInteres.filter((e) => e !== especie)
+                            : [...form.especiesInteres, especie],
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-full border text-[12px] transition-colors ${
+                        checked
+                          ? "border-[#1D9E75] bg-[#E6F5F0] text-[#127257] font-medium"
+                          : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-agro-200"
+                      }`}
+                    >
+                      {especie}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <Textarea
             label="Notas"

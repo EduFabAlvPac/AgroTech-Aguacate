@@ -653,6 +653,12 @@ model Comprador {
   precioKg     Float?
   notas        String?
   estado       String        @default("ACTIVO")
+  // Cultivos que compra (valores libres, mismo patrón que Cultivo.especie —
+  // "Aguacate"/"Café"/"Cacao"... — no un enum, para no bloquear cultivos
+  // nuevos antes de que exista el motor de fichas técnicas completo, ver
+  // CLAUDE.md §2.2 y §4). Vacío = comprador sin especie declarada aún
+  // (compradores existentes antes de esta migración).
+  especiesInteres String[]   @default([])
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
