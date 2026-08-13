@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { diagnosticarImagen, DiagnosticoError } from "@/lib/diagnostico-ia";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { consumirCuotaIA, CuotaExcedidaError } from "@/lib/ia-cuota";
 
 export const maxDuration = 45;
 
@@ -54,6 +55,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // "editar cultivo" (así lo puede usar un COLABORADOR de campo, no solo
     // ADMIN_FINCA).
     await requireAccess(session, "registroCultivo", "create", { fincaId: cultivo.lote.fincaId });
+    await consumirCuotaIA(session.user.id, "IMAGEN");
 
     const especie = cultivo.fichaTecnica?.variedad.especie.nombre ?? cultivo.especie;
     const variedad = cultivo.fichaTecnica?.variedad.nombre ?? cultivo.variedad ?? "";
@@ -105,6 +107,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof CuotaExcedidaError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("[POST /api/cultivos/[id]/diagnostico]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

@@ -23,8 +23,32 @@ export const authOptions: NextAuthOptions = {
 
         if (!user?.password) return null;
 
+        // Fuerza bruta (OWASP A07) — antes no existía ningún contador, así
+        // que un ataque de diccionario contra este mismo endpoint podía
+        // reintentar sin límite. 5 intentos fallidos bloquean la cuenta 15
+        // minutos; no revela al atacante si el email existe o no (mismo
+        // mensaje "credenciales inválidas" que NextAuth ya usa por defecto).
+        if (user.lockedUntil && user.lockedUntil > new Date()) return null;
+
         const isValid = await bcrypt.compare(credentials.password, user.password);
-        if (!isValid) return null;
+        if (!isValid) {
+          const intentos = user.failedLoginAttempts + 1;
+          await db.user.update({
+            where: { id: user.id },
+            data: {
+              failedLoginAttempts: intentos,
+              lockedUntil: intentos >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+            },
+          });
+          return null;
+        }
+
+        if (user.failedLoginAttempts > 0 || user.lockedUntil) {
+          await db.user.update({
+            where: { id: user.id },
+            data: { failedLoginAttempts: 0, lockedUntil: null },
+          });
+        }
 
         // esOwner: ¿tiene alguna Membresia con rol OWNER? Determina si ve el
         // panel "Equipo" (Fase 2) — igual que esSuperAdmin, es un hint para
