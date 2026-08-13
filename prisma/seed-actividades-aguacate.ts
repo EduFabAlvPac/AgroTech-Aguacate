@@ -6,9 +6,8 @@
  * proyectar — EtapaFenologica existe desde Fase 1 pero sin actividades.
  *
  * diaInicioRelativo/diaFinRelativo/frecuenciaDias son días desde
- * Cultivo.fechaSiembra (ver comentario en alert-engine.ts). Café y Cacao
- * quedan pendientes de un segundo pase (o de que un Super Admin las cargue
- * vía el panel de Fichas Técnicas cuando exista UI para esto).
+ * Cultivo.fechaSiembra (ver comentario en alert-engine.ts). Café y Cacao ya
+ * tienen su propio seed — ver prisma/seed-fichas-cafe-cacao.ts.
  *
  * Idempotente: borra las actividades existentes de esta ficha antes de
  * volver a crearlas, para poder correrlo de nuevo sin duplicar.
@@ -17,7 +16,10 @@ import { PrismaClient, TipoRegistro } from "@prisma/client";
 
 const db = new PrismaClient();
 
-// orden de EtapaFenologica → actividades (ver ORDEN_POR_ETAPA en alert-engine.ts)
+// orden de EtapaFenologica → actividades. generateActividadAlerts ya no
+// depende de este orden para decidir qué actividad corresponde (usa la
+// ventana de días acumulados desde la siembra, ver alert-engine.ts) — sigue
+// organizado por etapa aquí solo porque es más legible al escribir el seed.
 const ACTIVIDADES_POR_ETAPA: Record<number, {
   nombre: string; tipoRegistro: TipoRegistro; diaInicioRelativo: number; diaFinRelativo?: number;
   frecuenciaDias?: number; obligatoria?: boolean; descripcion?: string;
