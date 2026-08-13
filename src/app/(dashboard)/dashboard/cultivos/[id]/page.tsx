@@ -27,10 +27,19 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
       lote: { finca: { userId: session.user.id } },
     },
     include: {
-      lote: { include: { finca: true } },
+      lote: {
+        include: {
+          finca: true,
+          analisisSuelo: { orderBy: { fechaMuestreo: "desc" } },
+        },
+      },
       registros: { orderBy: { fecha: "desc" } },
       gastos: { orderBy: { fecha: "desc" }, take: 10 },
       ingresos: { include: { comprador: true }, orderBy: { fecha: "desc" } },
+      // Rango altitudinal óptimo (RF3 criterio 1) — opcional, solo si el
+      // cultivo ya está vinculado al catálogo paramétrico (Fase 1, aún no
+      // obligatorio en el flujo de creación, ver CLAUDE.md §2.2).
+      especieCultivo: { select: { nombre: true, altitudMin: true, altitudMax: true } },
     },
   });
 

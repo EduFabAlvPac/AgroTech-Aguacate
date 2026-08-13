@@ -3,14 +3,16 @@
 import { Suspense, useState, useEffect, useCallback, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
-import type { Finca, Lote, Cultivo } from "@prisma/client";
+import type { Finca, Lote, Cultivo, AnalisisSuelo } from "@prisma/client";
 import { DrawModeBanner } from "@/components/mapa/DrawModeBanner";
 import { MapSidebar } from "@/components/mapa/MapSidebar";
+import { RecomendacionCultivoModal } from "@/components/mapa/RecomendacionCultivoModal";
 import toast from "react-hot-toast";
 
 type LoteWithCultivo = Lote & {
   cultivos: Partial<Cultivo>[];
   _count?: { cultivos: number };
+  analisisSuelo?: AnalisisSuelo[];
 };
 type FincaWithLotes = (Finca & { lotes: LoteWithCultivo[] }) | null;
 
@@ -60,6 +62,7 @@ function MapaContainerInner({ finca }: MapaContainerProps) {
   const [lotes, setLotes] = useState<LoteWithCultivo[]>(finca?.lotes ?? []);
   const [mapInitError, setMapInitError] = useState(false);
   const [mapKey, setMapKey] = useState(0);
+  const [recomendarLoteId, setRecomendarLoteId] = useState<string | null>(null);
 
   // Validate loteId against loaded lotes and determine error state
   const loteValidation = useMemo(() => {
@@ -234,7 +237,22 @@ function MapaContainerInner({ finca }: MapaContainerProps) {
         onStartDrawForLote={handleStartDrawForLote}
         onStartEdit={handleStartEdit}
         onDeleteLote={handleDeleteLote}
+        onRecomendar={setRecomendarLoteId}
       />
+
+      {recomendarLoteId && (() => {
+        const lote = lotes.find((l) => l.id === recomendarLoteId);
+        if (!lote) return null;
+        return (
+          <RecomendacionCultivoModal
+            isOpen
+            onClose={() => setRecomendarLoteId(null)}
+            loteId={lote.id}
+            loteNombre={lote.nombre}
+            analisisInicial={lote.analisisSuelo ?? []}
+          />
+        );
+      })()}
 
       {/* Map area with banner */}
       <div className="flex-1 flex flex-col relative">

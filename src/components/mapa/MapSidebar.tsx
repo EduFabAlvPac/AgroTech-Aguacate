@@ -1,15 +1,16 @@
 "use client";
 
-import { Pencil, MapPin, Plus, Map, Trash2 } from "lucide-react";
+import { Pencil, MapPin, Plus, Map, Trash2, Sprout } from "lucide-react";
 import { Button, EmptyState } from "@/components/ui";
 import { LOTE_COLORS } from "@/lib/constants";
 import { ETAPA_LABELS } from "@/types";
-import type { Finca, Lote, Cultivo, EtapaCultivo } from "@prisma/client";
+import type { Finca, Lote, Cultivo, EtapaCultivo, AnalisisSuelo } from "@prisma/client";
 import toast from "react-hot-toast";
 
 type LoteWithCultivo = Lote & {
   cultivos: Partial<Cultivo>[];
   _count?: { cultivos: number };
+  analisisSuelo?: AnalisisSuelo[];
 };
 type FincaWithLotes = (Finca & { lotes: LoteWithCultivo[] }) | null;
 
@@ -20,6 +21,7 @@ interface MapSidebarProps {
   onStartDrawForLote: (loteId: string) => void;
   onStartEdit: (loteId: string) => void;
   onDeleteLote?: (loteId: string) => void;
+  onRecomendar?: (loteId: string) => void;
 }
 
 export function MapSidebar({
@@ -29,6 +31,7 @@ export function MapSidebar({
   onStartDrawForLote,
   onStartEdit,
   onDeleteLote,
+  onRecomendar,
 }: MapSidebarProps) {
   return (
     <aside className="w-72 bg-white border-r border-[var(--border-subtle)] overflow-y-auto flex-shrink-0 p-4">
@@ -173,6 +176,17 @@ export function MapSidebar({
                     </>
                   )}
                 </div>
+
+                {onRecomendar && (
+                  <button
+                    onClick={() => onRecomendar(lote.id)}
+                    className="mt-2 w-full flex items-center justify-center gap-1.5 py-1.5 text-[11px] font-medium rounded-[var(--radius-md)] border border-dashed transition-colors hover:bg-agro-50"
+                    style={{ borderColor: color + "66", color }}
+                  >
+                    <Sprout size={12} />
+                    {hasCultivos ? "Ver recomendación de cultivo" : "¿Qué sembrar aquí?"}
+                  </button>
+                )}
               </div>
             );
           })}

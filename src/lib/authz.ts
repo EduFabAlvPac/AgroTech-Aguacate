@@ -22,6 +22,7 @@ export type Recurso =
   | "membresia"
   | "finca"
   | "lote"
+  | "analisisSuelo"
   | "cultivo"
   | "registroCultivo"
   | "gasto"
@@ -65,6 +66,7 @@ const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Rec
     membresia: ["read"],
     finca: ["read", "update"],
     lote: ["create", "read", "update", "delete"],
+    analisisSuelo: ["create", "read", "update", "delete"],
     cultivo: ["create", "read", "update", "delete"],
     registroCultivo: ["create", "read", "update", "delete"],
     gasto: ["create", "read", "update", "delete"],
@@ -79,6 +81,7 @@ const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Rec
   COLABORADOR: {
     finca: ["read"],
     lote: ["read", "update"],
+    analisisSuelo: ["create", "read", "update"],
     cultivo: ["read", "update"],
     registroCultivo: ["create", "read", "update"],
     gasto: ["create", "read"],

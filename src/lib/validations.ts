@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { CategoriaGasto, TipoComprador, TipoRegistro } from "@prisma/client";
+import type { CategoriaGasto, TipoComprador, TipoRegistro, TexturaSuelo } from "@prisma/client";
 
 // ── Lotes ─────────────────────────────────────────────────────────────────────
 
@@ -185,3 +185,20 @@ export const compradorFormSchema = z.object({
 });
 
 export type CompradorFormData = z.infer<typeof compradorFormSchema>;
+
+// ── Análisis de suelo (RF3) ─────────────────────────────────────────────────
+
+export const analisisSueloFormSchema = z.object({
+  fechaMuestreo: z.string().min(1, "La fecha de muestreo es requerida"),
+  ph: z.number({ invalid_type_error: "El pH debe ser un número" }).min(0).max(14, "El pH debe estar entre 0 y 14").optional(),
+  materiaOrganica: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
+  nitrogeno: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
+  fosforo: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
+  potasio: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
+  textura: z.string().optional() as z.ZodType<TexturaSuelo | "" | undefined>,
+  conductividad: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativa").optional(),
+  laboratorio: z.string().max(200, "Máximo 200 caracteres").optional(),
+  notas: z.string().max(1000, "Las notas no pueden superar los 1000 caracteres").optional(),
+});
+
+export type AnalisisSueloFormData = z.infer<typeof analisisSueloFormSchema>;
