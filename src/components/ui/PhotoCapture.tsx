@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useState } from "react";
 import { Camera, X, Image as ImageIcon } from "lucide-react";
 
 interface PhotoCaptureProps {
@@ -11,12 +11,31 @@ interface PhotoCaptureProps {
 }
 
 /**
- * Mobile-first photo capture component.
- * Opens native camera on mobile devices or file picker on desktop.
- * Compresses the image to max 800px width and ~80% quality for field use.
+ * Mobile-first photo capture component — dos botones separados en vez de
+ * uno solo ambiguo:
+ *   1. "Tomar foto" → input con `capture="environment"`, abre la cámara
+ *      directo en Android; en iOS ofrece "Tomar foto" en el menú nativo.
+ *   2. "Galería" → input sin `capture`, siempre abre el selector de
+ *      archivos/galería.
+ *
+ * Antes era un solo botón que disparaba `inputRef.current.click()` sobre un
+ * único input con `capture` — en el celular varios usuarios reportaron que
+ * solo se podía "subir" una foto ya guardada, nunca abrir la cámara
+ * directamente. Dos causas reales combinadas:
+ *   - Un solo input con `capture` + `accept="image/*"` deja que el propio
+ *     navegador decida qué mostrar primero en su selector nativo (en varias
+ *     versiones de Android/iOS termina priorizando la galería sobre la
+ *     cámara, sin dar una opción "solo cámara" explícita).
+ *   - Disparar el picker con `ref.click()` desde JS es menos confiable en
+ *     algunos navegadores móviles que un `<label htmlFor>` nativo — un click
+ *     real de usuario sobre una `<label>` es el patrón recomendado para
+ *     abrir selectores nativos de archivo/cámara de forma consistente.
+ * Separar en dos inputs/labels explícitos elimina la ambigüedad: cada botón
+ * hace una sola cosa, y ambos usan `<label>` en vez de refs.
  */
 export function PhotoCapture({ onCapture, onRemove, preview, label }: PhotoCaptureProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  const camaraId = useId();
+  const galeriaId = useId();
   const [processing, setProcessing] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -36,8 +55,8 @@ export function PhotoCapture({ onCapture, onRemove, preview, label }: PhotoCaptu
       reader.readAsDataURL(file);
     } finally {
       setProcessing(false);
-      // Reset input so same file can be re-selected
-      if (inputRef.current) inputRef.current.value = "";
+      // Reset input so the same file (or the same photo again) can be re-selected
+      e.target.value = "";
     }
   };
 
@@ -67,40 +86,56 @@ export function PhotoCapture({ onCapture, onRemove, preview, label }: PhotoCaptu
           </button>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          disabled={processing}
-          className="flex items-center gap-3 w-full p-4 border-2 border-dashed border-[var(--border-default)] rounded-[var(--radius-md)] hover:border-agro-200 hover:bg-agro-50 transition-all text-left"
-          style={{ minHeight: 64 }}
-        >
-          <div className="w-12 h-12 rounded-full bg-agro-50 flex items-center justify-center flex-shrink-0">
-            {processing ? (
-              <div className="w-5 h-5 border-2 border-agro-400 border-t-transparent rounded-full animate-spin" />
-            ) : (
-              <Camera size={20} className="text-agro-400" />
-            )}
-          </div>
-          <div>
-            <div className="text-[13px] font-medium text-[var(--text-primary)]">
-              📸 Tomar foto de soporte
+        <div className="flex gap-2">
+          {/* Tomar foto — abre la cámara directamente */}
+          <label
+            htmlFor={camaraId}
+            className="flex-1 flex items-center gap-2.5 p-3 border-2 border-dashed border-[var(--border-default)] rounded-[var(--radius-md)] hover:border-agro-200 hover:bg-agro-50 transition-all cursor-pointer"
+            style={{ minHeight: 64, opacity: processing ? 0.6 : 1, pointerEvents: processing ? "none" : "auto" }}
+          >
+            <div className="w-9 h-9 rounded-full bg-agro-50 flex items-center justify-center flex-shrink-0">
+              {processing ? (
+                <div className="w-4 h-4 border-2 border-agro-400 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Camera size={18} className="text-agro-400" />
+              )}
             </div>
-            <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-              Evidencia para cuaderno de campo BPA-ICA
+            <div className="text-[12px] font-medium text-[var(--text-primary)]">
+              📸 Tomar foto
             </div>
-          </div>
-        </button>
+          </label>
+
+          {/* Galería — selector de archivos, sin cámara */}
+          <label
+            htmlFor={galeriaId}
+            className="flex-1 flex items-center gap-2.5 p-3 border-2 border-dashed border-[var(--border-default)] rounded-[var(--radius-md)] hover:border-agro-200 hover:bg-agro-50 transition-all cursor-pointer"
+            style={{ minHeight: 64, opacity: processing ? 0.6 : 1, pointerEvents: processing ? "none" : "auto" }}
+          >
+            <div className="w-9 h-9 rounded-full bg-agro-50 flex items-center justify-center flex-shrink-0">
+              <ImageIcon size={18} className="text-agro-400" />
+            </div>
+            <div className="text-[12px] font-medium text-[var(--text-primary)]">
+              🖼️ Galería
+            </div>
+          </label>
+        </div>
       )}
 
-      {/* Hidden file input — accepts camera on mobile */}
+      {/* Inputs ocultos — cada uno asociado a su <label> por id, no por ref */}
       <input
-        ref={inputRef}
+        id={camaraId}
         type="file"
         accept="image/*"
         capture="environment"
         onChange={handleFileChange}
         className="hidden"
-        aria-hidden="true"
+      />
+      <input
+        id={galeriaId}
+        type="file"
+        accept="image/*"
+        onChange={handleFileChange}
+        className="hidden"
       />
     </div>
   );
