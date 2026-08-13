@@ -42,6 +42,7 @@ interface CultivoFormProps {
 type CultivoExtended = Cultivo & {
   sistemaSiembra?: string | null;
   distanciaSiembra?: string | null;
+  proveedorMaterial?: string | null;
   observaciones?: string | null;
 };
 
@@ -120,6 +121,10 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
   );
   const [sistemaSiembra, setSistemaSiembra] = useState(cultivo?.sistemaSiembra ?? "");
   const [distanciaSiembra, setDistanciaSiembra] = useState(cultivo?.distanciaSiembra ?? "");
+  // Proveedor de plántulas: para poder comparar a futuro qué proveedor da
+  // los mejores árboles (seguimiento de calidad de material vegetal por
+  // vivero/proveedor a lo largo de varios cultivos).
+  const [proveedorMaterial, setProveedorMaterial] = useState(cultivo?.proveedorMaterial ?? "");
 
   // Section 3 — Ciclo y etapa
   const [etapa, setEtapa] = useState<EtapaCultivo>(cultivo?.etapa ?? "PREPARACION");
@@ -158,6 +163,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
       densidadHa: densidadHa ? Number(densidadHa) : undefined,
       sistemaSiembra: sistemaSiembra.trim() || undefined,
       distanciaSiembra: distanciaSiembra.trim() || undefined,
+      proveedorMaterial: proveedorMaterial.trim() || undefined,
       etapa,
       observaciones: observaciones.trim() || undefined,
     };
@@ -276,6 +282,12 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
             value={distanciaSiembra}
             onChange={(e) => setDistanciaSiembra(e.target.value)}
             placeholder="Ej: 8x8m, 7x7m, 6x8m"
+          />
+          <Input
+            label="Proveedor de plántulas"
+            value={proveedorMaterial}
+            onChange={(e) => setProveedorMaterial(e.target.value)}
+            placeholder="Ej: Vivero Agropaltas, ICA certificado"
           />
         </div>
       </div>
