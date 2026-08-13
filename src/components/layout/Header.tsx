@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bell, Menu, Sun } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { format } from "date-fns";
@@ -16,6 +17,20 @@ export function Header({ title, subtitle }: HeaderProps) {
   const { data: session } = useSession();
   const { toggleSidebar } = useSidebar();
   const today = format(new Date(), "EEEE d 'de' MMMM yyyy", { locale: es });
+
+  // Punto rojo de la campana: antes se mostraba siempre, sin importar si
+  // había alertas reales sin leer. GET /api/alertas ya devuelve
+  // meta.noLeidas (src/app/api/alertas/route.ts) — solo faltaba consultarlo
+  // aquí. Se pide una sola vez al montar (mismo patrón simple del resto de
+  // la app — sin librería de fetching/polling, ver CLAUDE.md §5).
+  const [noLeidas, setNoLeidas] = useState(0);
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    fetch("/api/alertas?activas=true&limit=1")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((json) => setNoLeidas(json?.meta?.noLeidas ?? 0))
+      .catch(() => {});
+  }, [session?.user?.id]);
 
   return (
     <header className="header-bar h-16 px-6 border-b border-[var(--sidebar-border)] bg-white flex items-center justify-between flex-shrink-0">
@@ -61,7 +76,9 @@ export function Header({ title, subtitle }: HeaderProps) {
           aria-label="Ver alertas"
         >
           <Bell size={17} className="text-[var(--text-secondary)]" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"></span>
+          {noLeidas > 0 && (
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"></span>
+          )}
         </Link>
 
         {/* Avatar */}

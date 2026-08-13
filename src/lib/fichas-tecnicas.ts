@@ -13,9 +13,15 @@ import { db } from "@/lib/db";
  */
 export interface UmbralAlertaPlaga {
   humedadMinPct?: number;
+  /** Máximo de humedad — para plagas de clima SECO (trips, ácaros), lo
+   * opuesto a enfermedades fúngicas que necesitan humedad alta. */
+  humedadMaxPct?: number;
   tempMinC?: number;
   tempMaxC?: number;
   lluviaMinMm?: number;
+  /** Máximo de lluvia del día — junto a humedadMaxPct, modela plagas
+   * favorecidas por sequía en vez de humedad. */
+  lluviaMaxMm?: number;
 }
 
 export interface VariedadResuelta {

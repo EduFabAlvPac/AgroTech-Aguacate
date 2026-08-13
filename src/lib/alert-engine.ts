@@ -221,9 +221,13 @@ export interface PlagaParaAlerta {
   umbralAlerta: unknown;
 }
 
-function umbralCoincide(umbral: UmbralAlertaPlaga, day: DailyForecast): boolean {
+// Exportada para poder probar la lógica de umbral sin depender de la API de
+// clima real (mismo criterio que evaluarNivel en suelo-referencia.ts).
+export function umbralCoincide(umbral: UmbralAlertaPlaga, day: DailyForecast): boolean {
   if (umbral.humedadMinPct !== undefined && day.humidity < umbral.humedadMinPct) return false;
+  if (umbral.humedadMaxPct !== undefined && day.humidity > umbral.humedadMaxPct) return false;
   if (umbral.lluviaMinMm !== undefined && day.rainMm < umbral.lluviaMinMm) return false;
+  if (umbral.lluviaMaxMm !== undefined && day.rainMm > umbral.lluviaMaxMm) return false;
   // Rango de riesgo [tempMinC, tempMaxC]: dispara si el rango del día se
   // solapa con el rango de riesgo configurado.
   if (umbral.tempMinC !== undefined && day.tempMax < umbral.tempMinC) return false;
@@ -284,41 +288,36 @@ export async function generatePlagaAlerts(
 // ── Calendario de actividades proyectado (ActividadCalendario) ──────────────────
 // A diferencia de las alertas de clima/plaga, esta no reacciona a nada
 // externo — proyecta desde Cultivo.fechaSiembra + la ficha técnica qué
-// manejo (riego/fertilización/poda/inspección) corresponde ahora, según la
-// etapa que el productor tiene marcada en el cultivo. Antes el motor de
-// alertas solo reaccionaba al clima; esta es la brecha "no solo de datos"
-// documentada en docs/REQUERIMIENTOS.md RF17/RF18.
-
-// EtapaFenologica.orden se asume 1:1 con la posición del enum EtapaCultivo
-// (mismo criterio ya usado en src/components/dashboard/CropTimeline.tsx y en
-// el seed de fichas técnicas) — no hay un campo que los enlace explícitamente.
-const ORDEN_POR_ETAPA: Record<string, number> = {
-  PREPARACION: 1,
-  SIEMBRA: 2,
-  ESTABLECIMIENTO: 3,
-  CRECIMIENTO: 4,
-  PRODUCCION: 5,
-  COSECHA: 6,
-};
-
+// manejo (riego/fertilización/poda/inspección) corresponde ahora. Antes el
+// motor de alertas solo reaccionaba al clima; esta es la brecha "no solo de
+// datos" documentada en docs/REQUERIMIENTOS.md RF17/RF18.
+//
+// Se consultan las actividades de TODAS las etapas de la ficha técnica, no
+// solo la que "coincide" con Cultivo.etapa — diaInicioRelativo/diaFinRelativo
+// ya son acumulados desde la siembra (no desde el inicio de cada etapa, ver
+// comentario más abajo), así que la ventana de días por sí sola decide qué
+// actividad corresponde ahora, sin depender de mapear Cultivo.etapa (enum
+// fijo de 6 valores: PREPARACION/SIEMBRA/ESTABLECIMIENTO/CRECIMIENTO/
+// PRODUCCION/COSECHA) a una EtapaFenologica concreta.
+//
+// Esto reemplaza un primer diseño que sí hacía ese mapeo 1:1 por posición
+// (ORDEN_POR_ETAPA) — funcionaba para Aguacate Hass (6 etapas, calzan
+// exacto con el enum) pero daba resultados INCORRECTOS para cultivos con
+// más etapas y nombres propios: la ficha de Café Caturra tiene 8 etapas
+// (..., FLORACION, LLENADO, COSECHA, BENEFICIO) y la de Cacao CCN-51 otras 8
+// (..., FLORACION, FRUCTIFICACION, COSECHA, FERMENTACION) — con el mapeo
+// viejo, un cultivo de café marcado "COSECHA" (el único valor de etapa
+// disponible en el enum) resolvía a la EtapaFenologica de orden 6, que en la
+// ficha de café es "LLENADO", no "COSECHA". Se descubrió al diseñar el seed
+// de actividades de café/cacao para esta misma feature.
 export async function generateActividadAlerts(
   municipio: string,
   fincaId: string,
   cultivoId: string,
   cropName: string,
   fechaSiembra: Date,
-  etapaActual: string,
   fichaTecnicaId: string
 ): Promise<{ created: number; skipped: number }> {
-  const orden = ORDEN_POR_ETAPA[etapaActual];
-  if (!orden) return { created: 0, skipped: 0 };
-
-  const etapaFicha = await db.etapaFenologica.findFirst({
-    where: { fichaId: fichaTecnicaId, orden },
-    include: { actividades: true },
-  });
-  if (!etapaFicha || etapaFicha.actividades.length === 0) return { created: 0, skipped: 0 };
-
   // diaInicioRelativo/diaFinRelativo/frecuenciaDias se interpretan como días
   // desde Cultivo.fechaSiembra (no desde el inicio de la etapa — evita
   // depender de que TODAS las etapas previas tengan duración configurada,
@@ -327,9 +326,14 @@ export async function generateActividadAlerts(
   const diasDesdeSiembra = Math.floor((Date.now() - fechaSiembra.getTime()) / 86400000);
   if (diasDesdeSiembra < 0) return { created: 0, skipped: 0 };
 
+  const actividades = await db.actividadCalendario.findMany({
+    where: { etapa: { fichaId: fichaTecnicaId } },
+  });
+  if (actividades.length === 0) return { created: 0, skipped: 0 };
+
   const potentialAlerts: GeneratedAlert[] = [];
 
-  for (const act of etapaFicha.actividades) {
+  for (const act of actividades) {
     const inicio = act.diaInicioRelativo;
     const fin = act.diaFinRelativo ?? inicio;
     if (diasDesdeSiembra < inicio || diasDesdeSiembra > fin) continue;
@@ -360,7 +364,7 @@ export async function generateActividadAlerts(
         (act.obligatoria ? " Es una actividad crítica para el desarrollo del cultivo." : ""),
       severidad: act.obligatoria ? "ALTA" : "MEDIA",
       fechaInicio: new Date(),
-      datos: { diasDesdeSiembra, etapa: etapaActual, tipoRegistro: act.tipoRegistro, fuente: "FichaTecnica" },
+      datos: { diasDesdeSiembra, tipoRegistro: act.tipoRegistro, fuente: "FichaTecnica" },
       municipio,
       fincaId,
       cultivoId,
@@ -368,4 +372,127 @@ export async function generateActividadAlerts(
   }
 
   return persistAlerts(potentialAlerts);
+}
+
+// ── Orquestador: genera las 3 categorías de alertas para UNA finca ─────────────
+// Única fuente de verdad para "generar alertas de una finca" — reutilizada
+// por la ruta manual (POST /api/alertas/generate, con sesión de usuario) y
+// por el cron diario (GET /api/cron/generar-alertas, sin sesión — Vercel
+// Cron). Antes esta lógica vivía duplicada dentro del route handler manual;
+// el cron la necesitaba igual, así que se extrajo aquí.
+
+export interface ResultadoGeneracion {
+  created: number;
+  skipped: number;
+  detalle: {
+    clima: { created: number; skipped: number };
+    plaga: { created: number; skipped: number };
+    actividad: { created: number; skipped: number };
+  };
+}
+
+const RESULTADO_VACIO: ResultadoGeneracion = {
+  created: 0,
+  skipped: 0,
+  detalle: {
+    clima: { created: 0, skipped: 0 },
+    plaga: { created: 0, skipped: 0 },
+    actividad: { created: 0, skipped: 0 },
+  },
+};
+
+export async function generarAlertasParaFinca(fincaId: string): Promise<ResultadoGeneracion> {
+  const finca = await db.finca.findUnique({
+    where: { id: fincaId },
+    select: { id: true, lat: true, lng: true, municipio: true, userId: true },
+  });
+  if (!finca) return RESULTADO_VACIO;
+
+  const [userPrefs, cultivosActivos] = await Promise.all([
+    db.userPreferences.findUnique({
+      where: { userId: finca.userId },
+      select: {
+        tempMinAlert: true, tempMaxAlert: true,
+        rainAlertMm: true, windAlertKmh: true, droughtDays: true,
+      },
+    }),
+    db.cultivo.findMany({
+      where: { lote: { fincaId: finca.id }, estado: "ACTIVO" },
+      select: {
+        id: true, especie: true, variedad: true, etapa: true, fechaSiembra: true, fichaTecnicaId: true,
+        fichaTecnica: {
+          select: {
+            tempMinC: true,
+            tempMaxC: true,
+            variedad: { select: { especie: { select: { nombre: true } } } },
+            plagas: { select: { id: true, nombre: true, tipo: true, manejoRecomendado: true, umbralAlerta: true } },
+          },
+        },
+      },
+    }),
+  ]);
+
+  const lat = finca.lat ?? 8.320589;
+  const lng = finca.lng ?? -73.337551;
+  const municipio = finca.municipio ?? "Ocaña";
+
+  // Contexto descriptivo de las alertas climáticas (finca-wide): se usa el
+  // primer cultivo activo como referencia si existe, tanto para el texto
+  // como para los umbrales de temperatura reales de su ficha técnica.
+  const primero = cultivosActivos[0];
+  const cropName = primero ? `${primero.especie} ${primero.variedad ?? ""}`.trim() : "cultivo";
+  const cropStage = primero?.etapa ?? "SIEMBRA";
+
+  // Prioridad de umbrales: preferencia explícita del usuario > rango de la
+  // ficha técnica del cultivo (real, por especie/variedad) > default genérico.
+  const fichaTemp = primero?.fichaTecnica;
+  const thresholds: AlertThresholds = {
+    tempMinAlert: userPrefs?.tempMinAlert ?? fichaTemp?.tempMinC ?? DEFAULT_THRESHOLDS.tempMinAlert,
+    tempMinCritical: DEFAULT_THRESHOLDS.tempMinCritical,
+    tempMaxAlert: userPrefs?.tempMaxAlert ?? fichaTemp?.tempMaxC ?? DEFAULT_THRESHOLDS.tempMaxAlert,
+    rainAlertMm: userPrefs?.rainAlertMm ?? DEFAULT_THRESHOLDS.rainAlertMm,
+    windAlertKmh: userPrefs?.windAlertKmh ?? DEFAULT_THRESHOLDS.windAlertKmh,
+    droughtDays: userPrefs?.droughtDays ?? DEFAULT_THRESHOLDS.droughtDays,
+  };
+
+  const weatherResult = await generateWeatherAlerts(lat, lng, municipio, finca.id, thresholds, { cropName, cropStage });
+
+  // Alertas de plaga — una por cultivo activo con ficha técnica + catálogo
+  // de plagas con umbral configurado.
+  let plagaCreated = 0;
+  let plagaSkipped = 0;
+  for (const cultivo of cultivosActivos) {
+    if (!cultivo.fichaTecnica || cultivo.fichaTecnica.plagas.length === 0) continue;
+    const nombreCultivo = `${cultivo.fichaTecnica.variedad.especie.nombre} ${cultivo.variedad ?? ""}`.trim();
+    const result = await generatePlagaAlerts(
+      lat, lng, municipio, finca.id, cultivo.id, nombreCultivo, cultivo.fichaTecnica.plagas
+    );
+    plagaCreated += result.created;
+    plagaSkipped += result.skipped;
+  }
+
+  // Calendario de actividades — un recordatorio por cultivo activo con
+  // ficha técnica pinneada, según cuántos días lleva desde la siembra (ya
+  // no según Cultivo.etapa — ver comentario en generateActividadAlerts).
+  let actividadCreated = 0;
+  let actividadSkipped = 0;
+  for (const cultivo of cultivosActivos) {
+    if (!cultivo.fichaTecnicaId || !cultivo.fechaSiembra) continue;
+    const nombreCultivo = `${cultivo.especie} ${cultivo.variedad ?? ""}`.trim();
+    const result = await generateActividadAlerts(
+      municipio, finca.id, cultivo.id, nombreCultivo, cultivo.fechaSiembra, cultivo.fichaTecnicaId
+    );
+    actividadCreated += result.created;
+    actividadSkipped += result.skipped;
+  }
+
+  return {
+    created: weatherResult.created + plagaCreated + actividadCreated,
+    skipped: weatherResult.skipped + plagaSkipped + actividadSkipped,
+    detalle: {
+      clima: weatherResult,
+      plaga: { created: plagaCreated, skipped: plagaSkipped },
+      actividad: { created: actividadCreated, skipped: actividadSkipped },
+    },
+  };
 }
