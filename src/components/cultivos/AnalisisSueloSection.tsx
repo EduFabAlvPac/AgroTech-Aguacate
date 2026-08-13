@@ -13,6 +13,9 @@ import type { AnalisisSuelo, TexturaSuelo } from "@prisma/client";
 interface AnalisisSueloSectionProps {
   loteId: string;
   analisisInicial: AnalisisSuelo[];
+  /** Se dispara tras crear/editar/eliminar un análisis — ej. para refrescar
+   * una recomendación de cultivo calculada a partir del último análisis. */
+  onChange?: () => void;
 }
 
 const emptyForm = {
@@ -31,7 +34,7 @@ const CAMPOS_NUMERICOS: { key: keyof typeof RANGOS_SUELO; label: string }[] = [
   { key: "conductividad", label: "Conductividad (dS/m)" },
 ];
 
-export function AnalisisSueloSection({ loteId, analisisInicial }: AnalisisSueloSectionProps) {
+export function AnalisisSueloSection({ loteId, analisisInicial, onChange }: AnalisisSueloSectionProps) {
   const [analisis, setAnalisis] = useState(analisisInicial);
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export function AnalisisSueloSection({ loteId, analisisInicial }: AnalisisSueloS
         toast.success("Análisis registrado");
       }
       setShowModal(false);
+      onChange?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al guardar el análisis");
     } finally {
@@ -122,6 +126,7 @@ export function AnalisisSueloSection({ loteId, analisisInicial }: AnalisisSueloS
               await fetch(`/api/analisis-suelo/${id}`, { method: "DELETE" });
               setAnalisis((prev) => prev.filter((a) => a.id !== id));
               toast.success("Análisis eliminado");
+              onChange?.();
             } catch {
               toast.error("Error al eliminar");
             }

@@ -31,6 +31,7 @@ export default async function MapaPage() {
               _count: {
                 select: { cultivos: true },
               },
+              analisisSuelo: { orderBy: { fechaMuestreo: "desc" } },
             },
           },
         },
