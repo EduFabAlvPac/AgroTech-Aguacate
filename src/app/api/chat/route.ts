@@ -1,5 +1,13 @@
-export const runtime = "edge";
+// Antes corría en "edge" — pero no hace streaming real (arma el JSON completo
+// y lo devuelve de una), así que el runtime edge no aportaba nada y sí
+// impedía usar Prisma para autenticar/limitar (edge no soporta el driver de
+// Postgres de Prisma). Node.js runtime (default al quitar la línea) resuelve
+// ambos problemas de una.
 export const maxDuration = 30;
+
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { consumirCuotaIA, CuotaExcedidaError } from "@/lib/ia-cuota";
 
 const BASE_SYSTEM_PROMPT = `Eres AgroIA, asistente integral para productores agrícolas colombianos. Combinas conocimiento agronómico técnico con asesoría financiera agropecuaria.
 
@@ -31,6 +39,15 @@ PERSONALIDAD Y TONO:
 
 export async function POST(req: Request) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user?.id) {
+      return new Response(
+        JSON.stringify({ error: "No autorizado" }),
+        { status: 401, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    await consumirCuotaIA(session.user.id, "CHAT");
+
     const { messages, farmContext } = await req.json();
     const apiKey = process.env.GROQ_API_KEY;
 
@@ -80,6 +97,13 @@ export async function POST(req: Request) {
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error: any) {
+    if (error instanceof CuotaExcedidaError) {
+      return new Response(
+        JSON.stringify({ error: error.message }),
+        { status: error.status, headers: { "Content-Type": "application/json" } }
+      );
+    }
+    console.error("[POST /api/chat]", error);
     return new Response(
       JSON.stringify({ error: error?.message || "Error desconocido" }),
       { status: 500, headers: { "Content-Type": "application/json" } }

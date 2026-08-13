@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { consumirCuotaIA, CuotaExcedidaError } from "@/lib/ia-cuota";
 
 /**
  * Transcripción de voz (RF14) — ver CLAUDE.md §3 y docs/REQUERIMIENTOS.md §1.3.
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
   try {
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    await consumirCuotaIA(session.user.id, "VOZ");
 
     const apiKey = process.env.GROQ_API_KEY;
     if (!apiKey) return NextResponse.json({ error: "GROQ_API_KEY no configurada" }, { status: 500 });
@@ -50,6 +52,9 @@ export async function POST(req: Request) {
     const texto = typeof data.text === "string" ? data.text.trim() : "";
     return NextResponse.json({ data: { texto } });
   } catch (error) {
+    if (error instanceof CuotaExcedidaError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error("[POST /api/transcribir]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

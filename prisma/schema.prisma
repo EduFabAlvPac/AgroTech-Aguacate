@@ -20,12 +20,18 @@ model User {
   // Flag de plataforma, transversal a cualquier Organizacion — ver CLAUDE.md §2.3
   // y docs/REQUERIMIENTOS.md ADR-004. No se modela como rol dentro de una org.
   esSuperAdmin Boolean  @default(false)
+  // Fuerza bruta de login (OWASP A07) — antes authorize() no llevaba ningún
+  // contador, así que un ataque de diccionario contra /api/auth podía
+  // reintentar sin límite. Se resetea a 0 en un login exitoso.
+  failedLoginAttempts Int       @default(0)
+  lockedUntil         DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
   fincas         Finca[]
   compradores    Comprador[]
   chatMessages   ChatMessage[]
+  usoIaDiario    UsoIaDiario[]
   preferences    UserPreferences?
   gastos         Gasto[]
   presupuestos   Presupuesto[]
@@ -855,6 +861,32 @@ model ChatMessage {
 enum ChatRole {
   USER
   ASSISTANT
+}
+
+// Cuota diaria de uso de IA (chat/voz/imagen) — todas pegan a Groq, que cobra
+// por uso. Antes /api/chat no verificaba sesión y ningún endpoint de IA tenía
+// límite de volumen (solo transcribir/diagnostico exigían sesión) — esto es
+// la segunda capa: ya autenticado, un límite razonable evita que una cuenta
+// comprometida o un bug de UI (loop de requests) genere una factura enorme.
+// Un contador por día@tipo en Postgres (no Redis: no hay Redis en producción,
+// ver CLAUDE.md §3) — barato de mantener, correcto entre instancias
+// serverless (a diferencia de un contador en memoria).
+model UsoIaDiario {
+  id       String       @id @default(cuid())
+  userId   String
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo     TipoUsoIa
+  fecha    DateTime     @db.Date
+  contador Int          @default(0)
+
+  @@unique([userId, tipo, fecha])
+  @@map("uso_ia_diario")
+}
+
+enum TipoUsoIa {
+  CHAT
+  VOZ
+  IMAGEN
 }
 
 // ─── USER PREFERENCES ─────────────────────────────────────────────────────────
