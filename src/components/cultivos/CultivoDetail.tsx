@@ -1,23 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown, Sparkles, Share2 } from "lucide-react";
+import { ArrowLeft, Plus, Sprout, DollarSign, ClipboardList, TrendingDown, Sparkles, Share2, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { Button, Modal, EmptyState } from "@/components/ui";
 import { RegistroForm } from "@/components/cultivos/RegistroForm";
 import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
 import { CompartirCultivoModal } from "@/components/cultivos/CompartirCultivoModal";
+import { AnalisisSueloSection } from "@/components/cultivos/AnalisisSueloSection";
 import { ETAPA_LABELS, TIPO_REGISTRO_LABELS, CATEGORIA_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
 import { differenceInDays } from "date-fns";
 import toast from "react-hot-toast";
-import type { Cultivo, Lote, Finca, RegistroCultivo, Gasto, Ingreso, Comprador } from "@prisma/client";
+import type { Cultivo, Lote, Finca, RegistroCultivo, Gasto, Ingreso, Comprador, AnalisisSuelo } from "@prisma/client";
 
 type CultivoWithAll = Cultivo & {
-  lote: Lote & { finca: Finca };
+  lote: Lote & { finca: Finca; analisisSuelo: AnalisisSuelo[] };
   registros: RegistroCultivo[];
   gastos: Gasto[];
   ingresos: (Ingreso & { comprador: Comprador | null })[];
+  especieCultivo: { nombre: string; altitudMin: number | null; altitudMax: number | null } | null;
 };
 
 interface CultivoDetailProps {
@@ -52,6 +54,14 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
   const filteredRegistros = filterTipo
     ? registros.filter((r) => r.tipo === filterTipo)
     : registros;
+
+  // RF3 criterio 1 — advertencia (no bloqueo) de aptitud altitudinal: compara
+  // Lote.altitud contra el rango óptimo de EspecieCultivo, cuando el cultivo
+  // ya está vinculado al catálogo paramétrico.
+  const altitud = cultivo.lote.altitud;
+  const { altitudMin, altitudMax } = cultivo.especieCultivo ?? {};
+  const fueraDeRangoAltitud =
+    altitud != null && altitudMin != null && altitudMax != null && (altitud < altitudMin || altitud > altitudMax);
 
   const handleRegistroCreado = () => {
     setShowModal(false);
@@ -132,6 +142,17 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
           ))}
         </div>
 
+        {fueraDeRangoAltitud && (
+          <div className="mt-4 p-3 bg-[#FEF3E2] rounded-[var(--radius-md)] text-[12px] text-[#B7791F] flex items-start gap-2">
+            <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
+            <span>
+              La altitud del lote ({altitud?.toLocaleString()} msnm) está fuera del rango óptimo para{" "}
+              {cultivo.especieCultivo?.nombre} ({altitudMin?.toLocaleString()}–{altitudMax?.toLocaleString()} msnm).
+              No impide sembrar, pero puede afectar el desarrollo del cultivo — considera monitoreo adicional.
+            </span>
+          </div>
+        )}
+
         {cultivo.notas && (
           <div className="mt-4 p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[12px] text-[var(--text-secondary)]">
             📝 {cultivo.notas}
@@ -192,6 +213,9 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
           </div>
         )}
       </div>
+
+      {/* Soil analysis (RF3) */}
+      <AnalisisSueloSection loteId={cultivo.lote.id} analisisInicial={cultivo.lote.analisisSuelo} />
 
       {/* Recent expenses */}
       {cultivo.gastos.length > 0 && (

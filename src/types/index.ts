@@ -22,6 +22,7 @@ import type {
   ChatRole,
   EstadoFicha,
   TipoPlagaEnfermedad,
+  TexturaSuelo,
 } from "@prisma/client";
 
 export type {
@@ -197,6 +198,16 @@ export const TIPO_COMPRADOR_LABELS: Record<TipoComprador, string> = {
   PLAZA_MERCADO: "Plaza de mercado",
   RESTAURANTE: "Restaurante",
   OTRO: "Otro",
+};
+
+export const TEXTURA_SUELO_LABELS: Record<TexturaSuelo, string> = {
+  ARENOSO: "Arenoso",
+  FRANCO_ARENOSO: "Franco arenoso",
+  FRANCO: "Franco",
+  FRANCO_ARCILLOSO: "Franco arcilloso",
+  ARCILLOSO: "Arcilloso",
+  FRANCO_LIMOSO: "Franco limoso",
+  LIMOSO: "Limoso",
 };
 
 export const TIPO_GASTO_LABELS: Record<TipoGasto, string> = {

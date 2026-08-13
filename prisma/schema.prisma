@@ -180,11 +180,50 @@ model Lote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  cultivos Cultivo[]
-  jornales Jornal[]
-  gastos   Gasto[]
+  cultivos      Cultivo[]
+  jornales      Jornal[]
+  gastos        Gasto[]
+  analisisSuelo AnalisisSuelo[]
 
   @@map("lotes")
+}
+
+// ─── SOIL ANALYSIS / ANÁLISIS DE SUELO (RF3) ───────────────────────────────────
+// Registro opcional de análisis de suelo por lote — pH, materia orgánica, N-P-K,
+// textura — consultable desde Cultivos. No reemplaza RequerimientoNutricional
+// (dosis de fertilización por etapa fenológica de una FichaTecnica); esto es el
+// insumo de diagnóstico (qué tiene el suelo hoy), aquello es la receta (qué
+// aplicar). Rangos de referencia para interpretar valores viven en
+// src/lib/agronomia/suelo-referencia.ts — son generales (no por cultivo/ficha
+// técnica todavía, ver CLAUDE.md §2.2/§4), se lo advierte explícitamente en la UI.
+model AnalisisSuelo {
+  id              String         @id @default(cuid())
+  loteId          String
+  lote            Lote           @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  fechaMuestreo   DateTime
+  ph              Float?
+  materiaOrganica Float? // % MO
+  nitrogeno       Float? // % N total
+  fosforo         Float? // ppm P (Bray II)
+  potasio         Float? // meq/100g K
+  textura         TexturaSuelo?
+  conductividad   Float? // dS/m — salinidad (CE)
+  laboratorio     String?
+  notas           String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  @@map("analisis_suelo")
+}
+
+enum TexturaSuelo {
+  ARENOSO
+  FRANCO_ARENOSO
+  FRANCO
+  FRANCO_ARCILLOSO
+  ARCILLOSO
+  FRANCO_LIMOSO
+  LIMOSO
 }
 
 // ─── CROP SPECIES CATALOG / ESPECIES DE CULTIVO (PARAMÉTRICO) ─────────────────
