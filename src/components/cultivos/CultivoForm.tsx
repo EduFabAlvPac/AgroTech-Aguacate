@@ -42,8 +42,6 @@ interface CultivoFormProps {
 type CultivoExtended = Cultivo & {
   sistemaSiembra?: string | null;
   distanciaSiembra?: string | null;
-  portainjerto?: string | null;
-  proveedorMaterial?: string | null;
   observaciones?: string | null;
 };
 
@@ -123,11 +121,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
   const [sistemaSiembra, setSistemaSiembra] = useState(cultivo?.sistemaSiembra ?? "");
   const [distanciaSiembra, setDistanciaSiembra] = useState(cultivo?.distanciaSiembra ?? "");
 
-  // Section 3 — Material vegetal
-  const [portainjerto, setPortainjerto] = useState(cultivo?.portainjerto ?? "");
-  const [proveedorMaterial, setProveedorMaterial] = useState(cultivo?.proveedorMaterial ?? "");
-
-  // Section 4 — Ciclo y etapa
+  // Section 3 — Ciclo y etapa
   const [etapa, setEtapa] = useState<EtapaCultivo>(cultivo?.etapa ?? "PREPARACION");
   const [observaciones, setObservaciones] = useState(cultivo?.observaciones ?? "");
 
@@ -164,8 +158,6 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
       densidadHa: densidadHa ? Number(densidadHa) : undefined,
       sistemaSiembra: sistemaSiembra.trim() || undefined,
       distanciaSiembra: distanciaSiembra.trim() || undefined,
-      portainjerto: portainjerto.trim() || undefined,
-      proveedorMaterial: proveedorMaterial.trim() || undefined,
       etapa,
       observaciones: observaciones.trim() || undefined,
     };
@@ -288,28 +280,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
         </div>
       </div>
 
-      {/* Section 3 — Material vegetal */}
-      <div>
-        <h3 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">
-          Material vegetal
-        </h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input
-            label="Porta-injerto"
-            value={portainjerto}
-            onChange={(e) => setPortainjerto(e.target.value)}
-            placeholder="Ej: Duke 7, Martin Grande, Topa Topa, Mexicola"
-          />
-          <Input
-            label="Proveedor del material"
-            value={proveedorMaterial}
-            onChange={(e) => setProveedorMaterial(e.target.value)}
-            placeholder="Ej: Vivero Agropaltas, ICA certificado"
-          />
-        </div>
-      </div>
-
-      {/* Section 4 — Ciclo y etapa */}
+      {/* Section 3 — Ciclo y etapa */}
       <div>
         <h3 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">
           Ciclo y etapa
