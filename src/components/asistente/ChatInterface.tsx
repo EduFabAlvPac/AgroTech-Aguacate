@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useId } from "react";
 import { useSession } from "next-auth/react";
 import { Send, RotateCcw, Mic, Image as ImageIcon, X, Eye, Pill } from "lucide-react";
 import { Button, Select } from "@/components/ui";
@@ -92,7 +92,9 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const nombreUsuario = session?.user?.name?.split(" ")[0] ?? "Productor";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const adjuntarMenuRef = useRef<HTMLDivElement>(null);
+  const camaraInputId = useId();
+  const galeriaInputId = useId();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -103,6 +105,11 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   const [cultivoSeleccionado, setCultivoSeleccionado] = useState("");
   const [imagenAdjunta, setImagenAdjunta] = useState<string | null>(null);
   const [comprimiendoImagen, setComprimiendoImagen] = useState(false);
+  // Menú "Tomar foto / Galería" en vez de un solo botón ambiguo — mismo
+  // motivo que en PhotoCapture.tsx (ver ese archivo para el detalle): un
+  // solo input con `capture` deja que el navegador decida, y en el celular
+  // varios usuarios terminaban siempre en la galería, nunca en la cámara.
+  const [mostrarMenuImagen, setMostrarMenuImagen] = useState(false);
 
   // Grabación de voz (RF14 desde el chat)
   const [mostrarGrabadora, setMostrarGrabadora] = useState(false);
@@ -127,6 +134,18 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Cerrar el menú "Tomar foto / Galería" al tocar afuera
+  useEffect(() => {
+    if (!mostrarMenuImagen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (adjuntarMenuRef.current && !adjuntarMenuRef.current.contains(e.target as Node)) {
+        setMostrarMenuImagen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [mostrarMenuImagen]);
 
   // Handle initial query from URL — auto-submit on mount
   useEffect(() => {
@@ -265,6 +284,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
   };
 
   const handleAdjuntarImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setMostrarMenuImagen(false);
     const file = e.target.files?.[0];
     if (!file) return;
     if (cultivos.length === 0) {
@@ -512,16 +532,39 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
               <Mic size={17} />
             </button>
 
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isLoading || comprimiendoImagen}
-              title="Adjuntar foto para diagnóstico"
-              className="h-11 w-11 rounded-full flex items-center justify-center flex-shrink-0 bg-[var(--surface-page)] text-[var(--text-muted)] hover:text-agro-600 transition-colors"
-            >
-              <ImageIcon size={17} />
-            </button>
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleAdjuntarImagen} />
+            <div className="relative flex-shrink-0" ref={adjuntarMenuRef}>
+              <button
+                type="button"
+                onClick={() => setMostrarMenuImagen((v) => !v)}
+                disabled={isLoading || comprimiendoImagen}
+                title="Adjuntar foto para diagnóstico"
+                className={`h-11 w-11 rounded-full flex items-center justify-center transition-colors ${
+                  mostrarMenuImagen ? "bg-agro-100 text-agro-600" : "bg-[var(--surface-page)] text-[var(--text-muted)] hover:text-agro-600"
+                }`}
+              >
+                <ImageIcon size={17} />
+              </button>
+
+              {mostrarMenuImagen && (
+                <div className="absolute bottom-full left-0 mb-2 w-44 bg-white border border-[var(--border-default)] rounded-[var(--radius-md)] shadow-lg py-1 z-10">
+                  <label
+                    htmlFor={camaraInputId}
+                    className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-[var(--text-primary)] hover:bg-[var(--surface-page)] cursor-pointer"
+                  >
+                    📸 Tomar foto
+                  </label>
+                  <label
+                    htmlFor={galeriaInputId}
+                    className="flex items-center gap-2 px-3 py-2.5 text-[13px] text-[var(--text-primary)] hover:bg-[var(--surface-page)] cursor-pointer"
+                  >
+                    🖼️ Galería
+                  </label>
+                </div>
+              )}
+
+              <input id={camaraInputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleAdjuntarImagen} />
+              <input id={galeriaInputId} type="file" accept="image/*" className="hidden" onChange={handleAdjuntarImagen} />
+            </div>
 
             <input
               ref={inputRef}
