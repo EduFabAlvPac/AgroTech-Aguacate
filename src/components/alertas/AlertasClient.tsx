@@ -23,8 +23,8 @@ const TIPO_ICONS: Record<TipoAlerta, React.ElementType> = {
 const SEVERIDAD_STYLES: Record<Severidad, { badge: string; card: string }> = {
   BAJA: { badge: "badge-neutral", card: "border-[var(--border-subtle)]" },
   MEDIA: { badge: "badge-warning", card: "border-harvest-100 bg-harvest-50" },
-  ALTA: { badge: "badge-danger", card: "border-red-200 bg-red-50" },
-  CRITICA: { badge: "bg-red-600 text-white", card: "border-red-400 bg-red-50" },
+  ALTA: { badge: "badge-danger", card: "border-negative-100 bg-negative-50" },
+  CRITICA: { badge: "bg-negative-600 text-white", card: "border-negative-400 bg-negative-50" },
 };
 
 const TIPO_LABELS: Record<TipoAlerta, string> = {
@@ -142,13 +142,13 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
               onClick={() => setFilter(f as any)}
               className={`px-3 py-1.5 rounded-full text-[12px] font-medium transition-colors border ${
                 filter === f
-                  ? "bg-agro-400 text-white border-agro-400"
+                  ? "bg-agro-600 text-white border-agro-600"
                   : "border-[var(--border-default)] text-[var(--text-secondary)] hover:bg-[var(--surface-page)]"
               }`}
             >
               {f.charAt(0).toUpperCase() + f.slice(1)}
               {f === "activas" && noLeidas > 0 && (
-                <span className="ml-1.5 bg-red-500 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                <span className="ml-1.5 bg-negative-400 text-white text-[10px] px-1.5 py-0.5 rounded-full">
                   {noLeidas}
                 </span>
               )}
@@ -183,7 +183,7 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
           <div style={{
             width: 64, height: 64,
             borderRadius: "50%",
-            background: "#EAF3DE",
+            background: "var(--color-brand-bg)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -203,11 +203,11 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
             style={{
               marginTop: 8,
               padding: "8px 16px",
-              background: "#EAF3DE",
-              border: "1px solid #C0DD97",
+              background: "var(--color-brand-bg)",
+              border: "1px solid #A0DBC3",
               borderRadius: 8,
               fontSize: 13,
-              color: "#3B6D11",
+              color: "var(--color-brand-dark)",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
@@ -235,14 +235,14 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                   {/* Icon */}
                   <div className={`w-10 h-10 rounded-[var(--radius-md)] flex items-center justify-center flex-shrink-0 ${
                     alerta.severidad === "ALTA" || alerta.severidad === "CRITICA"
-                      ? "bg-red-100"
+                      ? "bg-negative-100"
                       : "bg-harvest-50"
                   }`}>
                     <Icon
                       size={20}
                       className={
                         alerta.severidad === "ALTA" || alerta.severidad === "CRITICA"
-                          ? "text-red-500"
+                          ? "text-negative-400"
                           : "text-harvest-400"
                       }
                     />
@@ -262,7 +262,7 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                           {TIPO_LABELS[alerta.tipo]}
                         </span>
                         {isExpired && (
-                          <span className="badge text-[10px]" style={{ background: "#F1EFE8", color: "#5F5E5A" }}>
+                          <span className="badge text-[10px]" style={{ background: "var(--color-surface-gray)", color: "var(--color-text-soft)" }}>
                             Expirada
                           </span>
                         )}
@@ -317,11 +317,11 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                         )}
                         <button
                           onClick={() => dismissAlert(alerta.id)}
-                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-red-50 transition-colors"
+                          className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-negative-50 transition-colors"
                           aria-label="Descartar alerta"
                           title="Descartar"
                         >
-                          <X size={13} className="text-[var(--text-muted)] hover:text-red-500" />
+                          <X size={13} className="text-[var(--text-muted)] hover:text-negative-400" />
                         </button>
                       </div>
                     </div>

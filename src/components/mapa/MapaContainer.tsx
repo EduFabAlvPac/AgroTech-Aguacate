@@ -265,7 +265,7 @@ function MapaContainerInner({ finca }: MapaContainerProps) {
 
         {/* Map init error banner */}
         {mapInitError && (
-          <div className="flex items-center gap-2 px-4 py-3 bg-red-50 border-l-4 border-red-400 text-[var(--text-primary)]">
+          <div className="flex items-center gap-2 px-4 py-3 bg-negative-50 border-l-4 border-negative-400 text-[var(--text-primary)]">
             <span className="text-sm">
               No se pudo cargar el mapa. Verifica tu conexión e intenta de nuevo.
             </span>

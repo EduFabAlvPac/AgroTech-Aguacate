@@ -111,7 +111,7 @@ export function MapSidebar({
                         className="p-1 rounded hover:bg-black/5 transition-colors"
                         title="Dibujar área de este lote"
                       >
-                        <MapPin size={14} className="text-[#BA7517]" />
+                        <MapPin size={14} className="text-[#8A5E20]" />
                       </button>
                     )}
 
@@ -132,7 +132,7 @@ export function MapSidebar({
                               <span className="text-[13px]">¿Eliminar {lote.nombre}?</span>
                               <button
                                 onClick={() => { toast.dismiss(t.id); onDeleteLote?.(lote.id); }}
-                                className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+                                className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
                               >
                                 Eliminar
                               </button>
@@ -142,10 +142,10 @@ export function MapSidebar({
                             </div>
                           ), { duration: 10000 });
                         }}
-                        className="p-1 rounded hover:bg-red-50 transition-colors"
+                        className="p-1 rounded hover:bg-negative-50 transition-colors"
                         title="Eliminar lote"
                       >
-                        <Trash2 size={14} className="text-red-500" />
+                        <Trash2 size={14} className="text-negative-400" />
                       </button>
                     )}
                   </div>

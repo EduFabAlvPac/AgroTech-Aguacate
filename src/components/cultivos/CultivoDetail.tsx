@@ -130,8 +130,8 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
         <div className="grid grid-cols-4 gap-3 mt-5 pt-5 border-t border-[var(--border-subtle)]">
           {[
             { label: "Plantas", value: cultivo.cantidadPlantas?.toLocaleString() ?? "—", icon: Sprout, color: "text-agro-400" },
-            { label: "Registros", value: registros.length.toString(), icon: ClipboardList, color: "text-blue-500" },
-            { label: "Gastos", value: formatCOP(totalGastos), icon: TrendingDown, color: "text-red-500" },
+            { label: "Registros", value: registros.length.toString(), icon: ClipboardList, color: "text-info-600" },
+            { label: "Gastos", value: formatCOP(totalGastos), icon: TrendingDown, color: "text-negative-400" },
             { label: "Ingresos", value: formatCOP(totalIngresos), icon: DollarSign, color: "text-agro-400" },
           ].map(({ label, value, icon: Icon, color }) => (
             <div key={label} className="bg-[var(--surface-page)] rounded-[var(--radius-md)] p-3 text-center">
@@ -143,7 +143,7 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
         </div>
 
         {fueraDeRangoAltitud && (
-          <div className="mt-4 p-3 bg-[#FEF3E2] rounded-[var(--radius-md)] text-[12px] text-[#B7791F] flex items-start gap-2">
+          <div className="mt-4 p-3 bg-[var(--color-amber-bg)] rounded-[var(--radius-md)] text-[12px] text-[#8A5E20] flex items-start gap-2">
             <AlertTriangle size={14} className="flex-shrink-0 mt-0.5" />
             <span>
               La altitud del lote ({altitud?.toLocaleString()} msnm) está fuera del rango óptimo para{" "}
@@ -224,21 +224,21 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
             <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">
               Gastos asociados
             </h2>
-            <span className="text-[13px] font-semibold text-red-600">
+            <span className="text-[13px] font-semibold text-negative-600">
               Total: {formatCOPFull(totalGastos)}
             </span>
           </div>
           <div className="divide-y divide-[var(--border-subtle)]">
             {cultivo.gastos.map((g) => (
               <div key={g.id} className="flex items-center gap-4 px-5 py-3">
-                <DollarSign size={14} className="text-red-400 flex-shrink-0" />
+                <DollarSign size={14} className="text-negative-400 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
                   <div className="text-[13px] text-[var(--text-primary)] truncate">{g.concepto}</div>
                   <div className="text-[11px] text-[var(--text-muted)]">
                     {CATEGORIA_LABELS[g.categoria]} · {formatDate(g.fecha, true)}
                   </div>
                 </div>
-                <span className="text-[13px] font-semibold text-red-600 flex-shrink-0">
+                <span className="text-[13px] font-semibold text-negative-600 flex-shrink-0">
                   {formatCOPFull(g.monto)}
                 </span>
               </div>

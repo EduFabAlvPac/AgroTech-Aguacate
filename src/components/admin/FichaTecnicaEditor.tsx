@@ -32,15 +32,15 @@ type FichaCompleta = FichaTecnica & {
 
 // Mismo patrón de mapa de color que ETAPA_COLORS/TIPO_BADGE_COLORS en CultivosList.tsx
 const ESTADO_COLORS: Record<string, { bg: string; color: string }> = {
-  BORRADOR: { bg: "#F1EFE8", color: "#5F5E5A" },
-  PUBLICADA: { bg: "#EAF3DE", color: "#3B6D11" },
-  ARCHIVADA: { bg: "#FAEEDA", color: "#BA7517" },
+  BORRADOR: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
+  PUBLICADA: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
+  ARCHIVADA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
 };
 
 const TIPO_PLAGA_COLORS: Record<TipoPlagaEnfermedad, { bg: string; color: string }> = {
-  PLAGA: { bg: "#FCEBEB", color: "#A32D2D" },
-  ENFERMEDAD: { bg: "#FAEEDA", color: "#BA7517" },
-  DEFICIENCIA_NUTRICIONAL: { bg: "#E6F1FB", color: "#185FA5" },
+  PLAGA: { bg: "var(--color-negative-bg)", color: "var(--color-negative)" },
+  ENFERMEDAD: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
+  DEFICIENCIA_NUTRICIONAL: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
 };
 
 const numOrNull = (v: string) => (v === "" ? null : Number(v));
@@ -349,10 +349,10 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
                 </button>
                 <button
                   onClick={() => setShowDeleteModal(true)}
-                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors"
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors"
                   aria-label="Eliminar ficha"
                 >
-                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                 </button>
                 <Button size="sm" onClick={handlePublicar} loading={publishing}>
                   <Rocket size={14} /> Publicar
@@ -473,7 +473,7 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
               c.montoPorPlanta && `$${c.montoPorPlanta.toLocaleString("es-CO")}/planta`,
             ].filter(Boolean).join(" · ") || "Sin monto"}
             meta={c.frecuencia ?? ""}
-            badge={{ label: CATEGORIA_LABELS[c.categoria], bg: "#F1EFE8", color: "#5F5E5A" }}
+            badge={{ label: CATEGORIA_LABELS[c.categoria], bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" }}
             editable={editable}
             onEliminar={() => handleEliminarCosto(c.id)}
           />
@@ -695,10 +695,10 @@ function FilaActividad({
         {editable && (
           <button
             onClick={onEliminar}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-negative-50 transition-colors opacity-0 group-hover:opacity-100"
             aria-label="Eliminar"
           >
-            <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+            <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
           </button>
         )}
       </div>

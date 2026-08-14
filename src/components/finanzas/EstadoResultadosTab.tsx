@@ -147,11 +147,11 @@ export function EstadoResultadosTab({ cultivos, nombreFinca }: EstadoResultadosT
           {/* KPIs principales */}
           <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             {[
-              { label: "Ingresos operativos", value: data.ingresosOperativos, color: "text-agro-600", bg: "bg-agro-50", icon: TrendingUp },
-              { label: "Costos directos", value: data.costosDirectos, color: "text-red-500", bg: "bg-red-50", icon: TrendingDown },
-              { label: "Utilidad bruta", value: data.utilidadBruta, color: data.utilidadBruta >= 0 ? "text-agro-600" : "text-red-500", bg: data.utilidadBruta >= 0 ? "bg-agro-50" : "bg-red-50", icon: Wallet, sub: `${data.margenBrutoPct.toFixed(1)}% margen` },
+              { label: "Ingresos operativos", value: data.ingresosOperativos, color: "text-positive-600", bg: "bg-positive-50", icon: TrendingUp },
+              { label: "Costos directos", value: data.costosDirectos, color: "text-negative-400", bg: "bg-negative-50", icon: TrendingDown },
+              { label: "Utilidad bruta", value: data.utilidadBruta, color: data.utilidadBruta >= 0 ? "text-positive-600" : "text-negative-400", bg: data.utilidadBruta >= 0 ? "bg-positive-50" : "bg-negative-50", icon: Wallet, sub: `${data.margenBrutoPct.toFixed(1)}% margen` },
               { label: "Costos indirectos", value: data.costosIndirectos, color: "text-harvest-500", bg: "bg-harvest-50", icon: TrendingDown },
-              { label: "Utilidad neta", value: data.utilidadNeta, color: data.utilidadNeta >= 0 ? "text-agro-600" : "text-red-500", bg: data.utilidadNeta >= 0 ? "bg-agro-50" : "bg-red-50", icon: Wallet, sub: `${data.margenNetoPct.toFixed(1)}% margen` },
+              { label: "Utilidad neta", value: data.utilidadNeta, color: data.utilidadNeta >= 0 ? "text-positive-600" : "text-negative-400", bg: data.utilidadNeta >= 0 ? "bg-positive-50" : "bg-negative-50", icon: Wallet, sub: `${data.margenNetoPct.toFixed(1)}% margen` },
             ].map(({ label, value, color, bg, icon: Icon, sub }) => (
               <div key={label} className={`card p-4 ${bg}`}>
                 <div className="flex items-center gap-1.5 mb-2">
@@ -174,19 +174,19 @@ export function EstadoResultadosTab({ cultivos, nombreFinca }: EstadoResultadosT
               </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-[var(--text-secondary)]">(–) Costos directos</span>
-                <span className="font-medium text-red-500">({formatCOPFull(data.costosDirectos)})</span>
+                <span className="font-medium text-negative-400">({formatCOPFull(data.costosDirectos)})</span>
               </div>
               <div className="flex justify-between py-2 border-t border-[var(--border-subtle)] font-semibold">
                 <span>= Utilidad bruta</span>
-                <span className={data.utilidadBruta >= 0 ? "text-agro-600" : "text-red-500"}>{formatCOPFull(data.utilidadBruta)}</span>
+                <span className={data.utilidadBruta >= 0 ? "text-positive-600" : "text-negative-400"}>{formatCOPFull(data.utilidadBruta)}</span>
               </div>
               <div className="flex justify-between py-1.5">
                 <span className="text-[var(--text-secondary)]">(–) Costos indirectos</span>
-                <span className="font-medium text-red-500">({formatCOPFull(data.costosIndirectos)})</span>
+                <span className="font-medium text-negative-400">({formatCOPFull(data.costosIndirectos)})</span>
               </div>
               <div className="flex justify-between py-2 border-t-2 border-[var(--border-default)] font-bold text-[14px]">
                 <span>= Utilidad neta</span>
-                <span className={data.utilidadNeta >= 0 ? "text-agro-600" : "text-red-500"}>{formatCOPFull(data.utilidadNeta)}</span>
+                <span className={data.utilidadNeta >= 0 ? "text-positive-600" : "text-negative-400"}>{formatCOPFull(data.utilidadNeta)}</span>
               </div>
             </div>
           </div>
@@ -244,9 +244,9 @@ export function EstadoResultadosTab({ cultivos, nombreFinca }: EstadoResultadosT
                     <tr key={c.cultivoId} className="border-b border-[var(--border-subtle)] last:border-0">
                       <td className="py-2 text-[var(--text-primary)]">{c.nombre}</td>
                       <td className="py-2 text-right">{formatCOP(c.ingresos)}</td>
-                      <td className="py-2 text-right text-red-500">{formatCOP(c.costosDirectos)}</td>
-                      <td className={`py-2 text-right font-medium ${c.utilidadBruta >= 0 ? "text-agro-600" : "text-red-500"}`}>{formatCOP(c.utilidadBruta)}</td>
-                      <td className={`py-2 text-right font-medium ${c.utilidadNeta >= 0 ? "text-agro-600" : "text-red-500"}`}>{formatCOP(c.utilidadNeta)}</td>
+                      <td className="py-2 text-right text-negative-400">{formatCOP(c.costosDirectos)}</td>
+                      <td className={`py-2 text-right font-medium ${c.utilidadBruta >= 0 ? "text-positive-600" : "text-negative-400"}`}>{formatCOP(c.utilidadBruta)}</td>
+                      <td className={`py-2 text-right font-medium ${c.utilidadNeta >= 0 ? "text-positive-600" : "text-negative-400"}`}>{formatCOP(c.utilidadNeta)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -282,8 +282,8 @@ export function EstadoResultadosTab({ cultivos, nombreFinca }: EstadoResultadosT
                       <td className="py-2 text-[var(--text-primary)]">{d.inversionistaNombre}</td>
                       <td className="py-2 text-[var(--text-secondary)]">{d.cultivoNombre}</td>
                       <td className="py-2 text-right">{d.porcentajeParticipacion}%</td>
-                      <td className={`py-2 text-right ${d.utilidadNetaCultivo >= 0 ? "text-agro-600" : "text-red-500"}`}>{formatCOP(d.utilidadNetaCultivo)}</td>
-                      <td className="py-2 text-right font-semibold text-agro-600">{formatCOP(d.montoDistribuible)}</td>
+                      <td className={`py-2 text-right ${d.utilidadNetaCultivo >= 0 ? "text-positive-600" : "text-negative-400"}`}>{formatCOP(d.utilidadNetaCultivo)}</td>
+                      <td className="py-2 text-right font-semibold text-positive-600">{formatCOP(d.montoDistribuible)}</td>
                     </tr>
                   ))}
                 </tbody>

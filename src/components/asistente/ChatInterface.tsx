@@ -316,7 +316,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
               {/* Logo */}
               <div style={{
                 width: 72, height: 72, borderRadius: 20,
-                background: "linear-gradient(135deg, #EAF3DE 0%, #C0DD97 100%)",
+                background: "linear-gradient(135deg, var(--color-brand-bg) 0%, #A0DBC3 100%)",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 marginBottom: 20, fontSize: 32
               }}>
@@ -363,7 +363,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
               {msg.role === "assistant" && (
                 <div style={{
                   width: 32, height: 32, borderRadius: "50%",
-                  background: "#EAF3DE", border: "1px solid #C0DD97",
+                  background: "var(--color-brand-bg)", border: "1px solid #A0DBC3",
                   display: "flex", alignItems: "center", justifyContent: "center",
                   fontSize: 16, flexShrink: 0, marginRight: 8, marginTop: 4
                 }}>
@@ -374,7 +374,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
               <div
                 className={`max-w-[80%] rounded-[var(--radius-xl)] px-4 py-3 text-[13px] leading-relaxed ${
                   msg.role === "user"
-                    ? "bg-agro-400 text-white rounded-tr-none"
+                    ? "bg-agro-600 text-white rounded-tr-none"
                     : "bg-white border border-[var(--border-subtle)] text-[var(--text-primary)] rounded-tl-none shadow-card"
                 }`}
               >
@@ -424,7 +424,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
             <div className="flex justify-start items-end gap-2">
               <div style={{
                 width: 32, height: 32, borderRadius: "50%",
-                background: "#EAF3DE", border: "1px solid #C0DD97",
+                background: "var(--color-brand-bg)", border: "1px solid #A0DBC3",
                 display: "flex", alignItems: "center", justifyContent: "center",
                 fontSize: 16, flexShrink: 0
               }}>
@@ -444,7 +444,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
                   <span key={i} style={{
                     width: 6, height: 6,
                     borderRadius: "50%",
-                    background: "#639922",
+                    background: "var(--color-brand)",
                     display: "inline-block",
                     animation: `bounce 1.2s ease-in-out ${i * 0.2}s infinite`
                   }} />
@@ -500,7 +500,7 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
                   <img src={imagenAdjunta!} alt="Foto a analizar" className="w-16 h-16 rounded-[var(--radius-md)] object-cover" />
                   <button
                     onClick={() => setImagenAdjunta(null)}
-                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center"
+                    className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-negative-400 text-white rounded-full flex items-center justify-center"
                     aria-label="Quitar foto"
                   >
                     <X size={11} />

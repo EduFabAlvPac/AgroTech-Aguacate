@@ -32,24 +32,24 @@ interface CultivosListProps {
 }
 
 const ETAPA_COLORS: Record<EtapaCultivo, { bg: string; color: string }> = {
-  PREPARACION: { bg: "#F1EFE8", color: "#5F5E5A" },
-  SIEMBRA: { bg: "#FAEEDA", color: "#BA7517" },
-  ESTABLECIMIENTO: { bg: "#E6F1FB", color: "#185FA5" },
-  CRECIMIENTO: { bg: "#EAF3DE", color: "#3B6D11" },
-  PRODUCCION: { bg: "#EEEDFE", color: "#534AB7" },
-  COSECHA: { bg: "#FEF9E7", color: "#B7950B" },
+  PREPARACION: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
+  SIEMBRA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
+  ESTABLECIMIENTO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
+  CRECIMIENTO: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
+  PRODUCCION: { bg: "var(--color-surface-gray)", color: "var(--color-text)" } /* TODO: sin token morado en la paleta nueva */,
+  COSECHA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
 };
 
 const TIPO_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
-  RIEGO: { bg: "#E6F1FB", color: "#185FA5" },
-  FERTILIZACION: { bg: "#EEEDFE", color: "#534AB7" },
-  TRATAMIENTO_PLAGAS: { bg: "#FCEBEB", color: "#A32D2D" },
-  SIEMBRA: { bg: "#EAF3DE", color: "#3B6D11" },
-  PODA: { bg: "#FAEEDA", color: "#BA7517" },
-  COSECHA: { bg: "#FEF9E7", color: "#B7950B" },
-  OBSERVACION: { bg: "#F1EFE8", color: "#5F5E5A" },
-  INSPECCION: { bg: "#EBF5FB", color: "#1A5276" },
-  ALERTA: { bg: "#FEF0E7", color: "#CA6F1E" },
+  RIEGO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
+  FERTILIZACION: { bg: "var(--color-surface-gray)", color: "var(--color-text)" } /* TODO: sin token morado en la paleta nueva */,
+  TRATAMIENTO_PLAGAS: { bg: "var(--color-negative-bg)", color: "var(--color-negative)" },
+  SIEMBRA: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
+  PODA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
+  COSECHA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
+  OBSERVACION: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
+  INSPECCION: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
+  ALERTA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
 };
 
 function daysSince(date: Date | string | null | undefined): number | null {
@@ -455,10 +455,10 @@ export function CultivosList({ finca }: CultivosListProps) {
                 </button>
                 <button
                   onClick={() => handleOpenDeleteLote(lote)}
-                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors"
+                  className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors"
                   aria-label={`Eliminar lote ${lote.nombre}`}
                 >
-                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                 </button>
               </div>
             </div>
@@ -523,10 +523,10 @@ export function CultivosList({ finca }: CultivosListProps) {
                           </button>
                           <button
                             onClick={() => handleOpenDeleteCultivo(cultivo)}
-                            className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors"
+                            className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors"
                             aria-label="Eliminar cultivo"
                           >
-                            <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                            <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                           </button>
                           <Button
                             size="sm"
@@ -630,7 +630,7 @@ export function CultivosList({ finca }: CultivosListProps) {
                               <span>{progreso}% — Etapa {etapaIndex + 1}/6</span>
                             </div>
                             <div style={{ height: 4, background: 'var(--border-subtle)', borderRadius: 2 }}>
-                              <div style={{ width: `${progreso}%`, height: '100%', background: '#639922', borderRadius: 2, transition: 'width 0.5s ease' }} />
+                              <div style={{ width: `${progreso}%`, height: '100%', background: 'var(--color-brand)', borderRadius: 2, transition: 'width 0.5s ease' }} />
                             </div>
                           </div>
                         );
@@ -661,8 +661,8 @@ export function CultivosList({ finca }: CultivosListProps) {
                                   <span
                                     className="badge text-[10px] font-medium"
                                     style={{
-                                      background: TIPO_BADGE_COLORS[r.tipo]?.bg ?? "#F1EFE8",
-                                      color: TIPO_BADGE_COLORS[r.tipo]?.color ?? "#5F5E5A",
+                                      background: TIPO_BADGE_COLORS[r.tipo]?.bg ?? "var(--color-surface-gray)",
+                                      color: TIPO_BADGE_COLORS[r.tipo]?.color ?? "var(--color-text-soft)",
                                     }}
                                   >
                                     {r.tipo.replace(/_/g, " ")}
@@ -676,10 +676,10 @@ export function CultivosList({ finca }: CultivosListProps) {
                                   </button>
                                   <button
                                     onClick={() => handleOpenDeleteRegistro(r.id, cultivo.id)}
-                                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100"
+                                    className="w-6 h-6 flex items-center justify-center rounded hover:bg-negative-50 transition-colors opacity-0 group-hover:opacity-100"
                                     aria-label="Eliminar registro"
                                   >
-                                    <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                                    <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                                   </button>
                                 </div>
                               </div>

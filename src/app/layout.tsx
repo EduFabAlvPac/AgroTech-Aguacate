@@ -46,7 +46,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#639922",
+  themeColor: "#3E8F6C",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -69,8 +69,8 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128.png" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icons/icon-192.png" />
         <link rel="apple-touch-icon" sizes="512x512" href="/icons/icon-512.png" />
-        {/* theme-color for browser chrome — matches AgroTech green */}
-        <meta name="theme-color" content="#639922" />
+        {/* theme-color for browser chrome — paleta CampoApp */}
+        <meta name="theme-color" content="#3E8F6C" />
       </head>
       <body suppressHydrationWarning>
         {children}
@@ -78,13 +78,13 @@ export default function RootLayout({
           position="top-right"
           toastOptions={{
             style: {
-              background: "#1A2B14",
-              color: "#EAF3DE",
+              background: "#111111",
+              color: "#E9F7F0",
               borderRadius: "10px",
               fontSize: "13px",
             },
             success: {
-              iconTheme: { primary: "#639922", secondary: "#EAF3DE" },
+              iconTheme: { primary: "#3E8F6C", secondary: "#E9F7F0" },
             },
           }}
         />

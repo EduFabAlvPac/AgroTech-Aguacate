@@ -183,7 +183,7 @@ export function WeatherWidget({ municipio }: WeatherWidgetProps) {
                     {d.tempMax}° / {d.tempMin}°
                   </div>
                   {d.rainMm > 0 && (
-                    <div className="text-[10px] text-blue-500">💧 {d.rainMm}mm</div>
+                    <div className="text-[10px] text-info-600">💧 {d.rainMm}mm</div>
                   )}
                 </div>
               ))}

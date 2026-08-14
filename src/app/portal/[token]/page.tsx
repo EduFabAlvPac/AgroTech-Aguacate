@@ -22,10 +22,10 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       <div className="portal-shell">
         <div className="portal-card" style={{ textAlign: "center", padding: "40px 24px" }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>🔒</div>
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#1A2B14", marginBottom: 6 }}>
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)", marginBottom: 6 }}>
             Enlace no disponible
           </h1>
-          <p style={{ fontSize: 13, color: "#5F5E5A", lineHeight: 1.6 }}>
+          <p style={{ fontSize: 13, color: "var(--color-text-soft)", lineHeight: 1.6 }}>
             Este enlace venció, fue desactivado por el productor, o la dirección no es correcta.
             Solicita un nuevo enlace directamente al productor.
           </p>
@@ -47,18 +47,18 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
           <Leaf size={16} color="white" />
         </div>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#639922" }}>AgroTech</div>
-          <div style={{ fontSize: 10, color: "#8A8880" }}>Estado del cultivo · enlace compartido</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-brand)" }}>AgroTech</div>
+          <div style={{ fontSize: 10, color: "var(--color-text-soft)" }}>Estado del cultivo · enlace compartido</div>
         </div>
       </div>
 
       {/* Finca card */}
       <div className="portal-card">
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
-          <MapPin size={14} color="#639922" />
-          <h1 style={{ fontSize: 16, fontWeight: 700, color: "#1A2B14" }}>{finca.nombre}</h1>
+          <MapPin size={14} color="var(--color-brand)" />
+          <h1 style={{ fontSize: 16, fontWeight: 700, color: "var(--color-text)" }}>{finca.nombre}</h1>
         </div>
-        <p style={{ fontSize: 12, color: "#5F5E5A" }}>
+        <p style={{ fontSize: 12, color: "var(--color-text-soft)" }}>
           {finca.municipio}, {finca.departamento}
           {finca.altitud ? ` · ${finca.altitud.toLocaleString()} msnm` : ""}
         </p>
@@ -68,14 +68,14 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       <div className="portal-card">
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <div style={{ width: 36, height: 36, borderRadius: 10, background: "#EAF3DE", display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Sprout size={18} color="#639922" />
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--color-brand-bg)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Sprout size={18} color="var(--color-brand)" />
             </div>
             <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: "#1A2B14" }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: "var(--color-text)" }}>
                 {cultivo.especie} {cultivo.variedad}
               </div>
-              <div style={{ fontSize: 11, color: "#8A8880" }}>Lote {cultivo.lote}</div>
+              <div style={{ fontSize: 11, color: "var(--color-text-soft)" }}>Lote {cultivo.lote}</div>
             </div>
           </div>
           <span className="portal-badge">{ETAPA_LABELS[cultivo.etapa as keyof typeof ETAPA_LABELS] ?? cultivo.etapa}</span>
@@ -101,16 +101,16 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
 
       {/* Proyección de cosecha */}
       {proyeccion && (
-        <div className="portal-card" style={{ background: "#EAF3DE", border: "1px solid #C0DD97" }}>
+        <div className="portal-card" style={{ background: "var(--color-brand-bg)", border: "1px solid #A0DBC3" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <Calendar size={14} color="#3B6D11" />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#3B6D11" }}>Cosecha estimada</span>
+            <Calendar size={14} color="var(--color-brand-dark)" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-brand-dark)" }}>Cosecha estimada</span>
           </div>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "#1A2B14", textTransform: "capitalize" }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--color-text)", textTransform: "capitalize" }}>
             {fechaCosecha}
           </div>
           {proyeccion.volumenEstimadoKg && (
-            <div style={{ fontSize: 12, color: "#3B6D11", marginTop: 2 }}>
+            <div style={{ fontSize: 12, color: "var(--color-brand-dark)", marginTop: 2 }}>
               ~{proyeccion.volumenEstimadoKg.toLocaleString("es-CO")} kg estimados
             </div>
           )}
@@ -120,10 +120,10 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       {/* Precio acordado */}
       {precioAcordadoKg && (
         <div className="portal-card" style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Scale size={16} color="#639922" />
+          <Scale size={16} color="var(--color-brand)" />
           <div>
-            <div style={{ fontSize: 11, color: "#8A8880" }}>Precio acordado</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: "#1A2B14" }}>{formatCOP(precioAcordadoKg)}/kg</div>
+            <div style={{ fontSize: 11, color: "var(--color-text-soft)" }}>Precio acordado</div>
+            <div style={{ fontSize: 14, fontWeight: 700, color: "var(--color-text)" }}>{formatCOP(precioAcordadoKg)}/kg</div>
           </div>
         </div>
       )}
@@ -131,7 +131,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       {/* Fotos recientes */}
       {fotos.length > 0 && (
         <div className="portal-card">
-          <div style={{ fontSize: 12, fontWeight: 600, color: "#1A2B14", marginBottom: 8 }}>Fotos recientes</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text)", marginBottom: 8 }}>Fotos recientes</div>
           <div className="portal-photos-grid">
             {fotos.map((src, i) => (
               // eslint-disable-next-line @next/next/no-img-element
@@ -145,10 +145,10 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       {nota && (
         <div className="portal-card">
           <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
-            <MessageSquare size={14} color="#639922" />
-            <span style={{ fontSize: 12, fontWeight: 600, color: "#1A2B14" }}>Mensaje del productor</span>
+            <MessageSquare size={14} color="var(--color-brand)" />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--color-text)" }}>Mensaje del productor</span>
           </div>
-          <p style={{ fontSize: 13, color: "#3A3A36", lineHeight: 1.6 }}>{nota}</p>
+          <p style={{ fontSize: 13, color: "var(--color-text)", lineHeight: 1.6 }}>{nota}</p>
         </div>
       )}
 

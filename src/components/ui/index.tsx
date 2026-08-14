@@ -18,10 +18,10 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     const base = "inline-flex items-center justify-center gap-2 font-medium rounded-[var(--radius-md)] transition-all duration-150 disabled:opacity-60 disabled:cursor-not-allowed";
 
     const variants = {
-      primary: "bg-agro-400 hover:bg-agro-600 text-white",
+      primary: "bg-agro-600 hover:bg-agro-800 text-white",
       secondary: "bg-[var(--surface-page)] hover:bg-agro-50 text-[var(--text-primary)] border border-[var(--border-default)]",
       ghost: "hover:bg-[var(--surface-page)] text-[var(--text-secondary)]",
-      danger: "bg-red-500 hover:bg-red-600 text-white",
+      danger: "bg-negative-400 hover:bg-negative-600 text-white",
     };
 
     const sizes = {
@@ -71,12 +71,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(
             "h-9 px-3 text-[13px] bg-white border rounded-[var(--radius-md)] transition-all",
             "border-[var(--border-default)] focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400",
-            error ? "border-red-400 focus:ring-red-200" : "",
+            error ? "border-negative-400 focus:ring-negative-100" : "",
             className
           )}
           {...props}
         />
-        {error && <p className="text-[11px] text-red-500">{error}</p>}
+        {error && <p className="text-[11px] text-negative-400">{error}</p>}
       </div>
     );
   }
@@ -109,7 +109,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
           className={cn(
             "h-9 px-3 text-[13px] bg-white border rounded-[var(--radius-md)] transition-all appearance-none cursor-pointer",
             "border-[var(--border-default)] focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400",
-            error ? "border-red-400" : "",
+            error ? "border-negative-400" : "",
             className
           )}
           {...props}
@@ -125,7 +125,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(
             </option>
           ))}
         </select>
-        {error && <p className="text-[11px] text-red-500">{error}</p>}
+        {error && <p className="text-[11px] text-negative-400">{error}</p>}
       </div>
     );
   }
@@ -156,13 +156,13 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
           className={cn(
             "px-3 py-2 text-[13px] bg-white border rounded-[var(--radius-md)] transition-all resize-none",
             "border-[var(--border-default)] focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400",
-            error ? "border-red-400" : "",
+            error ? "border-negative-400" : "",
             className
           )}
           rows={3}
           {...props}
         />
-        {error && <p className="text-[11px] text-red-500">{error}</p>}
+        {error && <p className="text-[11px] text-negative-400">{error}</p>}
       </div>
     );
   }

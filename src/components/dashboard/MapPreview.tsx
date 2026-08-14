@@ -13,11 +13,11 @@ const MapPreviewLeaflet = dynamic(
     loading: () => (
       <div style={{
         width: "100%", height: "220px",
-        background: "#EAF3DE",
+        background: "var(--color-brand-bg)",
         borderRadius: 10,
         display: "flex", alignItems: "center", justifyContent: "center"
       }}>
-        <span style={{ fontSize: 13, color: "#5F7052" }}>Cargando mapa...</span>
+        <span style={{ fontSize: 13, color: "var(--color-text-soft)" }}>Cargando mapa...</span>
       </div>
     ),
   }

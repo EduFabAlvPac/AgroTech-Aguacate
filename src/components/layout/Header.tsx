@@ -77,7 +77,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         >
           <Bell size={17} className="text-[var(--text-secondary)]" />
           {noLeidas > 0 && (
-            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500"></span>
+            <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-negative-400"></span>
           )}
         </Link>
 

@@ -33,15 +33,15 @@ interface LeafletMapProps {
  */
 function getFlowCPopupHtml(areaHa: number): string {
   return `<div style="font-family: system-ui, -apple-system, sans-serif; min-width: 220px; padding: 4px;">
-  <h3 style="font-size: 14px; font-weight: 600; color: #1A2B14; margin: 0 0 12px 0;">Confirmar área</h3>
+  <h3 style="font-size: 14px; font-weight: 600; color: var(--color-text); margin: 0 0 12px 0;">Confirmar área</h3>
   <div style="margin-bottom: 12px;">
-    <label style="font-size: 11px; color: #5F7052; display: block; margin-bottom: 4px;">Área calculada (ha)</label>
+    <label style="font-size: 11px; color: var(--color-text-soft); display: block; margin-bottom: 4px;">Área calculada (ha)</label>
     <input id="popup-area" type="number" step="0.01" min="0.01" max="10000" value="${areaHa}" style="width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px; outline: none;" />
   </div>
-  <div id="popup-api-error" style="color: #C0392B; font-size: 11px; display: none; margin-bottom: 8px; background: #fef2f2; padding: 6px 8px; border-radius: 4px;"></div>
+  <div id="popup-api-error" style="color: var(--color-negative); font-size: 11px; display: none; margin-bottom: 8px; background: var(--color-negative-bg); padding: 6px 8px; border-radius: 4px;"></div>
   <div style="display: flex; gap: 8px; justify-content: flex-end;">
-    <button id="popup-cancel-btn" style="padding: 6px 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 12px; font-weight: 500; background: white; color: #5F7052; cursor: pointer;">Cancelar</button>
-    <button id="popup-save-btn" style="padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; background: #639922; color: white; cursor: pointer;">Guardar área</button>
+    <button id="popup-cancel-btn" style="padding: 6px 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 12px; font-weight: 500; background: white; color: var(--color-text-soft); cursor: pointer;">Cancelar</button>
+    <button id="popup-save-btn" style="padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--color-brand); color: white; cursor: pointer;">Guardar área</button>
   </div>
 </div>`;
 }
@@ -51,30 +51,30 @@ function getFlowCPopupHtml(areaHa: number): string {
  */
 function getFlowBPopupHtml(areaHa: number): string {
   return `<div style="font-family: system-ui, -apple-system, sans-serif; min-width: 250px; padding: 4px;">
-  <h3 style="font-size: 14px; font-weight: 600; color: #1A2B14; margin: 0 0 12px 0;">Nuevo lote</h3>
+  <h3 style="font-size: 14px; font-weight: 600; color: var(--color-text); margin: 0 0 12px 0;">Nuevo lote</h3>
   <div style="margin-bottom: 10px;">
-    <label style="font-size: 11px; color: #5F7052; display: block; margin-bottom: 4px;">Nombre del lote *</label>
+    <label style="font-size: 11px; color: var(--color-text-soft); display: block; margin-bottom: 4px;">Nombre del lote *</label>
     <input id="popup-nombre" type="text" maxlength="100" placeholder="Ej: Lote Norte" style="width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px; outline: none;" />
-    <span id="popup-nombre-error" style="color: #C0392B; font-size: 11px; display: none; margin-top: 2px;">El nombre es requerido</span>
+    <span id="popup-nombre-error" style="color: var(--color-negative); font-size: 11px; display: none; margin-top: 2px;">El nombre es requerido</span>
   </div>
   <div style="margin-bottom: 10px;">
-    <label style="font-size: 11px; color: #5F7052; display: block; margin-bottom: 4px;">Área (ha)</label>
+    <label style="font-size: 11px; color: var(--color-text-soft); display: block; margin-bottom: 4px;">Área (ha)</label>
     <input id="popup-area" type="number" step="0.01" min="0.01" max="10000" value="${areaHa}" style="width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px; outline: none;" />
   </div>
   <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px;">
     <div>
-      <label style="font-size: 11px; color: #5F7052; display: block; margin-bottom: 4px;">Altitud (msnm)</label>
+      <label style="font-size: 11px; color: var(--color-text-soft); display: block; margin-bottom: 4px;">Altitud (msnm)</label>
       <input id="popup-altitud" type="number" min="0" max="5000" placeholder="Opcional" style="width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px; outline: none;" />
     </div>
     <div>
-      <label style="font-size: 11px; color: #5F7052; display: block; margin-bottom: 4px;">Pendiente (°)</label>
+      <label style="font-size: 11px; color: var(--color-text-soft); display: block; margin-bottom: 4px;">Pendiente (°)</label>
       <input id="popup-pendiente" type="number" min="0" max="90" step="0.1" placeholder="Opcional" style="width: 100%; padding: 6px 10px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 13px; outline: none;" />
     </div>
   </div>
-  <div id="popup-api-error" style="color: #C0392B; font-size: 11px; display: none; margin-bottom: 8px; background: #fef2f2; padding: 6px 8px; border-radius: 4px;"></div>
+  <div id="popup-api-error" style="color: var(--color-negative); font-size: 11px; display: none; margin-bottom: 8px; background: var(--color-negative-bg); padding: 6px 8px; border-radius: 4px;"></div>
   <div style="display: flex; gap: 8px; justify-content: flex-end;">
-    <button id="popup-cancel-btn" style="padding: 6px 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 12px; font-weight: 500; background: white; color: #5F7052; cursor: pointer;">Cancelar</button>
-    <button id="popup-save-btn" style="padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; background: #639922; color: white; cursor: pointer;">Guardar lote</button>
+    <button id="popup-cancel-btn" style="padding: 6px 14px; border: 1px solid rgba(0,0,0,0.1); border-radius: 6px; font-size: 12px; font-weight: 500; background: white; color: var(--color-text-soft); cursor: pointer;">Cancelar</button>
+    <button id="popup-save-btn" style="padding: 6px 14px; border: none; border-radius: 6px; font-size: 12px; font-weight: 500; background: var(--color-brand); color: white; cursor: pointer;">Guardar lote</button>
   </div>
 </div>`;
 }
@@ -183,7 +183,7 @@ export default function LeafletMap({
           polygon: {
             allowIntersection: false,
             shapeOptions: {
-              color: "#639922",
+              color: "var(--color-brand)",
               weight: 2,
               fillOpacity: 0.25,
             },
@@ -228,31 +228,31 @@ export default function LeafletMap({
         const container = document.createElement('div');
         container.style.cssText = 'font-family:system-ui,sans-serif;min-width:220px;padding:4px;';
         container.innerHTML = `
-          <div style="font-weight:600;font-size:14px;color:#1A2B14;margin-bottom:12px">Nuevo lote</div>
+          <div style="font-weight:600;font-size:14px;color:var(--color-text);margin-bottom:12px">Nuevo lote</div>
           <div style="margin-bottom:8px">
-            <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Nombre del lote *</label>
+            <label style="font-size:11px;color:var(--color-text-soft);display:block;margin-bottom:3px">Nombre del lote *</label>
             <input id="popup-lote-nombre" type="text" placeholder="Ej: Lote Norte, Lote 3..."
-              style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+              style="width:100%;padding:6px 8px;border:1px solid var(--color-border);border-radius:6px;font-size:13px;box-sizing:border-box"/>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
             <div>
-              <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Área (ha)</label>
+              <label style="font-size:11px;color:var(--color-text-soft);display:block;margin-bottom:3px">Área (ha)</label>
               <input id="popup-lote-area" type="number" value="${areaHa}"
-                style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+                style="width:100%;padding:6px 8px;border:1px solid var(--color-border);border-radius:6px;font-size:13px;box-sizing:border-box"/>
             </div>
             <div>
-              <label style="font-size:11px;color:#5F7052;display:block;margin-bottom:3px">Altitud (msnm)</label>
+              <label style="font-size:11px;color:var(--color-text-soft);display:block;margin-bottom:3px">Altitud (msnm)</label>
               <input id="popup-lote-altitud" type="number" placeholder="Opcional"
-                style="width:100%;padding:6px 8px;border:1px solid #D1D5DB;border-radius:6px;font-size:13px;box-sizing:border-box"/>
+                style="width:100%;padding:6px 8px;border:1px solid var(--color-border);border-radius:6px;font-size:13px;box-sizing:border-box"/>
             </div>
           </div>
           <div style="display:flex;gap:6px;margin-top:12px">
             <button id="popup-lote-cancelar"
-              style="flex:1;padding:8px;border:1px solid #D1D5DB;background:white;border-radius:6px;font-size:13px;cursor:pointer;color:#5F7052">Cancelar</button>
+              style="flex:1;padding:8px;border:1px solid var(--color-border);background:white;border-radius:6px;font-size:13px;cursor:pointer;color:var(--color-text-soft)">Cancelar</button>
             <button id="popup-lote-guardar"
-              style="flex:1;padding:8px;border:none;background:#639922;color:white;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Guardar lote</button>
+              style="flex:1;padding:8px;border:none;background:var(--color-brand);color:white;border-radius:6px;font-size:13px;cursor:pointer;font-weight:500">Guardar lote</button>
           </div>
-          <div id="popup-lote-error" style="color:#A32D2D;font-size:11px;margin-top:6px;display:none"></div>
+          <div id="popup-lote-error" style="color:var(--color-negative);font-size:11px;margin-top:6px;display:none"></div>
         `;
 
         // Crear y abrir el popup
@@ -365,13 +365,13 @@ export default function LeafletMap({
                 <div style="font-weight: 600; font-size: 14px; margin-bottom: 6px;">
                   ${lote.nombre}
                 </div>
-                <div style="font-size: 12px; color: #5F7052; line-height: 1.8;">
+                <div style="font-size: 12px; color: var(--color-text-soft); line-height: 1.8;">
                   <div>📐 ${lote.areaHa} ha</div>
                   ${lote.altitud ? `<div>🏔️ ${lote.altitud.toLocaleString()} msnm</div>` : ""}
                   ${cultivo ? `<div>🌿 ${cultivo.especie} ${cultivo.variedad}</div>` : "<div>Sin cultivo activo</div>"}
                   ${cultivo?.etapa ? `<div>📅 Etapa: ${ETAPA_LABELS[cultivo.etapa as keyof typeof ETAPA_LABELS]}</div>` : ""}
                 </div>
-                <a href="/dashboard/cultivos" style="display:inline-block;margin-top:8px;font-size:11px;color:#639922;font-weight:500;text-decoration:none;">Ver detalle →</a>
+                <a href="/dashboard/cultivos" style="display:inline-block;margin-top:8px;font-size:11px;color:var(--color-brand);font-weight:500;text-decoration:none;">Ver detalle →</a>
               </div>
             `;
 
@@ -427,7 +427,7 @@ export default function LeafletMap({
       if (finca?.lat && finca?.lng) {
         const fincaIcon = L.divIcon({
           className: "",
-          html: `<div style="background: #1A2B14; color: #EAF3DE; padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">📍 ${finca.nombre}</div>`,
+          html: `<div style="background: var(--color-text); color: var(--color-brand-bg); padding: 5px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,0.3);">📍 ${finca.nombre}</div>`,
           iconAnchor: [70, 24],
         });
         L.marker([finca.lat, finca.lng], { icon: fincaIcon }).addTo(map);
@@ -691,7 +691,7 @@ export default function LeafletMap({
       // Validate nombre is not empty
       if (!nombre) {
         if (nombreInput) {
-          nombreInput.style.border = "1px solid #C0392B";
+          nombreInput.style.border = "1px solid var(--color-negative)";
         }
         if (nombreError) {
           nombreError.style.display = "block";

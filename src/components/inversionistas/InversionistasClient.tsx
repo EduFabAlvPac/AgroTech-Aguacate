@@ -46,9 +46,9 @@ interface CultivoOption {
 }
 
 const ESTADO_COLORS: Record<EstadoInversion, { bg: string; color: string }> = {
-  ACTIVA: { bg: "#EAF3DE", color: "#3B6D11" },
-  RETIRADA: { bg: "#F1EFE8", color: "#5F5E5A" },
-  FINALIZADA: { bg: "#E6F1FB", color: "#185FA5" },
+  ACTIVA: { bg: "var(--color-positive-bg)", color: "var(--color-positive)" },
+  RETIRADA: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
+  FINALIZADA: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
 };
 
 const ESTADO_LABELS: Record<EstadoInversion, string> = {
@@ -336,8 +336,8 @@ export function InversionistasClient({
                 // lugar hasta que exista al menos un retorno real.
                 dashboard.totalRetornado === 0
                   ? { label: "Rentabilidad global", value: "Sin retornos", sub: "Aún no hay distribuciones registradas", color: "text-[var(--text-muted)]", bg: "bg-[var(--surface-page)]", icon: Wallet }
-                  : { label: "Rentabilidad global", value: `${rentGlobal >= 0 ? "+" : ""}${rentGlobal.toFixed(1)}%`, sub: rentGlobal >= 0 ? "Sobre el capital aportado" : "Aún no se recupera el capital", color: rentGlobal >= 0 ? "text-agro-600" : "text-red-600", bg: rentGlobal >= 0 ? "bg-agro-50" : "bg-red-50", icon: rentGlobal >= 0 ? TrendingUp : TrendingDown },
-                { label: "Inversionistas activos", value: dashboard.activos.toString(), sub: `${dashboard.cultivosFinanciados} cultivo(s) financiado(s)`, color: "text-[#185FA5]", bg: "bg-[#E6F1FB]", icon: Users },
+                  : { label: "Rentabilidad global", value: `${rentGlobal >= 0 ? "+" : ""}${rentGlobal.toFixed(1)}%`, sub: rentGlobal >= 0 ? "Sobre el capital aportado" : "Aún no se recupera el capital", color: rentGlobal >= 0 ? "text-agro-600" : "text-negative-600", bg: rentGlobal >= 0 ? "bg-agro-50" : "bg-negative-50", icon: rentGlobal >= 0 ? TrendingUp : TrendingDown },
+                { label: "Inversionistas activos", value: dashboard.activos.toString(), sub: `${dashboard.cultivosFinanciados} cultivo(s) financiado(s)`, color: "text-[var(--color-info)]", bg: "bg-[var(--color-info-bg)]", icon: Users },
               ].map(({ label, value, sub, color, bg, icon: Icon }) => (
                 <div key={label} className="card p-4">
                   <div className={`w-8 h-8 rounded-[var(--radius-md)] ${bg} flex items-center justify-center mb-3`}>
@@ -358,23 +358,23 @@ export function InversionistasClient({
                   <p className="text-[12px] text-[var(--text-muted)] mt-0.5">Seguimiento visual del comportamiento de cada inversión</p>
                 </div>
                 <div className="flex items-center gap-4 text-[11px] text-[var(--text-secondary)]">
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-300 inline-block" />Aportado</span>
-                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-agro-200 inline-block" />Retornado</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-negative-100 inline-block" />Aportado</span>
+                  <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-positive-100 inline-block" />Retornado</span>
                 </div>
               </div>
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={dashboard.porInversionista} margin={{ top: 0, right: 0, left: 0, bottom: 0 }} barGap={4} barCategoryGap="30%">
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
-                  <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: "#8FA080" }} axisLine={false} tickLine={false} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="nombre" tick={{ fontSize: 11, fill: "var(--color-text-mute)" }} axisLine={false} tickLine={false} />
                   <YAxis
-                    tick={{ fontSize: 10, fill: "#8FA080" }}
+                    tick={{ fontSize: 10, fill: "var(--color-text-mute)" }}
                     axisLine={false}
                     tickLine={false}
                     tickFormatter={(v) => (v === 0 ? "" : `$${(v / 1000000).toFixed(1)}M`)}
                   />
                   <Tooltip content={<ChartTooltip />} />
-                  <Bar dataKey="aportado" name="Aportado" fill="#F09595" radius={[3, 3, 0, 0]} maxBarSize={56} />
-                  <Bar dataKey="retornado" name="Retornado" fill="#97C459" radius={[3, 3, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="aportado" name="Aportado" fill="var(--color-negative)" radius={[3, 3, 0, 0]} maxBarSize={56} />
+                  <Bar dataKey="retornado" name="Retornado" fill="var(--color-positive)" radius={[3, 3, 0, 0]} maxBarSize={56} />
                 </BarChart>
               </ResponsiveContainer>
               {dashboard.totalRetornado === 0 && (
@@ -418,10 +418,10 @@ export function InversionistasClient({
                     </button>
                     <button
                       onClick={() => { setDeletingInversionista(inv); setDeleteConfirm(""); }}
-                      className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors"
+                      className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors"
                       aria-label="Eliminar inversionista"
                     >
-                      <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                      <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                     </button>
                     <Button
                       size="sm"
@@ -451,7 +451,7 @@ export function InversionistasClient({
                     {totalRetornado === 0 ? (
                       <div className="text-[13px] font-medium text-[var(--text-muted)]">Sin retornos</div>
                     ) : (
-                      <div className={`text-[15px] font-semibold ${rent >= 0 ? "text-agro-600" : "text-red-600"}`}>
+                      <div className={`text-[15px] font-semibold ${rent >= 0 ? "text-agro-600" : "text-negative-600"}`}>
                         {rent >= 0 ? "+" : ""}{rent.toFixed(1)}%
                       </div>
                     )}
@@ -500,10 +500,10 @@ export function InversionistasClient({
                               </Button>
                               <button
                                 onClick={() => handleEliminarInversion(inv.id, inversion.id)}
-                                className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-50 transition-colors"
+                                className="w-6 h-6 flex items-center justify-center rounded hover:bg-negative-50 transition-colors"
                                 aria-label="Eliminar inversión"
                               >
-                                <Trash2 size={13} className="text-[var(--text-muted)] hover:text-red-500" />
+                                <Trash2 size={13} className="text-[var(--text-muted)] hover:text-negative-400" />
                               </button>
                             </div>
                           </div>
@@ -513,15 +513,15 @@ export function InversionistasClient({
                               {inversion.retornos.map((r) => (
                                 <div key={r.id} className="flex items-center justify-between gap-2 group">
                                   <span className="text-[11px] text-[var(--text-secondary)]">
-                                    <span className="stage-dot bg-agro-200 mr-1.5" />
+                                    <span className="stage-dot bg-positive-100 mr-1.5" />
                                     {formatCOPFull(r.monto)}{r.concepto ? ` — ${r.concepto}` : ""}
                                   </span>
                                   <button
                                     onClick={() => handleEliminarRetorno(inv.id, inversion.id, r.id)}
-                                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
+                                    className="w-5 h-5 flex items-center justify-center rounded hover:bg-negative-50 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0"
                                     aria-label="Eliminar retorno"
                                   >
-                                    <Trash2 size={11} className="text-[var(--text-muted)] hover:text-red-500" />
+                                    <Trash2 size={11} className="text-[var(--text-muted)] hover:text-negative-400" />
                                   </button>
                                 </div>
                               ))}

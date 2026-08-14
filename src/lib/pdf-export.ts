@@ -12,13 +12,20 @@ import { formatCOPFull } from "@/lib/utils";
 import type { CategoriaGasto } from "@prisma/client";
 
 // ── Colores de marca AgroTech ─────────────────────────────────────────────────
-const COLOR_PRIMARY: [number, number, number] = [99, 153, 34];   // agro-400 #639922
-const COLOR_DARK: [number, number, number] = [59, 109, 17];      // agro-600 #3B6D11
-const COLOR_LIGHT_BG: [number, number, number] = [234, 243, 222]; // agro-50  #EAF3DE
-const COLOR_TEXT: [number, number, number] = [26, 43, 20];       // text-primary #1A2B14
-const COLOR_MUTED: [number, number, number] = [143, 160, 128];   // text-muted #8FA080
+const COLOR_PRIMARY: [number, number, number] = [62, 143, 108];   // brand      #3E8F6C
+const COLOR_DARK: [number, number, number] = [47, 110, 82];       // brand-dark #2F6E52
+const COLOR_LIGHT_BG: [number, number, number] = [233, 247, 240]; // brand-bg   #E9F7F0
+const COLOR_TEXT: [number, number, number] = [17, 17, 17];        // text       #111111
+const COLOR_MUTED: [number, number, number] = [156, 163, 175];    // text-mute  #9CA3AF
 const COLOR_WHITE: [number, number, number] = [255, 255, 255];
-const COLOR_RED: [number, number, number] = [220, 38, 38];
+// COLOR_NEGATIVE (antes literal Tailwind red-600 sin nombre) y COLOR_POSITIVE
+// son específicos al SIGNO de un valor (ingreso/utilidad positiva vs.
+// negativa) — no confundir con COLOR_PRIMARY/COLOR_DARK, que son la marca y
+// se usan para el estilo general de tablas/encabezados sin importar ningún
+// valor puntual.
+const COLOR_NEGATIVE: [number, number, number] = [202, 58, 50];   // negative    #CA3A32
+const COLOR_NEGATIVE_BG: [number, number, number] = [252, 238, 236]; // negative-bg #FCEEEC
+const COLOR_POSITIVE: [number, number, number] = [76, 161, 84];   // positive    #4CA154
 
 // ── Tipos de entrada ──────────────────────────────────────────────────────────
 
@@ -145,13 +152,13 @@ export function exportFinanciasPDF(data: ExportFinanzasData): void {
   // Tres KPIs lado a lado
   const kpiW = (contentW - 8) / 3;
   const kpiData = [
-    { label: "Total Gastos", value: formatCOPFull(totalGastos), color: COLOR_RED, bg: [253, 242, 242] as [number, number, number] },
-    { label: "Total Ingresos", value: formatCOPFull(totalIngresos), color: COLOR_DARK, bg: COLOR_LIGHT_BG },
+    { label: "Total Gastos", value: formatCOPFull(totalGastos), color: COLOR_NEGATIVE, bg: COLOR_NEGATIVE_BG },
+    { label: "Total Ingresos", value: formatCOPFull(totalIngresos), color: COLOR_POSITIVE, bg: COLOR_LIGHT_BG },
     {
       label: "Saldo Neto",
       value: formatCOPFull(saldo),
-      color: saldo >= 0 ? COLOR_DARK : COLOR_RED,
-      bg: saldo >= 0 ? COLOR_LIGHT_BG : [253, 242, 242] as [number, number, number],
+      color: saldo >= 0 ? COLOR_POSITIVE : COLOR_NEGATIVE,
+      bg: saldo >= 0 ? COLOR_LIGHT_BG : COLOR_NEGATIVE_BG,
     },
   ];
 
@@ -320,8 +327,8 @@ export function exportFinanciasPDF(data: ExportFinanzasData): void {
     cursorY = 20;
   }
 
-  const saldoBg: [number, number, number] = saldo >= 0 ? COLOR_LIGHT_BG : [253, 242, 242];
-  const saldoTextColor: [number, number, number] = saldo >= 0 ? COLOR_DARK : COLOR_RED;
+  const saldoBg: [number, number, number] = saldo >= 0 ? COLOR_LIGHT_BG : COLOR_NEGATIVE_BG;
+  const saldoTextColor: [number, number, number] = saldo >= 0 ? COLOR_POSITIVE : COLOR_NEGATIVE;
   const saldoLabel = saldo >= 0 ? "Ganancia neta del período" : "Inversión neta del período";
 
   doc.setFillColor(...saldoBg);
@@ -472,7 +479,7 @@ export function exportPyGPDF(data: ExportPyGData): void {
         hookData.cell.styles.fillColor = COLOR_LIGHT_BG;
         if (hookData.column.index === 1) {
           const val = hookData.row.index === 2 ? utilidadBruta : utilidadNeta;
-          hookData.cell.styles.textColor = val >= 0 ? COLOR_DARK : COLOR_RED;
+          hookData.cell.styles.textColor = val >= 0 ? COLOR_POSITIVE : COLOR_NEGATIVE;
         }
       }
     },

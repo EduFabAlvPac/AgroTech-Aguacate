@@ -217,7 +217,7 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
                 <button
                   type="button"
                   onClick={() => removeEntry(idx)}
-                  className="p-1 hover:bg-red-50 rounded text-[var(--text-muted)] hover:text-red-500"
+                  className="p-1 hover:bg-negative-50 rounded text-[var(--text-muted)] hover:text-negative-400"
                 >
                   <Minus size={14} />
                 </button>

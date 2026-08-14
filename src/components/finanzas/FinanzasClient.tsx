@@ -365,7 +365,7 @@ export function FinanzasClient({
         <span className="text-[13px]">¿Eliminar este gasto?</span>
         <button
           onClick={() => { toast.dismiss(t.id); doDeleteGasto(id); }}
-          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+          className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
         >Eliminar</button>
         <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">
           Cancelar
@@ -436,7 +436,7 @@ export function FinanzasClient({
     toast((t) => (
       <div className="flex items-center gap-3">
         <span className="text-[13px]">¿Eliminar este ingreso?</span>
-        <button onClick={() => { toast.dismiss(t.id); doDeleteIngreso(id); }} className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium">Eliminar</button>
+        <button onClick={() => { toast.dismiss(t.id); doDeleteIngreso(id); }} className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium">Eliminar</button>
         <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">Cancelar</button>
       </div>
     ), { duration: 10000 });
@@ -523,9 +523,9 @@ export function FinanzasClient({
           {/* KPI Summary */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { label: "Total gastos", value: formatCOP(totalGastos), sub: `${gastos.length} registros`, color: "text-red-600", bg: "bg-red-50", icon: TrendingDown },
+              { label: "Total gastos", value: formatCOP(totalGastos), sub: `${gastos.length} registros`, color: "text-negative-600", bg: "bg-negative-50", icon: TrendingDown },
               { label: "Total ingresos", value: formatCOP(totalIngresos), sub: `${ingresos.length} registros`, color: "text-agro-600", bg: "bg-agro-50", icon: TrendingUp },
-              { label: "Saldo", value: formatCOP(saldo), sub: saldo >= 0 ? "Ganancia neta" : "Inversión neta", color: saldo >= 0 ? "text-agro-600" : "text-red-600", bg: saldo >= 0 ? "bg-agro-50" : "bg-red-50", icon: Wallet },
+              { label: "Saldo", value: formatCOP(saldo), sub: saldo >= 0 ? "Ganancia neta" : "Inversión neta", color: saldo >= 0 ? "text-agro-600" : "text-negative-600", bg: saldo >= 0 ? "bg-agro-50" : "bg-negative-50", icon: Wallet },
               { label: "Costo por ha", value: formatCOP(indicadores.costoTotalPorHa), sub: `${indicadores.hectareasActivas} ha activas`, color: "text-harvest-400", bg: "bg-harvest-50", icon: DollarSign },
             ].map(({ label, value, sub, color, bg, icon: Icon }) => (
               <div key={label} className="card p-4">
@@ -557,7 +557,7 @@ export function FinanzasClient({
             </div>
             <div className="card p-4 col-span-2 lg:col-span-1">
               <div className="text-[11px] text-[var(--text-muted)] uppercase tracking-wide mb-1">Margen bruto proyectado</div>
-              <div className={`text-lg font-semibold ${indicadores.margenBruto >= 0 ? "text-agro-600" : "text-red-600"}`}>
+              <div className={`text-lg font-semibold ${indicadores.margenBruto >= 0 ? "text-agro-600" : "text-negative-600"}`}>
                 {indicadores.margenPorcentaje.toFixed(1)}%
               </div>
               <div className="text-[11px] text-[var(--text-secondary)]">{formatCOP(indicadores.margenBruto)}</div>
@@ -565,32 +565,32 @@ export function FinanzasClient({
           </div>
 
           {/* Proyección ROI con lenguaje campesino */}
-          <div className="card p-4" style={{ background: '#EAF3DE', border: '1px solid #C0DD97' }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: '#3B6D11', marginBottom: 8 }}>
+          <div className="card p-4" style={{ background: 'var(--color-brand-bg)', border: '1px solid #A0DBC3' }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-brand-dark)', marginBottom: 8 }}>
               📈 Proyección primera cosecha
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <div className="text-[11px] text-[#5F7052]">Inversión acumulada</div>
-                <div className="text-[16px] font-semibold text-red-600">{formatCOP(totalGastos)}</div>
+                <div className="text-[11px] text-[var(--color-text-soft)]">Inversión acumulada</div>
+                <div className="text-[16px] font-semibold text-negative-600">{formatCOP(totalGastos)}</div>
               </div>
               <div>
-                <div className="text-[11px] text-[#5F7052]">Ingreso proyectado</div>
+                <div className="text-[11px] text-[var(--color-text-soft)]">Ingreso proyectado</div>
                 <div className="text-[16px] font-semibold text-agro-600">{formatCOP(indicadores.ingresoProyectado)}</div>
               </div>
               <div>
-                <div className="text-[11px] text-[#5F7052]">ROI estimado</div>
-                <div className="text-[16px] font-semibold text-[#185FA5]">{indicadores.roi.toFixed(0)}%</div>
+                <div className="text-[11px] text-[var(--color-text-soft)]">ROI estimado</div>
+                <div className="text-[16px] font-semibold text-[var(--color-info)]">{indicadores.roi.toFixed(0)}%</div>
               </div>
             </div>
-            <div className="text-[12px] text-[#5F7052] mt-3 leading-relaxed">
+            <div className="text-[12px] text-[var(--color-text-soft)] mt-3 leading-relaxed">
               Con tus costos actuales de <strong>{formatCOP(totalGastos)}</strong>, necesitas vender el aguacate
               a mínimo <strong>{formatCOP(indicadores.puntoEquilibrioPrecio)}/kg</strong> para no perder.
               {indicadores.precioPromedioCompradores > 0 && (
                 <> Tus compradores pagan <strong>{formatCOP(indicadores.precioPromedioCompradores)}/kg</strong>
                 {indicadores.precioPromedioCompradores > indicadores.puntoEquilibrioPrecio
                   ? <> → margen de <strong>{formatCOP(indicadores.precioPromedioCompradores - indicadores.puntoEquilibrioPrecio)}/kg</strong> ✅</>
-                  : <> → <span className="text-red-600">por debajo del punto de equilibrio</span> ⚠️</>
+                  : <> → <span className="text-negative-600">por debajo del punto de equilibrio</span> ⚠️</>
                 }</>
               )}
             </div>
@@ -625,12 +625,12 @@ export function FinanzasClient({
                 <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-4">Evolución financiera 2026</h3>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={gastosPorMes} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
-                    <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCOP(v)} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                    <XAxis dataKey="mes" tick={{ fontSize: 10, fill: "var(--color-text-mute)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "var(--color-text-mute)" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCOP(v)} />
                     <Tooltip formatter={(v: number) => formatCOPFull(v)} />
-                    <Bar dataKey="gastos" name="Gastos" fill="#F09595" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="ingresos" name="Ingresos" fill="#97C459" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="gastos" name="Gastos" fill="var(--color-negative)" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="ingresos" name="Ingresos" fill="var(--color-positive)" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -652,9 +652,9 @@ export function FinanzasClient({
             <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-3">Distribución por tipo de costo</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               {([
-                { tipo: "FIJO" as const, desc: "No cambia con la producción: arrendamiento, administración", color: "#378ADD" },
-                { tipo: "VARIABLE" as const, desc: "Cambia con la producción: insumos, jornales, transporte", color: "#639922" },
-                { tipo: "INVERSION" as const, desc: "Activos a largo plazo: equipos, infraestructura", color: "#EF9F27" },
+                { tipo: "FIJO" as const, desc: "No cambia con la producción: arrendamiento, administración", color: "var(--color-info)" },  // FIJO,
+                { tipo: "VARIABLE" as const, desc: "Cambia con la producción: insumos, jornales, transporte", color: "var(--color-brand)" },  // VARIABLE,
+                { tipo: "INVERSION" as const, desc: "Activos a largo plazo: equipos, infraestructura", color: "var(--color-amber)" },  // INVERSION,
               ]).map(({ tipo, desc, color }) => {
                 const monto = costosPorTipo[tipo];
                 const pct = totalGastos > 0 ? (monto / totalGastos) * 100 : 0;
@@ -709,14 +709,14 @@ export function FinanzasClient({
               <div className="space-y-3">
                 {top5Gastos.map((g, i) => (
                   <div key={g.id} className="flex items-center gap-3">
-                    <span className="w-6 h-6 rounded-full bg-red-50 flex items-center justify-center text-[11px] font-bold text-red-600">{i + 1}</span>
+                    <span className="w-6 h-6 rounded-full bg-negative-50 flex items-center justify-center text-[11px] font-bold text-negative-600">{i + 1}</span>
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-medium text-[var(--text-primary)] truncate">{g.concepto}</div>
                       <div className="text-[11px] text-[var(--text-muted)]">
                         {CATEGORIA_LABELS[g.categoria]} · {formatDate(g.fecha, true)}
                       </div>
                     </div>
-                    <div className="text-[13px] font-semibold text-red-600 whitespace-nowrap">{formatCOP(g.monto)}</div>
+                    <div className="text-[13px] font-semibold text-negative-600 whitespace-nowrap">{formatCOP(g.monto)}</div>
                   </div>
                 ))}
               </div>
@@ -783,7 +783,7 @@ export function FinanzasClient({
                           <td className="px-3 py-2.5 text-[12px] font-medium text-[var(--text-primary)]">{CATEGORIA_LABELS[row.categoria as CategoriaGasto]}</td>
                           <td className="px-3 py-2.5 text-[12px] text-[var(--text-secondary)]">{formatCOP(row.planeado)}</td>
                           <td className="px-3 py-2.5 text-[12px] text-[var(--text-secondary)]">{formatCOP(row.real)}</td>
-                          <td className={`px-3 py-2.5 text-[12px] font-medium ${row.variacion > 0 ? "text-red-600" : "text-agro-600"}`}>
+                          <td className={`px-3 py-2.5 text-[12px] font-medium ${row.variacion > 0 ? "text-negative-600" : "text-agro-600"}`}>
                             {row.variacion > 0 ? "+" : ""}{formatCOP(row.variacion)}
                           </td>
                           <td className="px-3 py-2.5 text-[12px] text-[var(--text-secondary)]">{row.porcentaje.toFixed(0)}%</td>
@@ -807,13 +807,13 @@ export function FinanzasClient({
                   Presupuestado: r.planeado,
                   Ejecutado: r.real,
                 }))} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1EFE8" vertical={false} />
-                  <XAxis dataKey="categoria" tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 10, fill: "#8FA080" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCOP(v)} />
+                  <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+                  <XAxis dataKey="categoria" tick={{ fontSize: 10, fill: "var(--color-text-mute)" }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: "var(--color-text-mute)" }} axisLine={false} tickLine={false} tickFormatter={(v) => formatCOP(v)} />
                   <Tooltip formatter={(v: number) => formatCOPFull(v)} />
                   <Legend wrapperStyle={{ fontSize: 11 }} />
-                  <Bar dataKey="Presupuestado" fill="#97C459" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Ejecutado" fill="#F09595" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Presupuestado" fill="var(--color-positive)" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="Ejecutado" fill="var(--color-negative)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             </div>
@@ -866,7 +866,7 @@ export function FinanzasClient({
                         <td className="hidden sm:table-cell px-5 py-3 text-[12px] text-[var(--text-secondary)] whitespace-nowrap">{formatDate(i.fecha, true)}</td>
                         <td className="px-4 sm:px-5 py-3 text-[13px] font-semibold text-agro-600 whitespace-nowrap">{formatCOPFull(i.monto)}</td>
                         <td className="px-4 sm:px-5 py-3">
-                          <button onClick={() => handleIngresoDelete(i.id)} className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500 transition-colors" aria-label="Eliminar ingreso"><Trash2 size={14} /></button>
+                          <button onClick={() => handleIngresoDelete(i.id)} className="p-1.5 hover:bg-negative-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-negative-400 transition-colors" aria-label="Eliminar ingreso"><Trash2 size={14} /></button>
                         </td>
                       </tr>
                     ))}
@@ -921,11 +921,11 @@ export function FinanzasClient({
                         <td className="hidden sm:table-cell px-5 py-3 text-[11px] text-[var(--text-secondary)]">{TIPO_GASTO_LABELS[g.tipoGasto]}</td>
                         <td className="hidden sm:table-cell px-5 py-3 text-[12px] text-[var(--text-secondary)]">{g.lote?.nombre || g.cultivo?.lote?.nombre || "—"}</td>
                         <td className="hidden sm:table-cell px-5 py-3 text-[12px] text-[var(--text-secondary)] whitespace-nowrap">{formatDate(g.fecha, true)}</td>
-                        <td className="px-4 sm:px-5 py-3 text-[13px] font-semibold text-red-600 whitespace-nowrap">{formatCOPFull(g.monto)}</td>
+                        <td className="px-4 sm:px-5 py-3 text-[13px] font-semibold text-negative-600 whitespace-nowrap">{formatCOPFull(g.monto)}</td>
                         <td className="px-4 sm:px-5 py-3">
                           <div className="flex items-center gap-1">
                             <button onClick={() => { setEditingGasto(g); setGastoForm({ concepto: g.concepto, categoria: g.categoria, monto: g.monto.toString(), fecha: new Date(g.fecha).toISOString().split("T")[0], proveedor: g.proveedor ?? "", notas: g.notas ?? "", cultivoId: g.cultivoId ?? "", loteId: g.loteId ?? "", subcategoria: g.subcategoria ?? "", tipoGasto: g.tipoGasto, cantidad: g.cantidad?.toString() ?? "", unidad: g.unidad ?? "", precioUnitario: g.precioUnitario?.toString() ?? "" }); setShowGastoModal(true); }} className="p-1.5 hover:bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-agro-600 transition-colors" aria-label="Editar gasto"><Pencil size={14} /></button>
-                            <button onClick={() => handleGastoDelete(g.id)} className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500 transition-colors" aria-label="Eliminar gasto"><Trash2 size={14} /></button>
+                            <button onClick={() => handleGastoDelete(g.id)} className="p-1.5 hover:bg-negative-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-negative-400 transition-colors" aria-label="Eliminar gasto"><Trash2 size={14} /></button>
                           </div>
                         </td>
                       </tr>

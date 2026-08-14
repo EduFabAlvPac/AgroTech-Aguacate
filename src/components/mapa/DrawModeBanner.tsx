@@ -14,12 +14,12 @@ const variantStyles = {
     icon: "text-agro-400",
   },
   edit: {
-    container: "bg-blue-50 border-l-4 border-blue-400",
-    icon: "text-blue-500",
+    container: "bg-info-50 border-l-4 border-info-400",
+    icon: "text-info-600",
   },
   error: {
-    container: "bg-red-50 border-l-4 border-red-400",
-    icon: "text-red-500",
+    container: "bg-negative-50 border-l-4 border-negative-400",
+    icon: "text-negative-400",
   },
 } as const;
 

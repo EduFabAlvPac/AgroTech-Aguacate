@@ -34,9 +34,9 @@ interface EspecieConVariedades {
 // Mismo mapa de color que ETAPA_COLORS en CultivosList.tsx — pill rounded-full
 // con color de fondo/texto inline en vez de las clases badge-* genéricas.
 const ESTADO_COLORS: Record<EstadoFicha, { bg: string; color: string }> = {
-  BORRADOR: { bg: "#F1EFE8", color: "#5F5E5A" },
-  PUBLICADA: { bg: "#EAF3DE", color: "#3B6D11" },
-  ARCHIVADA: { bg: "#FAEEDA", color: "#BA7517" },
+  BORRADOR: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
+  PUBLICADA: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
+  ARCHIVADA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
 };
 
 const emptyEspecieForm = { nombre: "", slug: "", familia: "" };

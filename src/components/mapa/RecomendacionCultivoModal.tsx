@@ -37,9 +37,9 @@ interface RecomendacionData {
 const NIVEL_ICONO: Record<string, string> = { OPTIMO: "✅", FUERA_RANGO: "⚠️", SIN_DATO: "ℹ️" };
 
 function scoreColor(score: number) {
-  if (score >= 75) return { bar: "#639922", text: "#3B6D11" };
-  if (score >= 50) return { bar: "#EF9F27", text: "#B7791F" };
-  return { bar: "#DC2626", text: "#DC2626" };
+  if (score >= 75) return { bar: "var(--color-brand)", text: "var(--color-brand-dark)" };
+  if (score >= 50) return { bar: "var(--color-amber)", text: "#8A5E20" };
+  return { bar: "var(--color-negative)", text: "var(--color-negative)" };
 }
 
 export function RecomendacionCultivoModal({ isOpen, onClose, loteId, loteNombre, analisisInicial }: RecomendacionCultivoModalProps) {
@@ -71,9 +71,9 @@ export function RecomendacionCultivoModal({ isOpen, onClose, loteId, loteNombre,
             <Skeleton className="h-20 rounded-[var(--radius-md)]" />
           </div>
         ) : !data || data.recomendaciones === null ? (
-          <div className="flex items-start gap-3 p-4 bg-[#FEF3E2] rounded-[var(--radius-md)]">
-            <AlertCircle size={18} className="text-[#B7791F] flex-shrink-0 mt-0.5" />
-            <div className="text-[13px] text-[#B7791F]">
+          <div className="flex items-start gap-3 p-4 bg-[var(--color-amber-bg)] rounded-[var(--radius-md)]">
+            <AlertCircle size={18} className="text-[#8A5E20] flex-shrink-0 mt-0.5" />
+            <div className="text-[13px] text-[#8A5E20]">
               <p className="font-medium mb-1">Falta la altitud del lote</p>
               <p>
                 Registra la altitud de <strong>{loteNombre}</strong> (editar lote en el mapa) para poder comparar
