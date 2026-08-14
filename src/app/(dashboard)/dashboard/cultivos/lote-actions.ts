@@ -2,17 +2,22 @@
 
 /**
  * Server Actions — Lote (Fase 1, ADR-006). Reemplaza el fetch manual que
- * antes hacía LoteForm.tsx contra /api/lotes y /api/lotes/[id] — misma
- * validación (loteFormSchema/loteUpdateWithGeoSchema) y misma autorización
- * (requireAccess) que ya tenían esas rutas; las rutas API se mantienen (las
- * sigue usando el módulo Mapa), esto es una segunda entrada al mismo caso
- * de uso, no un reemplazo.
+ * antes hacía LoteForm.tsx (Cultivos) Y LeafletMap.tsx/MapaContainer.tsx
+ * (Mapa) contra /api/lotes y /api/lotes/[id] — misma validación
+ * (loteCreateWithGeoSchema/loteUpdateWithGeoSchema) y misma autorización
+ * (requireAccess) que ya tenían esas rutas; las rutas API se mantienen (uso
+ * externo/futuro), esto es una segunda entrada al mismo caso de uso.
  *
- * Qué revalida cada acción (para que getCultivos/getDashboardKpis nunca
- * sirvan datos viejos después de mutar):
- * - crearLote      → revalidatePath("/dashboard/cultivos"), "/dashboard" (hectáreas activas en KPIs)
- * - actualizarLote → revalidatePath("/dashboard/cultivos"), "/dashboard"
- * - eliminarLote   → revalidatePath("/dashboard/cultivos"), "/dashboard"
+ * El módulo Mapa dibuja el polígono con Leaflet y guarda geoJson/lat/lng
+ * junto con nombre/área — por eso crearLote/actualizarLote aceptan esos
+ * campos como opcionales (LoteForm.tsx de Cultivos simplemente no los
+ * manda, igual que antes).
+ *
+ * Qué revalida cada acción (para que getCultivos/getMapaFinca/
+ * getDashboardKpis nunca sirvan datos viejos después de mutar):
+ * - crearLote      → revalidatePath("/dashboard/cultivos"), "/dashboard/mapa", "/dashboard" (hectáreas activas en KPIs)
+ * - actualizarLote → revalidatePath("/dashboard/cultivos"), "/dashboard/mapa", "/dashboard"
+ * - eliminarLote   → revalidatePath("/dashboard/cultivos"), "/dashboard/mapa", "/dashboard"
  */
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
@@ -20,8 +25,23 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { resolverFincaActiva } from "@/lib/finca-activa";
-import { loteFormSchema, loteUpdateWithGeoSchema } from "@/lib/validations";
+import { loteCreateWithGeoSchema, loteUpdateWithGeoSchema, geoJsonPolygonSchema } from "@/lib/validations";
+import { Prisma } from "@prisma/client";
 import type { Lote } from "@prisma/client";
+
+function parseGeoJson(fd: FormData): { present: boolean; value?: Prisma.InputJsonValue | null; error?: string } {
+  if (!fd.has("geoJson")) return { present: false };
+  const raw = fd.get("geoJson");
+  if (raw === "" || raw === null) return { present: true, value: null };
+  try {
+    const parsed = JSON.parse(raw as string);
+    const result = geoJsonPolygonSchema.safeParse(parsed);
+    if (!result.success) return { present: true, error: `GeoJSON inválido: ${result.error.errors[0]?.message ?? "formato incorrecto"}` };
+    return { present: true, value: parsed };
+  } catch {
+    return { present: true, error: "GeoJSON inválido: no es JSON válido" };
+  }
+}
 
 // Nota: un archivo "use server" solo puede exportar funciones async — el
 // estado inicial de useActionState (`{}`) se define en el componente
@@ -58,13 +78,19 @@ export async function crearLote(_prev: LoteActionState, formData: FormData): Pro
     fincaId = fincaActivaId;
   }
 
-  const parsed = loteFormSchema.safeParse({
+  const geo = parseGeoJson(formData);
+  if (geo.error) return { error: geo.error };
+
+  const parsed = loteCreateWithGeoSchema.safeParse({
     nombre: formData.get("nombre"),
     areaHa: parseNumOrNull(formData.get("areaHa")) ?? undefined,
     altitud: parseNumOrNull(formData.get("altitud")),
     pendiente: parseNumOrNull(formData.get("pendiente")),
     notas: (formData.get("notas") as string) || null,
     fincaId,
+    lat: parseNumOrNull(formData.get("lat")),
+    lng: parseNumOrNull(formData.get("lng")),
+    geoJson: geo.present ? geo.value : undefined,
   });
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
 
@@ -77,10 +103,14 @@ export async function crearLote(_prev: LoteActionState, formData: FormData): Pro
         altitud: parsed.data.altitud ?? undefined,
         pendiente: parsed.data.pendiente ?? undefined,
         notas: parsed.data.notas ?? undefined,
+        lat: parsed.data.lat ?? undefined,
+        lng: parsed.data.lng ?? undefined,
         finca: { connect: { id: fincaId } },
+        ...(geo.present ? { geoJson: parsed.data.geoJson as Prisma.InputJsonValue } : {}),
       },
     });
     revalidatePath("/dashboard/cultivos");
+    revalidatePath("/dashboard/mapa");
     revalidatePath("/dashboard");
     return { lote };
   } catch (error) {
@@ -98,12 +128,16 @@ export async function actualizarLote(
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) return { error: "No autorizado" };
 
+  const geo = parseGeoJson(formData);
+  if (geo.error) return { error: geo.error };
+
   const parsed = loteUpdateWithGeoSchema.safeParse({
     nombre: formData.get("nombre") || undefined,
     areaHa: parseNumOrNull(formData.get("areaHa")) ?? undefined,
     altitud: parseNumOrNull(formData.get("altitud")),
     pendiente: parseNumOrNull(formData.get("pendiente")),
     notas: (formData.get("notas") as string) || null,
+    geoJson: geo.present ? geo.value : undefined,
   });
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
 
@@ -121,9 +155,15 @@ export async function actualizarLote(
         ...(altitud !== undefined && { altitud }),
         ...(pendiente !== undefined && { pendiente }),
         ...(notas !== undefined && { notas }),
+        // geoJson: solo se toca si vino explícitamente en el FormData —
+        // igual que /api/lotes/[id] PUT, null lo borra, presente lo
+        // reemplaza, ausente lo deja intacto. Prisma exige Prisma.JsonNull
+        // (no un `null` plano) para vaciar un campo Json en un update.
+        ...(geo.present ? { geoJson: geo.value === null ? Prisma.JsonNull : (geo.value as Prisma.InputJsonValue) } : {}),
       },
     });
     revalidatePath("/dashboard/cultivos");
+    revalidatePath("/dashboard/mapa");
     revalidatePath("/dashboard");
     return { lote };
   } catch (error) {
@@ -154,6 +194,7 @@ export async function eliminarLote(loteId: string, _prev: EliminarLoteState): Pr
 
     await db.lote.delete({ where: { id: loteId } });
     revalidatePath("/dashboard/cultivos");
+    revalidatePath("/dashboard/mapa");
     revalidatePath("/dashboard");
     return { ok: true };
   } catch (error) {

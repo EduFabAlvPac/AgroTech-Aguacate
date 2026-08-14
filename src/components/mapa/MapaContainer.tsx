@@ -7,6 +7,7 @@ import type { Finca, Lote, Cultivo, AnalisisSuelo } from "@prisma/client";
 import { DrawModeBanner } from "@/components/mapa/DrawModeBanner";
 import { MapSidebar } from "@/components/mapa/MapSidebar";
 import { RecomendacionCultivoModal } from "@/components/mapa/RecomendacionCultivoModal";
+import { eliminarLote, type EliminarLoteState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
 import toast from "react-hot-toast";
 
 type LoteWithCultivo = Lote & {
@@ -204,24 +205,24 @@ function MapaContainerInner({ finca }: MapaContainerProps) {
     setActiveLoteId(null);
   }, []);
 
-  // Callback: delete a lote (Problema 2)
+  // Callback: delete a lote (Problema 2) — Server Action nativa (Fase 1,
+  // ADR-006) en vez de fetch DELETE a /api/lotes/[id]. Se llama
+  // directamente (no vía dispatcher de useActionState): este callback ya
+  // recibe el loteId fresco por parámetro desde MapSidebar, sin el
+  // problema de closures obsoletos que sí aplicaba al confirm-por-toast de
+  // Finanzas.
   const handleDeleteLote = useCallback(async (loteId: string) => {
-    try {
-      const response = await fetch(`/api/lotes/${loteId}`, { method: "DELETE" });
+    const result = await eliminarLote(loteId, {} as EliminarLoteState);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "No se pudo eliminar el lote" }));
-        toast.error(errorData.error ?? "No se pudo eliminar el lote");
-        return;
-      }
-
-      setLotes((prev) => prev.filter((l) => l.id !== loteId));
-      // Force map re-render to remove polygon
-      setMapKey((prev) => prev + 1);
-      toast.success("Lote eliminado");
-    } catch {
-      toast.error("Error de conexión. No se pudo eliminar el lote.");
+    if (result.error) {
+      toast.error(result.error);
+      return;
     }
+
+    setLotes((prev) => prev.filter((l) => l.id !== loteId));
+    // Force map re-render to remove polygon
+    setMapKey((prev) => prev + 1);
+    toast.success("Lote eliminado");
   }, []);
 
   // Determine effective map mode (error states force view)
