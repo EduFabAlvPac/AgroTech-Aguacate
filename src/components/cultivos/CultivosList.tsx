@@ -15,6 +15,7 @@ import toast from "react-hot-toast";
 import type { Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
 import type { CultivoConDatos, LoteConCultivos, FincaConLotes } from "@/lib/data/cultivos";
 import { eliminarLote, type EliminarLoteState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
+import { eliminarCultivo, type EliminarCultivoState } from "@/app/(dashboard)/dashboard/cultivos/cultivo-actions";
 
 // Alias locales — mismo tipo que exporta la capa de datos (Fase 1, ver
 // ADR-006), se mantiene el nombre "WithData"/"WithCultivos" que ya usaba
@@ -84,7 +85,11 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [editingCultivo, setEditingCultivo] = useState<Cultivo | null>(null);
   const [deletingCultivo, setDeletingCultivo] = useState<CultivoWithData | null>(null);
   const [deleteCultivoConfirm, setDeleteCultivoConfirm] = useState("");
-  const [deleteCultivoLoading, setDeleteCultivoLoading] = useState(false);
+  const [deleteCultivoState, deleteCultivoFormAction, deleteCultivoPending] = useActionState(
+    eliminarCultivo.bind(null, deletingCultivo?.id ?? ""),
+    {} as EliminarCultivoState
+  );
+  const [, startDeleteCultivoTransition] = useTransition();
 
   // Registro edit/delete state
   const [editingRegistro, setEditingRegistro] = useState<RegistroCultivo | null>(null);
@@ -104,6 +109,24 @@ export function CultivosList({ finca }: CultivosListProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteLoteState]);
+
+  useEffect(() => {
+    if (!deletingCultivo) return;
+    if (deleteCultivoState.error) {
+      toast.error(deleteCultivoState.error);
+    } else if (deleteCultivoState.ok) {
+      setLotes((prev) =>
+        prev.map((lote) => ({
+          ...lote,
+          cultivos: lote.cultivos.filter((c) => c.id !== deletingCultivo.id),
+        }))
+      );
+      setDeletingCultivo(null);
+      setDeleteCultivoConfirm("");
+      toast.success("Cultivo eliminado");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteCultivoState]);
 
   if (!finca) {
     return (
@@ -259,31 +282,6 @@ export function CultivosList({ finca }: CultivosListProps) {
   const handleOpenDeleteCultivo = (cultivo: CultivoWithData) => {
     setDeletingCultivo(cultivo);
     setDeleteCultivoConfirm("");
-  };
-
-  const handleDeleteCultivo = async () => {
-    if (!deletingCultivo) return;
-    setDeleteCultivoLoading(true);
-    try {
-      const res = await fetch(`/api/cultivos/${deletingCultivo.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el cultivo");
-      }
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.filter((c) => c.id !== deletingCultivo.id),
-        }))
-      );
-      setDeletingCultivo(null);
-      setDeleteCultivoConfirm("");
-      toast.success("Cultivo eliminado");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el cultivo");
-    } finally {
-      setDeleteCultivoLoading(false);
-    }
   };
 
   // ── Registro edit/delete handlers ──────────────────────
@@ -786,8 +784,8 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button
                 variant="danger"
                 disabled={deleteCultivoConfirm !== deletingCultivo.especie}
-                loading={deleteCultivoLoading}
-                onClick={handleDeleteCultivo}
+                loading={deleteCultivoPending}
+                onClick={() => startDeleteCultivoTransition(() => deleteCultivoFormAction())}
               >
                 Eliminar cultivo
               </Button>
