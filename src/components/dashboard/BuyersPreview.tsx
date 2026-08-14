@@ -33,7 +33,7 @@ export async function BuyersPreview({ fincaActivaId }: BuyersPreviewProps) {
       .join("")
       .toUpperCase();
 
-  const bgColors = ["bg-blue-50 text-blue-600", "bg-amber-50 text-amber-700", "bg-teal-50 text-teal-700"];
+  const bgColors = ["bg-info-50 text-info-600", "bg-amber-50 text-[#8A5E20]", "bg-brand-50 text-brand-600"];
 
   return (
     <div className="card p-5">
@@ -54,7 +54,7 @@ export async function BuyersPreview({ fincaActivaId }: BuyersPreviewProps) {
           </Link>
           <Link
             href="/dashboard/compradores"
-            className="flex items-center gap-1.5 text-[12px] font-medium text-white bg-agro-400 hover:bg-agro-600 px-3 py-1.5 rounded-[var(--radius-md)] transition-colors"
+            className="flex items-center gap-1.5 text-[12px] font-medium text-white bg-agro-600 hover:bg-agro-800 px-3 py-1.5 rounded-[var(--radius-md)] transition-colors"
           >
             <Plus size={14} />
             Agregar

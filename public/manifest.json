@@ -5,8 +5,8 @@
   "start_url": "/dashboard",
   "display": "standalone",
   "orientation": "portrait-primary",
-  "background_color": "#F8FAF5",
-  "theme_color": "#639922",
+  "background_color": "#FAFAFA",
+  "theme_color": "#3E8F6C",
   "lang": "es",
   "categories": ["agriculture", "productivity", "business"],
   "icons": [

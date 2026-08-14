@@ -116,15 +116,15 @@ export function VoiceRecorder({ onTranscribed, label }: VoiceRecorderProps) {
         <button
           type="button"
           onClick={detenerGrabacion}
-          className="flex items-center gap-3 w-full p-4 border-2 border-red-300 bg-red-50 rounded-[var(--radius-md)] transition-all text-left"
+          className="flex items-center gap-3 w-full p-4 border-2 border-negative-100 bg-negative-50 rounded-[var(--radius-md)] transition-all text-left"
           style={{ minHeight: 64 }}
         >
-          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0 animate-pulse">
-            <Square size={16} className="text-red-500" fill="currentColor" />
+          <div className="w-12 h-12 rounded-full bg-negative-100 flex items-center justify-center flex-shrink-0 animate-pulse">
+            <Square size={16} className="text-negative-400" fill="currentColor" />
           </div>
           <div>
-            <div className="text-[13px] font-medium text-red-600">Grabando... {mmss}</div>
-            <div className="text-[11px] text-red-400 mt-0.5">Toca para detener y transcribir</div>
+            <div className="text-[13px] font-medium text-negative-600">Grabando... {mmss}</div>
+            <div className="text-[11px] text-negative-400 mt-0.5">Toca para detener y transcribir</div>
           </div>
         </button>
       )}

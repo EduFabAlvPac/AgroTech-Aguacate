@@ -131,7 +131,7 @@ export function AnalisisSueloSection({ loteId, analisisInicial, onChange }: Anal
               toast.error("Error al eliminar");
             }
           }}
-          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+          className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
         >
           Eliminar
         </button>
@@ -177,7 +177,7 @@ export function AnalisisSueloSection({ loteId, analisisInicial, onChange }: Anal
                   <button onClick={() => handleOpen(a)} className="p-1.5 hover:bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-agro-600" aria-label="Editar">
                     <Pencil size={13} />
                   </button>
-                  <button onClick={() => handleDelete(a.id)} className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500" aria-label="Eliminar">
+                  <button onClick={() => handleDelete(a.id)} className="p-1.5 hover:bg-negative-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-negative-400" aria-label="Eliminar">
                     <Trash2 size={13} />
                   </button>
                 </div>

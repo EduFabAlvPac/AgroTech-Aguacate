@@ -162,7 +162,7 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
               />
               {!collapsed && label}
               {!collapsed && label === "Alertas" && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center font-semibold">
+                <span className="ml-auto w-5 h-5 rounded-full bg-negative-400 text-white text-[10px] flex items-center justify-center font-semibold">
                   1
                 </span>
               )}
@@ -207,7 +207,7 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
           onClick={() => signOut({ callbackUrl: "/login" })}
           title={collapsed ? "Cerrar sesión" : undefined}
           className={clsx(
-            "w-full flex items-center gap-3 py-2.5 rounded-[var(--radius-md)] text-[13px] text-[var(--text-secondary)] hover:bg-red-50 hover:text-red-600 transition-colors",
+            "w-full flex items-center gap-3 py-2.5 rounded-[var(--radius-md)] text-[13px] text-[var(--text-secondary)] hover:bg-negative-50 hover:text-negative-600 transition-colors",
             collapsed ? "px-0 justify-center" : "px-3"
           )}
         >

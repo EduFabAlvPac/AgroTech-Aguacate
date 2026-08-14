@@ -27,11 +27,10 @@ const TIPO_COLORS: Record<string, string> = {
 };
 
 const AVATAR_COLORS = [
-  "bg-blue-50 text-blue-600",
-  "bg-amber-50 text-amber-700",
-  "bg-teal-50 text-teal-600",
-  "bg-purple-50 text-purple-600",
-  "bg-green-50 text-green-700",
+  "bg-info-50 text-info-600",
+  "bg-amber-50 text-[#8A5E20]",
+  "bg-brand-50 text-brand-600",
+  "bg-positive-50 text-positive-600",
 ];
 
 const emptyForm = {
@@ -154,7 +153,7 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
         <span className="text-[13px]">¿Eliminar este comprador?</span>
         <button
           onClick={() => { toast.dismiss(t.id); doDeleteComprador(id); }}
-          className="px-3 py-1 bg-red-500 text-white text-[12px] rounded-md font-medium"
+          className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
         >
           Eliminar
         </button>
@@ -220,9 +219,9 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
               padding: "6px 14px",
               borderRadius: 20,
               border: "1px solid",
-              borderColor: filtroTipo === tipo ? "#639922" : "var(--border-default)",
-              background: filtroTipo === tipo ? "#EAF3DE" : "transparent",
-              color: filtroTipo === tipo ? "#3B6D11" : "var(--text-secondary)",
+              borderColor: filtroTipo === tipo ? "var(--color-brand)" : "var(--border-default)",
+              background: filtroTipo === tipo ? "var(--color-brand-bg)" : "transparent",
+              color: filtroTipo === tipo ? "var(--color-brand-dark)" : "var(--text-secondary)",
               fontSize: 12,
               fontWeight: filtroTipo === tipo ? 600 : 400,
               cursor: "pointer",
@@ -246,9 +245,9 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
                 padding: "5px 12px",
                 borderRadius: 20,
                 border: "1px solid",
-                borderColor: filtroEspecie === especie ? "#1D9E75" : "var(--border-default)",
-                background: filtroEspecie === especie ? "#E6F5F0" : "transparent",
-                color: filtroEspecie === especie ? "#127257" : "var(--text-secondary)",
+                borderColor: filtroEspecie === especie ? "var(--color-brand)" : "var(--border-default)",
+                background: filtroEspecie === especie ? "var(--color-brand-bg)" : "transparent",
+                color: filtroEspecie === especie ? "var(--color-brand-dark)" : "var(--text-secondary)",
                 fontSize: 11,
                 fontWeight: filtroEspecie === especie ? 600 : 400,
                 cursor: "pointer",
@@ -299,7 +298,7 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
                   </button>
                   <button
                     onClick={() => handleDelete(c.id)}
-                    className="p-1.5 hover:bg-red-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-red-500 transition-colors"
+                    className="p-1.5 hover:bg-negative-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-negative-400 transition-colors"
                     aria-label="Eliminar"
                   >
                     <Trash2 size={13} />
@@ -310,7 +309,7 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
               {/* Type + status */}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 {mejorPrecio > 0 && c.precioKg === mejorPrecio && (
-                  <span style={{ background: '#FEF9E7', color: '#B7950B', fontSize: 10, padding: '2px 6px', borderRadius: 20, fontWeight: 600, border: '1px solid #F9E79F' }}>
+                  <span style={{ background: 'var(--color-amber-bg)', color: '#8A5E20', fontSize: 10, padding: '2px 6px', borderRadius: 20, fontWeight: 600, border: '1px solid #EDCF85' }}>
                     ⭐ Mejor precio
                   </span>
                 )}
@@ -326,7 +325,7 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
                   {c.estado}
                 </button>
                 {c.especiesInteres.map((especie) => (
-                  <span key={especie} className="badge text-[10px]" style={{ background: "#E6F5F0", color: "#127257", border: "1px solid #BEE8DA" }}>
+                  <span key={especie} className="badge text-[10px]" style={{ background: "var(--color-brand-bg)", color: "var(--color-brand-dark)", border: "1px solid #A0DBC3" }}>
                     {especie}
                   </span>
                 ))}
@@ -543,7 +542,7 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
                       }
                       className={`px-3 py-1.5 rounded-full border text-[12px] transition-colors ${
                         checked
-                          ? "border-[#1D9E75] bg-[#E6F5F0] text-[#127257] font-medium"
+                          ? "border-brand-400 bg-brand-50 text-brand-600 font-medium"
                           : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-agro-200"
                       }`}
                     >

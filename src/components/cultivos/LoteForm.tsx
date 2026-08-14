@@ -215,8 +215,8 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
           </p>
           <div
             style={{
-              background: "#EAF3DE",
-              border: "1px dashed #639922",
+              background: "var(--color-brand-bg)",
+              border: "1px dashed var(--color-brand)",
               borderRadius: "10px",
               padding: "16px",
               display: "flex",
@@ -228,14 +228,14 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
             <svg width="48" height="48" viewBox="0 0 24 24" fill="none">
               <path
                 d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"
-                fill="#639922"
+                fill="var(--color-brand)"
                 fillOpacity="0.3"
-                stroke="#639922"
+                stroke="var(--color-brand)"
                 strokeWidth="1.5"
               />
-              <circle cx="12" cy="9" r="2.5" fill="#639922" />
+              <circle cx="12" cy="9" r="2.5" fill="var(--color-brand)" />
             </svg>
-            <p style={{ fontSize: "13px", color: "#5F7052", textAlign: "center", margin: 0 }}>
+            <p style={{ fontSize: "13px", color: "var(--color-text-soft)", textAlign: "center", margin: 0 }}>
               El lote se creará sin área dibujada.<br />
               Puedes dibujarlo después desde el módulo Mapa.
             </p>

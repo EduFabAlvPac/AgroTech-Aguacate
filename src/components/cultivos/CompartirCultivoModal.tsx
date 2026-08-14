@@ -206,14 +206,14 @@ export function CompartirCultivoModal({ isOpen, onClose, cultivoId, cultivoLabel
                       )}
                       <button
                         onClick={() => handleToggleRevocado(e)}
-                        className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50"
+                        className="w-7 h-7 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50"
                         aria-label={e.revocado ? "Reactivar" : "Desactivar"}
                         title={e.revocado ? "Reactivar" : "Desactivar"}
                       >
                         {e.revocado ? (
                           <RotateCcw size={13} className="text-[var(--text-muted)] hover:text-agro-500" />
                         ) : (
-                          <Ban size={13} className="text-[var(--text-muted)] hover:text-red-500" />
+                          <Ban size={13} className="text-[var(--text-muted)] hover:text-negative-400" />
                         )}
                       </button>
                     </div>

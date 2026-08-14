@@ -2,29 +2,53 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── AgroTech Design Tokens ──────────────────────────────────────────────── */
+/* ── AgroTech Design Tokens — Paleta CampoApp ──────────────────────────────
+   Unificación de paleta aprobada por el fundador (verde/ámbar/rojo anteriores
+   reemplazados). Fuente única de verdad: los --color-* de abajo. Las
+   variables --agro- y --nav-active- se mantienen con sus mismos nombres,
+   como alias, para no tener que tocar cada var(--agro-green) suelto en el
+   código — apuntan a los mismos valores nuevos, no son un sistema paralelo. */
 :root {
-  /* Brand */
-  --agro-green:       #639922;
-  --agro-green-dark:  #3B6D11;
-  --agro-green-light: #EAF3DE;
-  --agro-teal:        #1D9E75;
-  --agro-teal-dark:   #0F6E56;
-  --agro-teal-light:  #E1F5EE;
-  --agro-amber:       #EF9F27;
-  --agro-amber-dark:  #BA7517;
-  --agro-amber-light: #FAEEDA;
+  /* ── Tokens de marca (tabla oficial) ──────────────────────────────────── */
+  --color-brand:        #3E8F6C;
+  --color-brand-dark:   #2F6E52;
+  --color-brand-bg:     #E9F7F0;
+  --color-positive:     #4CA154;
+  --color-positive-bg:  #EFFDF3;
+  --color-negative:     #CA3A32;
+  --color-negative-bg:  #FCEEEC;
+  --color-amber:        #D6A159;
+  --color-amber-bg:     #FCF4CC;
+  --color-info:         #4A7FE0;
+  --color-info-bg:      #F1F6FE;
+  --color-text:         #111111;
+  --color-text-soft:    #6B7280;
+  --color-text-mute:    #9CA3AF;
+  --color-border:       #E7E7E7;
+  --color-surface-gray: #F5F5F5;
+  --gradient-brand:     linear-gradient(135deg, #4FA987, #387A6E);
+
+  /* Brand — alias hacia los tokens de arriba (compatibilidad con var(--agro-*) existentes) */
+  --agro-green:       var(--color-brand);
+  --agro-green-dark:  var(--color-brand-dark);
+  --agro-green-light: var(--color-brand-bg);
+  --agro-teal:        var(--color-brand);
+  --agro-teal-dark:   var(--color-brand-dark);
+  --agro-teal-light:  var(--color-brand-bg);
+  --agro-amber:       var(--color-amber);
+  --agro-amber-dark:  #B37A2E;
+  --agro-amber-light: var(--color-amber-bg);
 
   /* Surfaces */
-  --surface-page:     #F8FAF5;
+  --surface-page:     #FAFAFA;
   --surface-card:     #FFFFFF;
   --surface-sidebar:  #FFFFFF;
 
   /* Sidebar */
   --sidebar-width:    220px;
-  --sidebar-border:   #E8EDE4;
-  --nav-active-bg:    #EAF3DE;
-  --nav-active-text:  #3B6D11;
+  --sidebar-border:   var(--color-border);
+  --nav-active-bg:    var(--color-brand-bg);
+  --nav-active-text:  var(--color-brand-dark);
   --nav-hover-bg:     #F4F8F0;
 
   /* Border */
@@ -33,9 +57,9 @@
   --border-strong:    rgba(0, 0, 0, 0.16);
 
   /* Text */
-  --text-primary:     #1A2B14;
-  --text-secondary:   #5F7052;
-  --text-muted:       #8FA080;
+  --text-primary:     var(--color-text);
+  --text-secondary:   var(--color-text-soft);
+  --text-muted:       var(--color-text-mute);
 
   /* Radius */
   --radius-sm:  6px;
@@ -193,11 +217,14 @@ body {
   white-space: nowrap;
 }
 
-.badge-success { background: var(--agro-green-light); color: var(--agro-green-dark); }
-.badge-warning { background: var(--agro-amber-light); color: var(--agro-amber-dark); }
-.badge-info    { background: #E6F1FB; color: #185FA5; }
-.badge-danger  { background: #FCEBEB; color: #A32D2D; }
-.badge-neutral { background: #F1EFE8; color: #5F5E5A; }
+/* "Saludable"/estado positivo usa el token POSITIVE, no el de marca — son
+   semánticamente distintos aunque antes compartían el mismo verde
+   (ver la nota de la migración de paleta en tailwind.config.ts). */
+.badge-success { background: var(--color-positive-bg); color: var(--color-positive); }
+.badge-warning { background: var(--color-amber-bg); color: #8A5E20; }
+.badge-info    { background: var(--color-info-bg); color: var(--color-info); }
+.badge-danger  { background: var(--color-negative-bg); color: var(--color-negative); }
+.badge-neutral { background: var(--color-surface-gray); color: var(--color-text-soft); }
 
 /* ── Print ───────────────────────────────────────────────────────────────── */
 @media print {
@@ -235,16 +262,15 @@ body {
 }
 
 /* ── Portal de Compradores (Fase 4) — página pública standalone ────────────
-   No usa el layout del dashboard (sin sidebar/sesión); mobile-first, mismos
-   tokens de color que el resto de la app (verde AgroTech #639922) pero con
-   valores hex directos porque esta página no depende de las CSS vars del
-   tema del dashboard. */
+   No usa el layout del dashboard (sin sidebar/sesión), pero SÍ carga este
+   mismo globals.css, así que puede consumir los --color-* de :root
+   directamente — ya no hace falta duplicar valores hex aquí. */
 .portal-shell {
   max-width: 480px;
   margin: 0 auto;
   padding: 20px 16px 32px;
   min-height: 100vh;
-  background: #FAFAF7;
+  background: var(--color-surface-gray);
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -261,7 +287,7 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: #639922;
+  background: var(--color-brand);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -270,7 +296,7 @@ body {
 
 .portal-card {
   background: white;
-  border: 1px solid #EDEBE3;
+  border: 1px solid var(--color-border);
   border-radius: 14px;
   padding: 16px;
 }
@@ -278,8 +304,8 @@ body {
 .portal-badge {
   font-size: 10px;
   font-weight: 600;
-  color: #BA7517;
-  background: #FBF0DD;
+  color: #8A5E20;
+  background: var(--color-amber-bg);
   padding: 3px 8px;
   border-radius: 999px;
   white-space: nowrap;
@@ -290,12 +316,12 @@ body {
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   padding-top: 10px;
-  border-top: 1px solid #EDEBE3;
+  border-top: 1px solid var(--color-border);
 }
 
 .portal-stat {
   text-align: center;
-  background: #FAFAF7;
+  background: var(--color-surface-gray);
   border-radius: 10px;
   padding: 8px 4px;
 }
@@ -303,12 +329,12 @@ body {
 .portal-stat-value {
   font-size: 13px;
   font-weight: 600;
-  color: #1A2B14;
+  color: var(--color-text);
 }
 
 .portal-stat-label {
   font-size: 10px;
-  color: #8A8880;
+  color: var(--color-text-soft);
   margin-top: 2px;
 }
 
@@ -323,13 +349,13 @@ body {
   aspect-ratio: 1;
   object-fit: cover;
   border-radius: 10px;
-  background: #F1EFE8;
+  background: var(--color-border);
 }
 
 .portal-footer {
   text-align: center;
   font-size: 11px;
-  color: #8A8880;
+  color: var(--color-text-soft);
   margin-top: 8px;
   padding-top: 12px;
 }

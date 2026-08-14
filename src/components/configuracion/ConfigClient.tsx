@@ -359,11 +359,11 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
                     }
                     className="w-full h-2 appearance-none bg-agro-100 rounded-full outline-none cursor-pointer"
                     style={{
-                      background: `linear-gradient(to right, #639922 0%, #639922 ${
+                      background: `linear-gradient(to right, var(--color-brand) 0%, var(--color-brand) ${
                         ((Number(alertaForm[key as keyof typeof alertaForm]) - min) / (max - min)) * 100
-                      }%, #EAF3DE ${
+                      }%, var(--color-brand-bg) ${
                         ((Number(alertaForm[key as keyof typeof alertaForm]) - min) / (max - min)) * 100
-                      }%, #EAF3DE 100%)`,
+                      }%, var(--color-brand-bg) 100%)`,
                     }}
                   />
                   <p className="text-[var(--text-muted)] mt-1" style={{ fontSize: 11, lineHeight: 1.5 }}>{hint}</p>
@@ -447,7 +447,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
             </Button>
           </div>
 
-          <div className="card p-6 space-y-3 border-red-200">
+          <div className="card p-6 space-y-3 border-negative-100">
             <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
               Eliminar mi cuenta
             </h2>

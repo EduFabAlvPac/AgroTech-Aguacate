@@ -42,9 +42,9 @@ const ROL_FINCA_LABELS: Record<RolFinca, string> = {
 };
 
 const ROL_FINCA_COLORS: Record<RolFinca, { bg: string; color: string }> = {
-  ADMIN: { bg: "#E6F1FB", color: "#185FA5" },
-  OPERARIO: { bg: "#EAF3DE", color: "#3B6D11" },
-  LECTURA: { bg: "#F1EFE8", color: "#5F5E5A" },
+  ADMIN: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
+  OPERARIO: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
+  LECTURA: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
 };
 
 const ROL_FINCA_ICONS: Record<RolFinca, React.ElementType> = {
@@ -367,7 +367,7 @@ export function EquipoClient({
                       {ROL_FINCA_LABELS[rolFincaActual]}
                     </span>
                     {!m.activa && (
-                      <span className="badge text-[10px] font-medium rounded-full px-2 py-0.5" style={{ background: "#F1EFE8", color: "#5F5E5A" }}>
+                      <span className="badge text-[10px] font-medium rounded-full px-2 py-0.5" style={{ background: "var(--color-surface-gray)", color: "var(--color-text-soft)" }}>
                         Inactivo
                       </span>
                     )}
@@ -409,11 +409,11 @@ export function EquipoClient({
                 </button>
                 <button
                   onClick={() => setDeleting(m)}
-                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-red-50 transition-colors flex-shrink-0"
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors flex-shrink-0"
                   aria-label="Remover colaborador"
                   title="Eliminar"
                 >
-                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-red-500" />
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
                 </button>
               </div>
             </div>

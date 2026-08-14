@@ -38,7 +38,7 @@ export function AiChatPreview() {
               Asistente AgroIA
             </h2>
             <div className="flex items-center gap-1 mt-0.5">
-              <span className="stage-dot w-2 h-2 bg-green-400"></span>
+              <span className="stage-dot w-2 h-2 bg-positive-400"></span>
               <span className="text-[11px] text-[var(--text-muted)]">
                 Aguacate, café y cacao
               </span>

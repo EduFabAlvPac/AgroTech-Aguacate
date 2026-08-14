@@ -79,7 +79,7 @@ export function PhotoCapture({ onCapture, onRemove, preview, label }: PhotoCaptu
           <button
             type="button"
             onClick={onRemove}
-            className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center shadow-md hover:bg-red-600 transition-colors"
+            className="absolute -top-2 -right-2 w-6 h-6 bg-negative-400 text-white rounded-full flex items-center justify-center shadow-md hover:bg-negative-600 transition-colors"
             aria-label="Eliminar foto"
           >
             <X size={12} />

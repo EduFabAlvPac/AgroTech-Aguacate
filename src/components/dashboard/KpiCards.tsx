@@ -40,9 +40,9 @@ const getProximaActividad = (etapa: string, diasDesdeSiembra: number) => {
 };
 
 const URGENCIA_COLORS = {
-  alta: { text: "text-red-600", bg: "bg-red-50" },
+  alta: { text: "text-negative-600", bg: "bg-negative-50" },
   media: { text: "text-harvest-400", bg: "bg-harvest-50" },
-  baja: { text: "text-agro-600", bg: "bg-agro-50" },
+  baja: { text: "text-positive-600", bg: "bg-positive-50" },
 };
 
 export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra, variedad, cosechaEstimada }: KpiCardsProps) {
@@ -87,9 +87,9 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
       value: formatCOP(gastosMes),
       sub: "Costos acumulados · mes actual",
       icon: TrendingDown,
-      iconColor: "text-red-400",
-      valueColor: "text-red-600",
-      bg: "bg-red-50",
+      iconColor: "text-negative-400",
+      valueColor: "text-negative-600",
+      bg: "bg-negative-50",
     },
     {
       label: "Alertas activas",
@@ -137,7 +137,7 @@ const skeletonBgs = [
   "bg-agro-50",
   "bg-harvest-50",
   "bg-teal-50",
-  "bg-red-50",
+  "bg-negative-50",
   "bg-[var(--surface-page)]",
 ];
 

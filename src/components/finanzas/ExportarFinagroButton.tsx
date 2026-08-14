@@ -55,9 +55,9 @@ export function ExportarFinagroButton() {
         {loading ? "Generando..." : "Reporte FINAGRO"}
       </Button>
       {/* Tooltip */}
-      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[#1A2B14] text-white text-[11px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
+      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-3 py-2 bg-[var(--color-text)] text-white text-[11px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-50">
         Genera formato Plan de Inversión compatible con Banco Agrario y FINAGRO
-        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#1A2B14]" />
+        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[var(--color-text)]" />
       </div>
     </div>
   );

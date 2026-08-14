@@ -219,11 +219,11 @@ export function FincaSelector({ fincas, fincaActivaId, puedeCrear, collapsed }: 
                     </button>
                     <button
                       onClick={() => { setOpen(false); setEliminando(f); }}
-                      className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] hover:bg-red-50"
+                      className="w-6 h-6 flex items-center justify-center rounded-[var(--radius-sm)] hover:bg-negative-50"
                       aria-label={`Eliminar ${f.nombre}`}
                       title="Eliminar"
                     >
-                      <Trash2 size={12} className="text-[var(--text-muted)] hover:text-red-500" />
+                      <Trash2 size={12} className="text-[var(--text-muted)] hover:text-negative-400" />
                     </button>
                   </>
                 )}

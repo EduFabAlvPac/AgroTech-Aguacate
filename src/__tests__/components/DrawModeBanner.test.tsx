@@ -64,8 +64,8 @@ describe('DrawModeBanner', () => {
     )
 
     const banner = screen.getByText(/Editando área de Lote Norte/).closest('div')
-    expect(banner).toHaveClass('bg-blue-50')
-    expect(banner).toHaveClass('border-blue-400')
+    expect(banner).toHaveClass('bg-info-50')
+    expect(banner).toHaveClass('border-info-400')
     expect(banner).toHaveClass('border-l-4')
   })
 
@@ -83,8 +83,8 @@ describe('DrawModeBanner', () => {
     )
 
     const banner = screen.getByText('Lote no encontrado').closest('div')
-    expect(banner).toHaveClass('bg-red-50')
-    expect(banner).toHaveClass('border-red-400')
+    expect(banner).toHaveClass('bg-negative-50')
+    expect(banner).toHaveClass('border-negative-400')
     expect(banner).toHaveClass('border-l-4')
   })
 
