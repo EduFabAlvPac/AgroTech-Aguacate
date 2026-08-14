@@ -1,15 +1,10 @@
 import { Check, Sprout, Leaf, TreePine, Apple, Scissors } from "lucide-react";
-import { differenceInDays, format } from "date-fns";
+import { format } from "date-fns";
 import { es } from "date-fns/locale";
-import type { Finca, Lote, Cultivo, EspecieCultivo } from "@prisma/client";
-
-type CultivoConEspecie = Cultivo & {
-  especieCultivo: Pick<EspecieCultivo, "cicloMesesPrimeraCosecha" | "produccionKgArbolAnual"> | null;
-};
-type FincaWithLotes = (Finca & { lotes: (Lote & { cultivos: CultivoConEspecie[] })[] }) | null;
+import type { CropTimelineData } from "@/lib/data/dashboard";
 
 interface CropTimelineProps {
-  finca: FincaWithLotes;
+  data: CropTimelineData;
 }
 
 // Genérico — mismas etapas fenológicas del enum EtapaCultivo, sin asumir
@@ -24,35 +19,12 @@ const STAGES = [
   { key: "COSECHA", label: "Cosecha", icon: Apple, description: "Recolección" },
 ];
 
-export function CropTimeline({ finca }: CropTimelineProps) {
-  const firstCultivo = finca?.lotes[0]?.cultivos[0];
-  const currentEtapa = firstCultivo?.etapa ?? "PREPARACION";
+export function CropTimeline({ data }: CropTimelineProps) {
+  const {
+    especieLabel, fincaNombre, fechaSiembra, fechaCosechaEst,
+    currentEtapa, progreso, diasRestantes, produccionEstimadaKg,
+  } = data;
   const currentIndex = STAGES.findIndex((s) => s.key === currentEtapa);
-
-  const fechaSiembra = firstCultivo?.fechaSiembra ? new Date(firstCultivo.fechaSiembra) : null;
-  const cicloMeses = firstCultivo?.especieCultivo?.cicloMesesPrimeraCosecha;
-
-  // Proyección real: solo si hay cultivo + fecha de siembra + ciclo conocido
-  // de la especie (motor de fichas técnicas) — nunca una fecha/tonelaje
-  // inventados.
-  let fechaCosechaEst: Date | null = null;
-  let diasTotal = 0;
-  let diasTranscurridos = 0;
-  if (fechaSiembra && cicloMeses) {
-    fechaCosechaEst = new Date(fechaSiembra);
-    fechaCosechaEst.setMonth(fechaCosechaEst.getMonth() + cicloMeses);
-    diasTotal = differenceInDays(fechaCosechaEst, fechaSiembra);
-    diasTranscurridos = differenceInDays(new Date(), fechaSiembra);
-  }
-  const progreso = diasTotal > 0 ? Math.min(Math.max((diasTranscurridos / diasTotal) * 100, 0), 100) : 0;
-
-  const especieLabel = firstCultivo
-    ? `${firstCultivo.especie}${firstCultivo.variedad ? ` ${firstCultivo.variedad}` : ""}`
-    : "Sin cultivo activo";
-
-  const totalPlantas = finca?.lotes.reduce((s, l) => s + l.cultivos.reduce((cs, c) => cs + (c.cantidadPlantas ?? 0), 0), 0) ?? 0;
-  const produccionPorArbol = firstCultivo?.especieCultivo?.produccionKgArbolAnual;
-  const produccionEstimadaKg = produccionPorArbol && totalPlantas > 0 ? totalPlantas * produccionPorArbol : null;
 
   return (
     <div className="card p-5">
@@ -63,7 +35,7 @@ export function CropTimeline({ finca }: CropTimelineProps) {
             Ciclo del cultivo
           </h2>
           <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
-            {especieLabel}{finca?.nombre ? ` · ${finca.nombre}` : ""}
+            {especieLabel}{fincaNombre ? ` · ${fincaNombre}` : ""}
           </p>
         </div>
         <span className="badge badge-warning">
@@ -85,7 +57,7 @@ export function CropTimeline({ finca }: CropTimelineProps) {
         </div>
         <div className="text-[11px] text-agro-400 mt-1">
           {fechaCosechaEst
-            ? `${progreso.toFixed(0)}% completado · ~${Math.max(differenceInDays(fechaCosechaEst, new Date()), 0)} días restantes`
+            ? `${progreso.toFixed(0)}% completado · ~${diasRestantes} días restantes`
             : "Registra la especie y fecha de siembra del cultivo para proyectar la cosecha"}
         </div>
       </div>

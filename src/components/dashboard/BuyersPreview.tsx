@@ -1,8 +1,7 @@
 import { Users, Plus, ArrowRight } from "lucide-react";
 import Link from "next/link";
-import { db } from "@/lib/db";
 import { formatCOP } from "@/lib/utils";
-import { SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
+import { getDashboardCompradoresPreview } from "@/lib/data/dashboard";
 
 interface BuyersPreviewProps {
   fincaActivaId: string | null;
@@ -19,11 +18,7 @@ const TIPO_LABELS: Record<string, string> = {
 };
 
 export async function BuyersPreview({ fincaActivaId }: BuyersPreviewProps) {
-  const compradores = await db.comprador.findMany({
-    where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
-    orderBy: { createdAt: "desc" },
-    take: 3,
-  });
+  const compradores = await getDashboardCompradoresPreview(fincaActivaId);
 
   const initials = (name: string) =>
     name
