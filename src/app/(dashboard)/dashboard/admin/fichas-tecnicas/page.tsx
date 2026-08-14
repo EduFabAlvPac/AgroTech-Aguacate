@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Header } from "@/components/layout/Header";
 import { FichasTecnicasClient } from "@/components/admin/FichasTecnicasClient";
+import { getEspeciesConFichas } from "@/lib/data/fichas-tecnicas-admin";
 
 export const metadata = { title: "Fichas técnicas — Admin" };
 export const dynamic = "force-dynamic";
@@ -16,21 +17,7 @@ export default async function FichasTecnicasAdminPage() {
   const user = await db.user.findUnique({ where: { id: session.user.id }, select: { esSuperAdmin: true } });
   if (!user?.esSuperAdmin) redirect("/dashboard");
 
-  const especies = await db.especieCultivo.findMany({
-    include: {
-      variedades: {
-        include: {
-          fichas: {
-            orderBy: { version: "desc" },
-            select: { id: true, version: true, estado: true, publicadaEn: true },
-          },
-          _count: { select: { cultivos: true } },
-        },
-        orderBy: { nombre: "asc" },
-      },
-    },
-    orderBy: { nombre: "asc" },
-  });
+  const especies = await getEspeciesConFichas();
 
   return (
     <>
