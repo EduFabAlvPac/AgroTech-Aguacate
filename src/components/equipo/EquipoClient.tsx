@@ -5,7 +5,7 @@ import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, 
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
-import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey, type PlantillasModulos } from "@/lib/modulos";
+import { MODULOS_DASHBOARD, type PlantillasModulos } from "@/lib/modulos";
 
 type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
@@ -65,7 +65,6 @@ const emptyForm = {
   password: "",
   rolFinca: "OPERARIO" as RolFinca,
   fincaId: "",
-  modulos: modulosPorDefecto("OPERARIO"),
 };
 
 export function EquipoClient({
@@ -81,11 +80,7 @@ export function EquipoClient({
   const [miembros, setMiembros] = useState(initial);
   const [plantillas, setPlantillas] = useState(plantillasIniciales);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(() => ({
-    ...emptyForm,
-    fincaId: fincas[0]?.id ?? "",
-    modulos: plantillasIniciales.OPERARIO,
-  }));
+  const [form, setForm] = useState(() => ({ ...emptyForm, fincaId: fincas[0]?.id ?? "" }));
   const [loading, setLoading] = useState(false);
 
   const [editing, setEditing] = useState<MiembroData | null>(null);
@@ -145,14 +140,14 @@ export function EquipoClient({
             fincaId: form.fincaId,
             nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?",
             rol: form.rolFinca,
-            modulos: form.modulos,
+            modulos: plantillas[form.rolFinca],
           }],
         },
         ...prev,
       ]);
       toast.success("Colaborador agregado — comparte sus credenciales por WhatsApp o en persona.");
       setShowModal(false);
-      setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "", modulos: plantillas.OPERARIO });
+      setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "" });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al agregar");
     } finally {
@@ -172,7 +167,6 @@ export function EquipoClient({
       password: "",
       rolFinca,
       fincaId: acceso?.fincaId ?? fincas[0]?.id ?? "",
-      modulos: acceso?.modulos && acceso.modulos.length > 0 ? (acceso.modulos as ModuloKey[]) : plantillas[rolFinca],
     });
     setEditing(m);
   };
@@ -185,7 +179,7 @@ export function EquipoClient({
       const res = await fetch(`/api/equipo/${editing.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rolFinca: editForm.rolFinca, fincaId: editForm.fincaId, modulos: editForm.modulos }),
+        body: JSON.stringify({ rolFinca: editForm.rolFinca, fincaId: editForm.fincaId }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error al guardar");
@@ -199,7 +193,7 @@ export function EquipoClient({
                   fincaId: editForm.fincaId,
                   nombre: fincas.find((f) => f.id === editForm.fincaId)?.nombre ?? "?",
                   rol: editForm.rolFinca,
-                  modulos: editForm.modulos,
+                  modulos: plantillas[editForm.rolFinca],
                 }],
               }
             : m
@@ -453,10 +447,7 @@ export function EquipoClient({
             <Select
               label="Rol"
               value={form.rolFinca}
-              onChange={(e) => {
-                const rolFinca = e.target.value as RolFinca;
-                setForm({ ...form, rolFinca, modulos: plantillas[rolFinca] });
-              }}
+              onChange={(e) => setForm({ ...form, rolFinca: e.target.value as RolFinca })}
               options={ROL_FINCA_OPTIONS}
             />
             <Select
@@ -466,28 +457,11 @@ export function EquipoClient({
               options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
             />
           </div>
-          {form.rolFinca === "LECTURA" && (
-            <p className="text-[11px] text-[var(--text-muted)] -mt-1">
-              Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
-            </p>
-          )}
-          <div>
-            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-              Menús a los que puede ingresar
-            </label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {MODULOS_DASHBOARD.map((mod) => (
-                <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={form.modulos.includes(mod.key)}
-                    onChange={() => setForm({ ...form, modulos: toggleModulo(form.modulos, mod.key) })}
-                  />
-                  {mod.label}
-                </label>
-              ))}
-            </div>
-          </div>
+          <p className="text-[11px] text-[var(--text-muted)] -mt-1">
+            Los menús que va a ver dependen del rol elegido — configúralos en la pestaña{" "}
+            <strong>Roles y permisos</strong>.
+            {form.rolFinca === "LECTURA" && " Este rol, además, solo puede consultar — nunca crear, editar ni borrar."}
+          </p>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
             <Button loading={loading} onClick={handleAgregar}>Agregar</Button>
@@ -518,28 +492,10 @@ export function EquipoClient({
                 options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
               />
             </div>
-            {editForm.rolFinca === "LECTURA" && (
-              <p className="text-[11px] text-[var(--text-muted)] -mt-1">
-                Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
-              </p>
-            )}
-            <div>
-              <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-                Menús a los que puede ingresar
-              </label>
-              <div className="grid grid-cols-2 gap-1.5">
-                {MODULOS_DASHBOARD.map((mod) => (
-                  <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-                    <input
-                      type="checkbox"
-                      checked={editForm.modulos.includes(mod.key)}
-                      onChange={() => setEditForm({ ...editForm, modulos: toggleModulo(editForm.modulos, mod.key) })}
-                    />
-                    {mod.label}
-                  </label>
-                ))}
-              </div>
-            </div>
+            <p className="text-[11px] text-[var(--text-muted)] -mt-1">
+              Los menús que ve dependen del rol elegido — configúralos en la pestaña <strong>Roles y permisos</strong>.
+              {editForm.rolFinca === "LECTURA" && " Este rol, además, solo puede consultar — nunca crear, editar ni borrar."}
+            </p>
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="secondary" onClick={() => setEditing(null)}>Cancelar</Button>
               <Button loading={editLoading} onClick={handleGuardarEdicion}>Guardar cambios</Button>
