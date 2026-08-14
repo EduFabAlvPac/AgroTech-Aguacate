@@ -29,9 +29,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
     if (!miembro) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
     const body = await req.json();
-    const { rol, fincaId, modulos, activa } = body;
+    const { rolFinca, fincaId, modulos, activa } = body;
 
-    if (activa === undefined && rol === undefined && fincaId === undefined) {
+    if (activa === undefined && rolFinca === undefined && fincaId === undefined) {
       return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
     }
 
@@ -39,11 +39,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       await db.membresia.update({ where: { id: membresiaId }, data: { activa: Boolean(activa) } });
     }
 
-    // Edición de rol/finca/módulos: se manda siempre junta (rol + fincaId)
-    // desde el modal de edición — evita estados intermedios ambiguos.
-    if (rol !== undefined || fincaId !== undefined) {
-      if (rol !== "ADMIN_FINCA" && rol !== "COLABORADOR") {
-        return NextResponse.json({ error: "rol debe ser ADMIN_FINCA o COLABORADOR" }, { status: 400 });
+    // Edición de rol/finca/módulos: se manda siempre junta (rolFinca +
+    // fincaId) desde el modal de edición — evita estados intermedios ambiguos.
+    if (rolFinca !== undefined || fincaId !== undefined) {
+      if (rolFinca !== "ADMIN" && rolFinca !== "OPERARIO" && rolFinca !== "LECTURA") {
+        return NextResponse.json({ error: "rolFinca debe ser ADMIN, OPERARIO o LECTURA" }, { status: 400 });
       }
       if (!fincaId) {
         return NextResponse.json({ error: "fincaId es requerido para editar el acceso" }, { status: 400 });
@@ -51,8 +51,10 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       const finca = await db.finca.findFirst({ where: { id: fincaId, organizacionId: propia.organizacionId } });
       if (!finca) return NextResponse.json({ error: "Finca no encontrada en tu organización" }, { status: 404 });
 
-      const fincaRol = rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
-      const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[fincaRol];
+      // A nivel de organización solo existen dos baldes (ver POST /api/equipo
+      // para la misma nota): OPERARIO/LECTURA caen ambos en COLABORADOR.
+      const rol = rolFinca === "ADMIN" ? "ADMIN_FINCA" : "COLABORADOR";
+      const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[rolFinca as "ADMIN" | "OPERARIO" | "LECTURA"];
       const fincasDeLaOrg = await db.finca.findMany({ where: { organizacionId: propia.organizacionId }, select: { id: true } });
 
       await db.$transaction([
@@ -62,7 +64,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
         // esta org, se reemplaza por la nueva selección.
         db.fincaAcceso.deleteMany({ where: { userId: miembro.userId, fincaId: { in: fincasDeLaOrg.map((f) => f.id) } } }),
         db.fincaAcceso.create({
-          data: { userId: miembro.userId, fincaId, rol: fincaRol, modulos: modulosFinal, creadoPorId: session.user.id },
+          data: { userId: miembro.userId, fincaId, rol: rolFinca, modulos: modulosFinal, creadoPorId: session.user.id },
         }),
       ]);
     }
@@ -71,7 +73,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       actorId: session.user.id,
       actorEmail: session.user.email,
       accion: "equipo.editar",
-      detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { rol, fincaId, activa } },
+      detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { rolFinca, fincaId, activa } },
     });
 
     return NextResponse.json({ data: { updated: true } });
