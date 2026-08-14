@@ -1,8 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { User, MapPin, Bell, Save, RefreshCw } from "lucide-react";
-import { Button, Input } from "@/components/ui";
+import { signOut } from "next-auth/react";
+import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2 } from "lucide-react";
+import { Button, Input, Modal } from "@/components/ui";
 import toast from "react-hot-toast";
 
 interface ConfigClientProps {
@@ -18,12 +19,16 @@ interface ConfigClientProps {
   } | null;
 }
 
-type Tab = "profile" | "finca" | "alertas";
+type Tab = "profile" | "finca" | "alertas" | "privacidad";
 
 export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
   const [tab, setTab] = useState<Tab>("profile");
   const [saving, setSaving] = useState(false);
   const [generatingAlerts, setGeneratingAlerts] = useState(false);
+  const [exportando, setExportando] = useState(false);
+  const [showEliminar, setShowEliminar] = useState(false);
+  const [passwordEliminar, setPasswordEliminar] = useState("");
+  const [eliminando, setEliminando] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name ?? "",
@@ -84,10 +89,59 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
     }
   };
 
+  const handleExportar = async () => {
+    setExportando(true);
+    try {
+      const res = await fetch("/api/cuenta/exportar");
+      if (!res.ok) throw new Error("No se pudo generar el archivo");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `agrotech-mis-datos-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Descarga iniciada");
+    } catch {
+      toast.error("Error al exportar tus datos");
+    } finally {
+      setExportando(false);
+    }
+  };
+
+  const handleEliminarCuenta = async () => {
+    if (!passwordEliminar) return toast.error("Ingresa tu contraseña para confirmar");
+    setEliminando(true);
+    try {
+      const res = await fetch("/api/cuenta/eliminar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: passwordEliminar }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "No se pudo procesar la solicitud");
+
+      if (json.data.eliminadaDeInmediato) {
+        toast.success("Tu cuenta fue eliminada");
+        await signOut({ callbackUrl: "/login" });
+      } else {
+        toast.success("Solicitud registrada");
+        setShowEliminar(false);
+        setPasswordEliminar("");
+        window.alert(json.data.mensaje);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al eliminar la cuenta");
+    } finally {
+      setEliminando(false);
+    }
+  };
+
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "profile", label: "Perfil", icon: User },
     { id: "finca", label: "Finca", icon: MapPin },
     { id: "alertas", label: "Alertas", icon: Bell },
+    { id: "privacidad", label: "Privacidad", icon: ShieldCheck },
   ];
 
   return (
@@ -375,6 +429,62 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
           </div>
         </div>
       )}
+
+      {/* ── Privacidad (Ley 1581 de 2012) ──────────────────────────────────── */}
+      {tab === "privacidad" && (
+        <div className="space-y-4">
+          <div className="card p-6 space-y-3">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+              Tus datos
+            </h2>
+            <p className="text-[12px] text-[var(--text-muted)]">
+              Puedes descargar una copia de todo lo que has registrado en AgroTech (finca, cultivos, bitácora,
+              gastos, ingresos, compradores) en cualquier momento.
+            </p>
+            <Button variant="secondary" onClick={handleExportar} loading={exportando} className="w-full">
+              <Download size={15} />
+              Descargar mis datos
+            </Button>
+          </div>
+
+          <div className="card p-6 space-y-3 border-red-200">
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
+              Eliminar mi cuenta
+            </h2>
+            <p className="text-[12px] text-[var(--text-muted)]">
+              Elimina tu cuenta y tus datos de AgroTech de forma permanente. Si tu finca tiene colaboradores o
+              inversionistas activos, primero registramos tu solicitud para coordinar la transferencia antes de
+              borrar nada — no perderán acceso sin avisarles.
+            </p>
+            <Button variant="danger" onClick={() => setShowEliminar(true)} className="w-full">
+              <Trash2 size={15} />
+              Eliminar mi cuenta
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Modal isOpen={showEliminar} onClose={() => setShowEliminar(false)} title="Confirma la eliminación" size="sm">
+        <div className="space-y-4">
+          <p className="text-[13px] text-[var(--text-secondary)]">
+            Esta acción no se puede deshacer. Ingresa tu contraseña para confirmar que quieres eliminar tu cuenta
+            de AgroTech.
+          </p>
+          <Input
+            label="Contraseña"
+            type="password"
+            value={passwordEliminar}
+            onChange={(e) => setPasswordEliminar(e.target.value)}
+            autoFocus
+          />
+          <div className="flex justify-end gap-2 pt-1">
+            <Button variant="secondary" onClick={() => setShowEliminar(false)}>Cancelar</Button>
+            <Button variant="danger" onClick={handleEliminarCuenta} loading={eliminando}>
+              Sí, eliminar mi cuenta
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -24,7 +24,7 @@ const ESTADOS: EstadoCultivo[] = ["ACTIVO", "PAUSADO", "FINALIZADO"];
  * Returns true if the lote can be deleted (no active cultivos),
  * false if deletion should be blocked (at least one active cultivo).
  */
-function canDeleteLote(cultivos: { estado: EstadoCultivo }[]): boolean {
+function canDeleteLote(cultivos: readonly { estado: EstadoCultivo }[]): boolean {
   const activeCultivos = cultivos.filter((c) => c.estado === "ACTIVO").length;
   return activeCultivos === 0;
 }
