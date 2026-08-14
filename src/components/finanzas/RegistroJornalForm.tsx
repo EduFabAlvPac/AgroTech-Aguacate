@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useActionState, useEffect, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button, Input, Select } from "@/components/ui";
 import { PhotoCapture } from "@/components/ui/PhotoCapture";
 import { Plus, Minus } from "lucide-react";
 import toast from "react-hot-toast";
+import { crearJornales, type JornalActionState } from "@/app/(dashboard)/dashboard/finanzas/jornal-actions";
 
 type CultivoOption = { id: string; lote: { nombre: string }; variedad: string };
 
@@ -33,19 +35,27 @@ const today = new Date().toISOString().split("T")[0];
 
 type JornalEntry = { fecha: string };
 
+const initialState: JornalActionState = {};
+
+function SubmitButton({ count }: { count: number }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" loading={pending}>
+      Registrar {count > 1 ? `${count} jornales` : "jornal"}
+    </Button>
+  );
+}
+
 export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormProps) {
   const [cultivos, setCultivos] = useState<CultivoOption[]>([]);
-  const [loading, setLoading] = useState(false);
   const [foto, setFoto] = useState<string | null>(null);
 
-  // Shared fields
   const [operario, setOperario] = useState("");
   const [actividad, setActividad] = useState("Limpia");
   const [valorDia, setValorDia] = useState("50000");
   const [cultivoId, setCultivoId] = useState("");
   const [descripcion, setDescripcion] = useState("");
 
-  // Multiple entries — each with its own fecha
   const [entries, setEntries] = useState<JornalEntry[]>([{ fecha: today }]);
 
   useEffect(() => {
@@ -61,11 +71,18 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
   }, []);
 
   const addEntry = () => {
-    // Next day from last entry
     const lastDate = entries[entries.length - 1]?.fecha || today;
     const next = new Date(lastDate);
     next.setDate(next.getDate() + 1);
-    setEntries([...entries, { fecha: next.toISOString().split("T")[0] }]);
+    const nextStr = next.toISOString().split("T")[0];
+    // Bug preexistente encontrado al verificar este módulo con Playwright
+    // (Fase 1, ADR-006): cuando la última entrada ya era "hoy", este cálculo
+    // generaba una fecha futura que violaba el `max={today}` del input de
+    // fecha — el navegador bloqueaba el submit nativo del <form> en
+    // silencio (sin disparar el evento submit ni la Server Action), así que
+    // el botón "Registrar N jornales" no hacía nada perceptible. Se limita
+    // la fecha nueva a "hoy" como tope.
+    setEntries([...entries, { fecha: nextStr > today ? today : nextStr }]);
   };
 
   const removeEntry = (index: number) => {
@@ -79,58 +96,20 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
 
   const totalProyectado = entries.length * (Number(valorDia) || 0);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const [state, formAction] = useActionState(crearJornales, initialState);
 
-    if (!operario.trim()) {
-      toast.error("El nombre del operario es obligatorio");
-      return;
-    }
-    if (!valorDia || Number(valorDia) <= 0) {
-      toast.error("El valor del día debe ser mayor a 0");
-      return;
-    }
-
-    setLoading(true);
-    let successCount = 0;
-
-    try {
-      for (const entry of entries) {
-        const res = await fetch("/api/jornales", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            operario: operario.trim(),
-            fecha: entry.fecha,
-            horasTrabajadas: 8,
-            valorDia: Number(valorDia),
-            actividad,
-            descripcion: descripcion || undefined,
-            cultivoId: cultivoId || undefined,
-            imagen: foto || undefined,
-          }),
-        });
-
-        if (res.ok) successCount++;
-      }
-
-      if (successCount === entries.length) {
-        toast.success(`${successCount} jornal${successCount > 1 ? "es" : ""} registrado${successCount > 1 ? "s" : ""} ($${totalProyectado.toLocaleString("es-CO")} COP)`);
-      } else {
-        toast.success(`${successCount}/${entries.length} jornales registrados`);
-      }
-
-      // Reset for next batch
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+    if (state.jornales) {
+      const count = state.jornales.length;
+      toast.success(`${count} jornal${count > 1 ? "es" : ""} registrado${count > 1 ? "s" : ""} ($${totalProyectado.toLocaleString("es-CO")} COP)`);
       setEntries([{ fecha: today }]);
       setDescripcion("");
       setFoto(null);
       onSuccess?.();
-    } catch (err: any) {
-      toast.error(err.message || "Error al registrar jornales");
-    } finally {
-      setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   const cultivoOptions = cultivos.map((c) => ({
     value: c.id,
@@ -138,7 +117,22 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
   }));
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!operario.trim()) { e.preventDefault(); toast.error("El nombre del operario es obligatorio"); return; }
+        if (!valorDia || Number(valorDia) <= 0) { e.preventDefault(); toast.error("El valor del día debe ser mayor a 0"); }
+      }}
+      className="space-y-4"
+    >
+      <input type="hidden" name="operario" value={operario} />
+      <input type="hidden" name="actividad" value={actividad} />
+      <input type="hidden" name="valorDia" value={valorDia} />
+      <input type="hidden" name="cultivoId" value={cultivoId} />
+      <input type="hidden" name="descripcion" value={descripcion} />
+      <input type="hidden" name="imagen" value={foto ?? ""} />
+      <input type="hidden" name="entradas" value={JSON.stringify(entries)} />
+
       {/* Operario */}
       <Input
         label="Nombre del trabajador"
@@ -276,9 +270,7 @@ export function RegistroJornalForm({ onSuccess, onCancel }: RegistroJornalFormPr
             Cancelar
           </Button>
         )}
-        <Button type="submit" loading={loading}>
-          Registrar {entries.length > 1 ? `${entries.length} jornales` : "jornal"}
-        </Button>
+        <SubmitButton count={entries.length} />
       </div>
     </form>
   );
