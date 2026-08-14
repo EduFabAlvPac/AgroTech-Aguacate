@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { X } from "lucide-react";
 import { Button, Select, Textarea, Input } from "@/components/ui";
 import { PhotoCapture } from "@/components/ui/PhotoCapture";
@@ -9,6 +10,11 @@ import { TIPO_REGISTRO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import { registroFormSchema } from "@/lib/validations";
 import type { RegistroCultivo, TipoRegistro } from "@prisma/client";
+import {
+  crearRegistro,
+  actualizarRegistro,
+  type RegistroActionState,
+} from "@/app/(dashboard)/dashboard/cultivos/registro-actions";
 
 const MAX_FOTOS = 5;
 
@@ -29,10 +35,20 @@ const today = new Date().toISOString().split("T")[0];
 
 type FormErrors = Partial<Record<"tipo" | "descripcion" | "fecha", string>>;
 
+const initialState: RegistroActionState = {};
+
+function SubmitButton({ isEditMode }: { isEditMode: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" loading={pending}>
+      {isEditMode ? "Guardar cambios" : "Guardar registro"}
+    </Button>
+  );
+}
+
 export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditSuccess }: RegistroFormProps) {
   const isEditMode = !!registro;
 
-  const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [form, setForm] = useState({
     tipo: (registro?.tipo ?? "OBSERVACION") as TipoRegistro,
@@ -52,63 +68,52 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
   const showCostoField = tiposConCosto.includes(form.tipo);
   const showIngresoField = form.tipo === "COSECHA";
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Server Action (Fase 1, ADR-006) — useActionState reemplaza el
+  // fetch+useState(loading) manual. crearRegistro/actualizarRegistro
+  // conservan intacta la sincronización bidireccional con Gasto/Ingreso
+  // (CLAUDE.md — no se toca esa lógica, solo dónde vive).
+  const action = isEditMode ? actualizarRegistro.bind(null, registro.id) : crearRegistro.bind(null, cultivoId);
+  const [state, formAction] = useActionState(action, initialState);
 
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+    if (state.registro) {
+      if (isEditMode) onEditSuccess?.(state.registro);
+      else onSuccess();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const validateClientSide = (): boolean => {
     const result = registroFormSchema.safeParse({ ...form, cultivoId });
-
     if (!result.success) {
       const fieldErrors: FormErrors = {};
       for (const issue of result.error.issues) {
         const field = issue.path[0] as keyof FormErrors;
-        if (field && !fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
+        if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
       }
       setErrors(fieldErrors);
-      return;
+      return false;
     }
-
     setErrors({});
-    setLoading(true);
-    try {
-      const url = isEditMode
-        ? `/api/cultivos/${cultivoId}/registros/${registro.id}`
-        : `/api/cultivos/${cultivoId}/registros`;
-      const method = isEditMode ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...form,
-          cultivoId,
-          imagenes,
-          // Financial sync fields
-          costo: costo ? Number(costo) : undefined,
-          ingreso: ingreso ? Number(ingreso) : undefined,
-          cantidadKg: cantidadKg ? Number(cantidadKg) : undefined,
-          producto: producto || undefined,
-        }),
-      });
-
-      if (!res.ok) throw new Error(isEditMode ? "Error al actualizar registro" : "Error al crear registro");
-
-      if (isEditMode) {
-        const { data } = await res.json();
-        onEditSuccess?.(data);
-      } else {
-        onSuccess();
-      }
-    } catch {
-      toast.error("Error al guardar el registro. Intenta de nuevo.");
-    } finally {
-      setLoading(false);
-    }
+    return true;
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!validateClientSide()) e.preventDefault();
+      }}
+      className="space-y-4"
+    >
+      <input type="hidden" name="tipo" value={form.tipo} />
+      <input type="hidden" name="descripcion" value={form.descripcion} />
+      <input type="hidden" name="fecha" value={form.fecha} />
+      <input type="hidden" name="imagenes" value={JSON.stringify(imagenes)} />
+      <input type="hidden" name="costo" value={costo} />
+      <input type="hidden" name="ingreso" value={ingreso} />
+      <input type="hidden" name="cantidadKg" value={cantidadKg} />
       <div className="grid grid-cols-2 gap-3">
         <Select
           label="Tipo de actividad"
@@ -284,9 +289,7 @@ export function RegistroForm({ cultivoId, onSuccess, onCancel, registro, onEditS
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" loading={loading}>
-          {isEditMode ? "Guardar cambios" : "Guardar registro"}
-        </Button>
+        <SubmitButton isEditMode={isEditMode} />
       </div>
     </form>
   );

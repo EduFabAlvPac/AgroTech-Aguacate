@@ -16,6 +16,7 @@ import type { Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/clien
 import type { CultivoConDatos, LoteConCultivos, FincaConLotes } from "@/lib/data/cultivos";
 import { eliminarLote, type EliminarLoteState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
 import { eliminarCultivo, type EliminarCultivoState } from "@/app/(dashboard)/dashboard/cultivos/cultivo-actions";
+import { eliminarRegistro, type EliminarRegistroState } from "@/app/(dashboard)/dashboard/cultivos/registro-actions";
 
 // Alias locales — mismo tipo que exporta la capa de datos (Fase 1, ver
 // ADR-006), se mantiene el nombre "WithData"/"WithCultivos" que ya usaba
@@ -95,7 +96,11 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [editingRegistro, setEditingRegistro] = useState<RegistroCultivo | null>(null);
   const [editingRegistroCultivoId, setEditingRegistroCultivoId] = useState<string | null>(null);
   const [deletingRegistro, setDeletingRegistro] = useState<{ registroId: string; cultivoId: string } | null>(null);
-  const [deleteRegistroLoading, setDeleteRegistroLoading] = useState(false);
+  const [deleteRegistroState, deleteRegistroFormAction, deleteRegistroPending] = useActionState(
+    eliminarRegistro.bind(null, deletingRegistro?.registroId ?? ""),
+    {} as EliminarRegistroState
+  );
+  const [, startDeleteRegistroTransition] = useTransition();
 
   useEffect(() => {
     if (!deletingLote) return;
@@ -127,6 +132,31 @@ export function CultivosList({ finca }: CultivosListProps) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteCultivoState]);
+
+  useEffect(() => {
+    if (!deletingRegistro) return;
+    if (deleteRegistroState.error) {
+      toast.error(deleteRegistroState.error);
+    } else if (deleteRegistroState.ok) {
+      setLotes((prev) =>
+        prev.map((lote) => ({
+          ...lote,
+          cultivos: lote.cultivos.map((cultivo) =>
+            cultivo.id === deletingRegistro.cultivoId
+              ? {
+                  ...cultivo,
+                  registros: cultivo.registros.filter((r) => r.id !== deletingRegistro.registroId),
+                  _count: { ...cultivo._count, registros: cultivo._count.registros - 1 },
+                }
+              : cultivo
+          ),
+        }))
+      );
+      setDeletingRegistro(null);
+      toast.success("Registro eliminado correctamente");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteRegistroState]);
 
   if (!finca) {
     return (
@@ -336,40 +366,6 @@ export function CultivosList({ finca }: CultivosListProps) {
     setDeletingRegistro({ registroId, cultivoId });
   };
 
-  const handleDeleteRegistro = async () => {
-    if (!deletingRegistro) return;
-    setDeleteRegistroLoading(true);
-    try {
-      const res = await fetch(
-        `/api/cultivos/${deletingRegistro.cultivoId}/registros/${deletingRegistro.registroId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el registro");
-      }
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.map((cultivo) =>
-            cultivo.id === deletingRegistro.cultivoId
-              ? {
-                  ...cultivo,
-                  registros: cultivo.registros.filter((r) => r.id !== deletingRegistro.registroId),
-                  _count: { ...cultivo._count, registros: cultivo._count.registros - 1 },
-                }
-              : cultivo
-          ),
-        }))
-      );
-      setDeletingRegistro(null);
-      toast.success("Registro eliminado correctamente");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el registro");
-    } finally {
-      setDeleteRegistroLoading(false);
-    }
-  };
 
   // ── Render ──────────────────────────────────────────────
 
@@ -878,7 +874,11 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button variant="secondary" onClick={() => setDeletingRegistro(null)}>
                 Cancelar
               </Button>
-              <Button variant="danger" loading={deleteRegistroLoading} onClick={handleDeleteRegistro}>
+              <Button
+                variant="danger"
+                loading={deleteRegistroPending}
+                onClick={() => startDeleteRegistroTransition(() => deleteRegistroFormAction())}
+              >
                 Confirmar
               </Button>
             </div>
