@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { membresiaOwner } from "@/lib/equipo";
 import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
+import { registrarAuditoria } from "@/lib/audit";
 
 function modulosValidos(modulos: unknown): ModuloKey[] | null {
   if (!Array.isArray(modulos)) return null;
@@ -66,6 +67,13 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       ]);
     }
 
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      accion: "equipo.editar",
+      detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { rol, fincaId, activa } },
+    });
+
     return NextResponse.json({ data: { updated: true } });
   } catch (error) {
     console.error("[PUT /api/equipo/[membresiaId]]", error);
@@ -99,6 +107,13 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ memb
       }),
       db.membresia.delete({ where: { id: membresiaId } }),
     ]);
+
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      accion: "equipo.remover",
+      detalle: { membresiaId, userIdRemovido: miembro.userId },
+    });
 
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {

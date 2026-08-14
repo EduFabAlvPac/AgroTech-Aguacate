@@ -18,6 +18,7 @@ import {
   ShieldCheck,
   Wallet,
   UserPlus,
+  History,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
@@ -85,7 +86,11 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
     items = [...items, { href: "/dashboard/equipo", icon: UserPlus, label: "Equipo" }];
   }
   if (session?.user?.esSuperAdmin) {
-    items = [...items, { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" }];
+    items = [
+      ...items,
+      { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" },
+      { href: "/dashboard/admin/auditoria", icon: History, label: "Auditoría" },
+    ];
   }
 
   return (
