@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { modulosPorDefecto } from "./modulos";
+import { registrarAuditoria } from "./audit";
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -33,13 +34,22 @@ export const authOptions: NextAuthOptions = {
         const isValid = await bcrypt.compare(credentials.password, user.password);
         if (!isValid) {
           const intentos = user.failedLoginAttempts + 1;
+          const bloqueada = intentos >= 5;
           await db.user.update({
             where: { id: user.id },
             data: {
               failedLoginAttempts: intentos,
-              lockedUntil: intentos >= 5 ? new Date(Date.now() + 15 * 60 * 1000) : null,
+              lockedUntil: bloqueada ? new Date(Date.now() + 15 * 60 * 1000) : null,
             },
           });
+          if (bloqueada) {
+            await registrarAuditoria({
+              actorId: user.id,
+              actorEmail: user.email,
+              accion: "auth.cuenta_bloqueada",
+              detalle: { intentosFallidos: intentos },
+            });
+          }
           return null;
         }
 

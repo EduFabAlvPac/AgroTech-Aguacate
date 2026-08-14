@@ -870,6 +870,26 @@ enum ChatRole {
   ASSISTANT
 }
 
+// Log de auditoría — acciones sensibles (eliminar/exportar cuenta, cambios de
+// equipo, bloqueos de login). Deliberadamente SIN relación/FK a User: un
+// registro de auditoría debe sobrevivir a que el actor sea borrado (el caso
+// más importante es justo "cuenta.eliminar" — si tuviera onDelete: Cascade,
+// el log desaparecería justo en el momento que más importa). Se guarda un
+// snapshot del email en vez de solo el id, por la misma razón.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actorEmail String?
+  accion     String
+  detalle    Json?
+  createdAt  DateTime @default(now())
+
+  @@index([actorId])
+  @@index([accion])
+  @@index([createdAt])
+  @@map("audit_log")
+}
+
 // Cuota diaria de uso de IA (chat/voz/imagen) — todas pegan a Groq, que cobra
 // por uso. Antes /api/chat no verificaba sesión y ningún endpoint de IA tenía
 // límite de volumen (solo transcribir/diagnostico exigían sesión) — esto es

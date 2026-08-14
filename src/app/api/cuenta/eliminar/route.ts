@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { puedeEliminarDeInmediato } from "@/lib/cuenta-datos";
+import { registrarAuditoria } from "@/lib/audit";
 
 // POST /api/cuenta/eliminar — derecho de supresión, Ley 1581 de 2012.
 // Exige la contraseña actual (acción irreversible) — mismo patrón que el
@@ -27,6 +28,12 @@ export async function POST(req: Request) {
         where: { id: session.user.id },
         data: { eliminacionSolicitadaEn: new Date() },
       });
+      await registrarAuditoria({
+        actorId: session.user.id,
+        actorEmail: user?.email,
+        accion: "cuenta.solicitar_eliminacion",
+        detalle: { motivo: chequeo.motivo },
+      });
       return NextResponse.json({
         data: { eliminadaDeInmediato: false, mensaje: chequeo.motivo },
       });
@@ -38,6 +45,15 @@ export async function POST(req: Request) {
     // onDelete: Cascade en prisma/schema.prisma. Seguro solo porque
     // puedeEliminarDeInmediato() ya confirmó que nadie más depende de estos
     // datos.
+    // Se registra ANTES del delete (aunque AuditLog no tiene FK a User, así
+    // el registro no depende de que la transacción de borrado haya
+    // terminado bien para dejar rastro del intento).
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: user?.email,
+      accion: "cuenta.eliminar",
+    });
+
     await db.user.delete({ where: { id: session.user.id } });
 
     return NextResponse.json({ data: { eliminadaDeInmediato: true } });

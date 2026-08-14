@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
 import { membresiaOwner } from "@/lib/equipo";
+import { registrarAuditoria } from "@/lib/audit";
 
 /**
  * Gestión de equipo (Fase 2) — ver CLAUDE.md §2.3 y docs/REQUERIMIENTOS.md §6.3.
@@ -124,6 +125,13 @@ export async function POST(req: Request) {
         create: { userId: user.id, fincaId, rol: fincaRol, modulos: modulosFinal, creadoPorId: session.user.id },
       }),
     ]);
+
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      accion: "equipo.invitar",
+      detalle: { membresiaId: membresia.id, emailInvitado: user.email, rol: membresia.rol, fincaId },
+    });
 
     return NextResponse.json(
       { data: { id: membresia.id, nombre: user.name, email: user.email, rol: membresia.rol } },
