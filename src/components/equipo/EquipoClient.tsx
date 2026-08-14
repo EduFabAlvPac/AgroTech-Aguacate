@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
 import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey, type PlantillasModulos } from "@/lib/modulos";
+import {
+  agregarMiembro,
+  editarMiembro,
+  toggleActivaMiembro,
+  eliminarMiembro,
+  guardarPlantillaRol,
+} from "@/app/(dashboard)/dashboard/equipo/equipo-actions";
 
 type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
@@ -87,6 +94,7 @@ export function EquipoClient({
     modulos: plantillasIniciales.OPERARIO,
   }));
   const [loading, setLoading] = useState(false);
+  const [, startTransition] = useTransition();
 
   const [editing, setEditing] = useState<MiembroData | null>(null);
   const [editForm, setEditForm] = useState(emptyForm);
@@ -102,62 +110,66 @@ export function EquipoClient({
     return list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
   }
 
-  const handleGuardarPlantilla = async (rol: RolFinca) => {
+  // Server Action nativa (Fase 1, ADR-006) en vez de fetch — se llama
+  // directamente dentro de startTransition. No se usa useActionState en
+  // este módulo: los cinco modales (agregar/editar/eliminar/roles/toggle)
+  // ya manejan su propio estado local de "loading" por handler, y son
+  // acciones puntuales disparadas por botón, no <form> con submit nativo.
+  const handleGuardarPlantilla = (rol: RolFinca) => {
     setGuardandoRol(rol);
-    try {
-      const res = await fetch("/api/equipo/roles", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rol, modulos: plantillas[rol] }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Error al guardar");
+    startTransition(async () => {
+      const result = await guardarPlantillaRol(rol, plantillas[rol]);
+      if (result.error) {
+        toast.error(result.error);
+      } else {
+        toast.success("Plantilla guardada — aplica a las próximas personas que agregues con este rol.");
       }
-      toast.success("Plantilla guardada — aplica a las próximas personas que agregues con este rol.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
-    } finally {
       setGuardandoRol(null);
-    }
+    });
   };
 
-  const handleAgregar = async () => {
+  const handleAgregar = () => {
     if (!form.email.trim()) return toast.error("El email es requerido");
     if (!form.fincaId) return toast.error("Selecciona la finca a la que tendrá acceso");
     setLoading(true);
-    try {
-      const res = await fetch("/api/equipo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar");
-      setMiembros((prev) => [
-        {
-          id: json.data.id,
-          nombre: json.data.nombre,
-          email: json.data.email,
-          rol: json.data.rol,
-          activa: true,
-          fincas: [{
-            fincaId: form.fincaId,
-            nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?",
-            rol: form.rolFinca,
-            modulos: form.modulos,
-          }],
-        },
-        ...prev,
-      ]);
-      toast.success("Colaborador agregado — comparte sus credenciales por WhatsApp o en persona.");
-      setShowModal(false);
-      setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "", modulos: plantillas.OPERARIO });
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar");
-    } finally {
-      setLoading(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", form.nombre);
+        fd.set("email", form.email);
+        fd.set("password", form.password);
+        fd.set("rolFinca", form.rolFinca);
+        fd.set("fincaId", form.fincaId);
+        fd.set("modulos", JSON.stringify(form.modulos));
+
+        const result = await agregarMiembro({}, fd);
+        if (result.error || !result.miembro) {
+          toast.error(result.error || "Error al agregar");
+          return;
+        }
+        setMiembros((prev) => [
+          {
+            id: result.miembro!.id,
+            nombre: result.miembro!.nombre,
+            email: result.miembro!.email,
+            rol: result.miembro!.rol as RolOrganizacion,
+            activa: true,
+            fincas: [{
+              fincaId: form.fincaId,
+              nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?",
+              rol: form.rolFinca,
+              modulos: form.modulos,
+            }],
+          },
+          ...prev,
+        ]);
+        toast.success("Colaborador agregado — comparte sus credenciales por WhatsApp o en persona.");
+        setShowModal(false);
+        setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "", modulos: plantillas.OPERARIO });
+      } finally {
+        setLoading(false);
+      }
+    });
   };
 
   const abrirEditar = (m: MiembroData) => {
@@ -177,82 +189,83 @@ export function EquipoClient({
     setEditing(m);
   };
 
-  const handleGuardarEdicion = async () => {
+  const handleGuardarEdicion = () => {
     if (!editing) return;
     if (!editForm.fincaId) return toast.error("Selecciona la finca con acceso");
+    const editingId = editing.id;
     setEditLoading(true);
-    try {
-      const res = await fetch(`/api/equipo/${editing.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rolFinca: editForm.rolFinca, fincaId: editForm.fincaId, modulos: editForm.modulos }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al guardar");
-      setMiembros((prev) =>
-        prev.map((m) =>
-          m.id === editing.id
-            ? {
-                ...m,
-                rol: editForm.rolFinca === "ADMIN" ? "ADMIN_FINCA" : "COLABORADOR",
-                fincas: [{
-                  fincaId: editForm.fincaId,
-                  nombre: fincas.find((f) => f.id === editForm.fincaId)?.nombre ?? "?",
-                  rol: editForm.rolFinca,
-                  modulos: editForm.modulos,
-                }],
-              }
-            : m
-        )
-      );
-      toast.success("Cambios guardados");
-      setEditing(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
-    } finally {
-      setEditLoading(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("rolFinca", editForm.rolFinca);
+        fd.set("fincaId", editForm.fincaId);
+        fd.set("modulos", JSON.stringify(editForm.modulos));
+
+        const result = await editarMiembro(editingId, {}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setMiembros((prev) =>
+          prev.map((m) =>
+            m.id === editingId
+              ? {
+                  ...m,
+                  rol: editForm.rolFinca === "ADMIN" ? "ADMIN_FINCA" : "COLABORADOR",
+                  fincas: [{
+                    fincaId: editForm.fincaId,
+                    nombre: fincas.find((f) => f.id === editForm.fincaId)?.nombre ?? "?",
+                    rol: editForm.rolFinca,
+                    modulos: editForm.modulos,
+                  }],
+                }
+              : m
+          )
+        );
+        toast.success("Cambios guardados");
+        setEditing(null);
+      } finally {
+        setEditLoading(false);
+      }
+    });
   };
 
-  const handleToggleActiva = async (m: MiembroData) => {
+  const handleToggleActiva = (m: MiembroData) => {
     setTogglingId(m.id);
-    try {
-      const nuevaActiva = !m.activa;
-      const res = await fetch(`/api/equipo/${m.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activa: nuevaActiva }),
-      });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Error al actualizar");
+    const nuevaActiva = !m.activa;
+    startTransition(async () => {
+      try {
+        const result = await toggleActivaMiembro(m.id, nuevaActiva);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setMiembros((prev) => prev.map((x) => (x.id === m.id ? { ...x, activa: nuevaActiva } : x)));
+        toast.success(nuevaActiva ? "Colaborador reactivado" : "Colaborador desactivado — no podrá iniciar sesión en tus fincas hasta que lo reactives.");
+      } finally {
+        setTogglingId(null);
       }
-      setMiembros((prev) => prev.map((x) => (x.id === m.id ? { ...x, activa: nuevaActiva } : x)));
-      toast.success(nuevaActiva ? "Colaborador reactivado" : "Colaborador desactivado — no podrá iniciar sesión en tus fincas hasta que lo reactives.");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al actualizar");
-    } finally {
-      setTogglingId(null);
-    }
+    });
   };
 
-  const handleEliminar = async () => {
+  const handleEliminar = () => {
     if (!deleting) return;
+    const deletingId = deleting.id;
     setDeletingLoading(true);
-    try {
-      const res = await fetch(`/api/equipo/${deleting.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Error al eliminar");
+    startTransition(async () => {
+      try {
+        const result = await eliminarMiembro({}, deletingId);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setMiembros((prev) => prev.filter((m) => m.id !== deletingId));
+        toast.success("Colaborador removido");
+        setDeleting(null);
+      } finally {
+        setDeletingLoading(false);
       }
-      setMiembros((prev) => prev.filter((m) => m.id !== deleting.id));
-      toast.success("Colaborador removido");
-      setDeleting(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar");
-    } finally {
-      setDeletingLoading(false);
-    }
+    });
   };
 
   return (
