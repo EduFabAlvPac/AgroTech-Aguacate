@@ -1,12 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
 import { MapPin } from "lucide-react";
 import { Button, Input, Textarea } from "@/components/ui";
 import { loteFormSchema } from "@/lib/validations";
 import toast from "react-hot-toast";
 import type { Lote } from "@prisma/client";
+import { crearLote, actualizarLote, type LoteActionState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
 
 interface LoteFormProps {
   fincaId: string;
@@ -18,11 +20,25 @@ interface LoteFormProps {
 
 type FormErrors = Partial<Record<"nombre" | "areaHa" | "altitud" | "pendiente" | "notas", string>>;
 
+const initialState: LoteActionState = {};
+
+function SubmitButton({ isEditMode, disabled }: { isEditMode: boolean; disabled?: boolean }) {
+  // useFormStatus reemplaza el useState manual de "loading" — Fase 1,
+  // ADR-006 (condición 2 del prompt): estado nativo de React 19/Next 15
+  // para el pending de una Server Action, no useState propio.
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" loading={pending} disabled={pending || disabled}>
+      {isEditMode ? "Guardar cambios" : "Crear lote"}
+    </Button>
+  );
+}
+
 export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: LoteFormProps) {
   const isEditMode = !!lote;
   const router = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
 
-  const [loading, setLoading] = useState(false);
   const [drawLoading, setDrawLoading] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
   const [form, setForm] = useState({
@@ -33,9 +49,23 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
     notas: lote?.notas ?? "",
   });
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const action = isEditMode ? actualizarLote.bind(null, lote.id) : crearLote;
+  const [state, formAction] = useActionState(action, initialState);
 
+  useEffect(() => {
+    if (state.fieldErrors) setErrors(state.fieldErrors);
+    if (state.error) toast.error(state.error);
+    if (state.lote) {
+      toast.success(isEditMode ? "Lote actualizado correctamente" : "Lote creado correctamente");
+      onSuccess(state.lote);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  // Validación de cliente para feedback inmediato (misma zod schema que ya
+  // corre en el servidor dentro de la Server Action — no reemplaza esa
+  // validación, la anticipa).
+  const validateClientSide = (): boolean => {
     const payload = {
       nombre: form.nombre,
       areaHa: form.areaHa ? parseFloat(form.areaHa) : undefined,
@@ -44,101 +74,57 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
       notas: form.notas || null,
       fincaId,
     };
-
     const result = loteFormSchema.safeParse(payload);
-
     if (!result.success) {
       const fieldErrors: FormErrors = {};
       for (const issue of result.error.issues) {
         const field = issue.path[0] as keyof FormErrors;
-        if (field && !fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
+        if (field && !fieldErrors[field]) fieldErrors[field] = issue.message;
       }
       setErrors(fieldErrors);
-      return;
+      return false;
     }
-
     setErrors({});
-    setLoading(true);
-
-    try {
-      const url = isEditMode ? `/api/lotes/${lote.id}` : "/api/lotes";
-      const method = isEditMode ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result.data),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al guardar el lote");
-      }
-
-      const { data } = await res.json();
-      toast.success(isEditMode ? "Lote actualizado correctamente" : "Lote creado correctamente");
-      onSuccess(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar el lote. Intenta de nuevo.");
-    } finally {
-      setLoading(false);
-    }
+    return true;
   };
 
   const handleDrawInMap = async () => {
-    const payload = {
-      nombre: form.nombre,
-      areaHa: form.areaHa ? parseFloat(form.areaHa) : undefined,
-      altitud: form.altitud ? parseFloat(form.altitud) : null,
-      pendiente: form.pendiente ? parseFloat(form.pendiente) : null,
-      notas: form.notas || null,
-      fincaId,
-    };
-
-    const result = loteFormSchema.safeParse(payload);
-
-    if (!result.success) {
-      const fieldErrors: FormErrors = {};
-      for (const issue of result.error.issues) {
-        const field = issue.path[0] as keyof FormErrors;
-        if (field && !fieldErrors[field]) {
-          fieldErrors[field] = issue.message;
-        }
-      }
-      setErrors(fieldErrors);
-      return;
-    }
-
-    setErrors({});
+    if (!validateClientSide()) return;
     setDrawLoading(true);
-
     try {
-      const res = await fetch("/api/lotes", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result.data),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al guardar el lote");
+      const fd = new FormData();
+      fd.set("nombre", form.nombre);
+      fd.set("areaHa", form.areaHa);
+      if (form.altitud) fd.set("altitud", form.altitud);
+      if (form.pendiente) fd.set("pendiente", form.pendiente);
+      if (form.notas) fd.set("notas", form.notas);
+      fd.set("fincaId", fincaId);
+      const result = await crearLote(initialState, fd);
+      if (result.error || result.fieldErrors) {
+        if (result.fieldErrors) setErrors(result.fieldErrors);
+        toast.error(result.error || "Error al guardar el lote");
+        return;
       }
-
-      const { data } = await res.json();
-      router.push(`/dashboard/mapa?action=draw&loteId=${data.id}`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar el lote");
+      if (result.lote) router.push(`/dashboard/mapa?action=draw&loteId=${result.lote.id}`);
     } finally {
       setDrawLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form
+      ref={formRef}
+      action={formAction}
+      onSubmit={(e) => {
+        if (!validateClientSide()) e.preventDefault();
+      }}
+      className="space-y-4"
+    >
+      <input type="hidden" name="fincaId" value={fincaId} />
+
       <Input
         label="Nombre del lote"
+        name="nombre"
         value={form.nombre}
         onChange={(e) => {
           setForm({ ...form, nombre: e.target.value });
@@ -150,6 +136,7 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
 
       <Input
         label="Área (ha)"
+        name="areaHa"
         type="number"
         step="0.01"
         min="0.01"
@@ -166,6 +153,7 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
       <div className="grid grid-cols-2 gap-3">
         <Input
           label="Altitud (msnm)"
+          name="altitud"
           type="number"
           step="1"
           min="0"
@@ -181,6 +169,7 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
 
         <Input
           label="Pendiente (°)"
+          name="pendiente"
           type="number"
           step="0.1"
           min="0"
@@ -197,6 +186,7 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
 
       <Textarea
         label="Notas"
+        name="notas"
         value={form.notas}
         onChange={(e) => {
           setForm({ ...form, notas: e.target.value });
@@ -247,7 +237,7 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
             className="w-full mt-3"
             onClick={handleDrawInMap}
             loading={drawLoading}
-            disabled={loading || drawLoading}
+            disabled={drawLoading}
           >
             <MapPin size={14} />
             Dibujar área en el mapa
@@ -256,12 +246,10 @@ export function LoteForm({ fincaId, lote, onSuccess, onCancel, fincaCoords }: Lo
       )}
 
       <div className="flex gap-3 justify-end pt-2">
-        <Button type="button" variant="secondary" onClick={onCancel} disabled={loading || drawLoading}>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={drawLoading}>
           Cancelar
         </Button>
-        <Button type="submit" loading={loading} disabled={loading || drawLoading}>
-          {isEditMode ? "Guardar cambios" : "Crear lote"}
-        </Button>
+        <SubmitButton isEditMode={isEditMode} disabled={drawLoading} />
       </div>
     </form>
   );

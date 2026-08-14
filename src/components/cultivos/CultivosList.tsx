@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Plus, Sprout, ClipboardList, DollarSign, Pencil, Trash2, MapPin, Sparkles, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input, EmptyState } from "@/components/ui";
@@ -14,6 +14,7 @@ import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
 import type { Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
 import type { CultivoConDatos, LoteConCultivos, FincaConLotes } from "@/lib/data/cultivos";
+import { eliminarLote, type EliminarLoteState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
 
 // Alias locales — mismo tipo que exporta la capa de datos (Fase 1, ver
 // ADR-006), se mantiene el nombre "WithData"/"WithCultivos" que ya usaba
@@ -68,7 +69,13 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [editingLote, setEditingLote] = useState<Lote | null>(null);
   const [deletingLote, setDeletingLote] = useState<LoteWithCultivos | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  // Server Action (Fase 1, ADR-006) — useActionState reemplaza el
+  // useState(deleteLoading) manual que había antes.
+  const [deleteLoteState, deleteLoteFormAction, deleteLotePending] = useActionState(
+    eliminarLote.bind(null, deletingLote?.id ?? ""),
+    {} as EliminarLoteState
+  );
+  const [, startDeleteLoteTransition] = useTransition();
 
   // Cultivo CRUD state
   const [showCultivoModal, setShowCultivoModal] = useState(false);
@@ -84,6 +91,19 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [editingRegistroCultivoId, setEditingRegistroCultivoId] = useState<string | null>(null);
   const [deletingRegistro, setDeletingRegistro] = useState<{ registroId: string; cultivoId: string } | null>(null);
   const [deleteRegistroLoading, setDeleteRegistroLoading] = useState(false);
+
+  useEffect(() => {
+    if (!deletingLote) return;
+    if (deleteLoteState.error) {
+      toast.error(deleteLoteState.error);
+    } else if (deleteLoteState.ok) {
+      setLotes((prev) => prev.filter((l) => l.id !== deletingLote.id));
+      setDeletingLote(null);
+      setDeleteConfirmName("");
+      toast.success("Lote eliminado correctamente");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteLoteState]);
 
   if (!finca) {
     return (
@@ -187,26 +207,6 @@ export function CultivosList({ finca }: CultivosListProps) {
 
   const handleOpenEditLote = (lote: Lote) => { setEditingLote(lote); setShowLoteModal(true); };
   const handleOpenDeleteLote = (lote: LoteWithCultivos) => { setDeletingLote(lote); setDeleteConfirmName(""); };
-
-  const handleDeleteLote = async () => {
-    if (!deletingLote) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`/api/lotes/${deletingLote.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el lote");
-      }
-      setLotes((prev) => prev.filter((l) => l.id !== deletingLote.id));
-      setDeletingLote(null);
-      setDeleteConfirmName("");
-      toast.success("Lote eliminado correctamente");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el lote");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
 
   // ── Cultivo CRUD handlers ──────────────────────────────
 
@@ -837,8 +837,8 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button
                 variant="danger"
                 disabled={deleteConfirmName !== deletingLote.nombre}
-                loading={deleteLoading}
-                onClick={handleDeleteLote}
+                loading={deleteLotePending}
+                onClick={() => startDeleteLoteTransition(() => deleteLoteFormAction())}
               >
                 Eliminar lote
               </Button>
