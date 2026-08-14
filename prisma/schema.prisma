@@ -25,6 +25,13 @@ model User {
   // reintentar sin límite. Se resetea a 0 en un login exitoso.
   failedLoginAttempts Int       @default(0)
   lockedUntil         DateTime?
+  // Ley 1581 de 2012 (Colombia) — derecho de supresión. Se llena cuando el
+  // usuario pide eliminar su cuenta pero el borrado inmediato no es seguro
+  // (es OWNER de una organización con otros miembros activos que dependen
+  // de esos datos — ver src/lib/cuenta-datos.ts). Queda como solicitud
+  // pendiente de revisión manual en vez de arriesgar un cascade que borre
+  // datos de terceros sin su consentimiento.
+  eliminacionSolicitadaEn DateTime?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

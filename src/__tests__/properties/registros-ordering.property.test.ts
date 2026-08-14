@@ -12,7 +12,7 @@ import * as fc from "fast-check";
 
 // Replicate the sort logic from CultivosList
 function sortRegistrosByFechaDescending<T extends { fecha: string | Date }>(
-  registros: T[]
+  registros: readonly T[]
 ): T[] {
   return [...registros].sort(
     (a, b) => new Date(b.fecha).getTime() - new Date(a.fecha).getTime()
