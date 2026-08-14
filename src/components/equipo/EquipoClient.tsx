@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Pencil, Power, PowerOff } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
-import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
+import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey, type PlantillasModulos } from "@/lib/modulos";
 
 interface FincaOption {
   id: string;
@@ -44,13 +44,27 @@ const emptyForm = {
   password: "",
   rol: "COLABORADOR" as RolOrganizacion,
   fincaId: "",
-  modulos: modulosPorDefecto("OPERARIO") as string[],
+  modulos: modulosPorDefecto("OPERARIO"),
 };
 
-export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroData[]; fincas: FincaOption[] }) {
+export function EquipoClient({
+  miembros: initial,
+  fincas,
+  plantillasIniciales,
+}: {
+  miembros: MiembroData[];
+  fincas: FincaOption[];
+  plantillasIniciales: PlantillasModulos;
+}) {
+  const [tab, setTab] = useState<"miembros" | "roles">("miembros");
   const [miembros, setMiembros] = useState(initial);
+  const [plantillas, setPlantillas] = useState(plantillasIniciales);
   const [showModal, setShowModal] = useState(false);
-  const [form, setForm] = useState(() => ({ ...emptyForm, fincaId: fincas[0]?.id ?? "" }));
+  const [form, setForm] = useState(() => ({
+    ...emptyForm,
+    fincaId: fincas[0]?.id ?? "",
+    modulos: plantillasIniciales.OPERARIO,
+  }));
   const [loading, setLoading] = useState(false);
 
   const [editing, setEditing] = useState<MiembroData | null>(null);
@@ -61,9 +75,31 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
   const [deletingLoading, setDeletingLoading] = useState(false);
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [guardandoRol, setGuardandoRol] = useState<"ADMIN" | "OPERARIO" | null>(null);
 
-  const toggleModulo = (list: string[], key: string) =>
-    list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
+  function toggleModulo<T>(list: T[], key: T): T[] {
+    return list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
+  }
+
+  const handleGuardarPlantilla = async (rol: "ADMIN" | "OPERARIO") => {
+    setGuardandoRol(rol);
+    try {
+      const res = await fetch("/api/equipo/roles", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rol, modulos: plantillas[rol] }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => null);
+        throw new Error(json?.error || "Error al guardar");
+      }
+      toast.success("Plantilla guardada — aplica a las próximas personas que agregues con este rol.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al guardar");
+    } finally {
+      setGuardandoRol(null);
+    }
+  };
 
   const handleAgregar = async () => {
     if (!form.email.trim()) return toast.error("El email es requerido");
@@ -95,7 +131,7 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
       ]);
       toast.success("Colaborador agregado — comparte sus credenciales por WhatsApp o en persona.");
       setShowModal(false);
-      setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "" });
+      setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "", modulos: plantillas.OPERARIO });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al agregar");
     } finally {
@@ -111,7 +147,7 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
       password: "",
       rol: m.rol,
       fincaId: acceso?.fincaId ?? fincas[0]?.id ?? "",
-      modulos: acceso?.modulos && acceso.modulos.length > 0 ? acceso.modulos : modulosPorDefecto(m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"),
+      modulos: acceso?.modulos && acceso.modulos.length > 0 ? (acceso.modulos as ModuloKey[]) : plantillas[m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"],
     });
     setEditing(m);
   };
@@ -196,13 +232,81 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button onClick={() => setShowModal(true)}>
-          <Plus size={16} /> Agregar colaborador
-        </Button>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex gap-1 p-1 bg-[var(--surface-page)] rounded-[var(--radius-lg)] border border-[var(--border-subtle)]">
+          {[
+            { id: "miembros" as const, label: "Miembros", icon: UsersIcon },
+            { id: "roles" as const, label: "Roles y permisos", icon: SlidersHorizontal },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setTab(id)}
+              className={`flex items-center justify-center gap-2 px-3 py-2 rounded-[var(--radius-md)] text-[13px] font-medium transition-all ${
+                tab === id
+                  ? "bg-white text-agro-600 shadow-card border border-agro-100"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              }`}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
+          ))}
+        </div>
+        {tab === "miembros" && (
+          <Button onClick={() => setShowModal(true)}>
+            <Plus size={16} /> Agregar colaborador
+          </Button>
+        )}
       </div>
 
-      {miembros.length === 0 ? (
+      {tab === "roles" && (
+        <div className="space-y-4">
+          <p className="text-[12px] text-[var(--text-muted)]">
+            Define qué menús ve por defecto cada tipo de rol al agregarlo. Puedes seguir ajustando el acceso de una
+            persona puntual desde la pestaña Miembros — eso no cambia por editar la plantilla aquí.
+          </p>
+          {(["ADMIN_FINCA", "COLABORADOR"] as const).map((rolOrg) => {
+            const rolFinca = rolOrg === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
+            return (
+              <div key={rolOrg} className="card p-5 space-y-3">
+                <div className="flex items-center gap-2">
+                  {rolOrg === "ADMIN_FINCA" ? <ShieldCheck size={16} className="text-agro-400" /> : <Wrench size={16} className="text-agro-400" />}
+                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{ROL_LABELS[rolOrg]}</h3>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {MODULOS_DASHBOARD.map((mod) => (
+                    <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={plantillas[rolFinca].includes(mod.key)}
+                        onChange={() =>
+                          setPlantillas((prev) => ({
+                            ...prev,
+                            [rolFinca]: toggleModulo(prev[rolFinca], mod.key),
+                          }))
+                        }
+                      />
+                      {mod.label}
+                    </label>
+                  ))}
+                </div>
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={guardandoRol === rolFinca}
+                    onClick={() => handleGuardarPlantilla(rolFinca)}
+                  >
+                    <Save size={13} /> Guardar plantilla
+                  </Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab === "miembros" && (miembros.length === 0 ? (
         <EmptyState
           icon={<User size={28} />}
           title="Sin colaboradores todavía"
@@ -279,7 +383,7 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
             </div>
           ))}
         </div>
-      )}
+      ))}
 
       {/* Modal: agregar colaborador */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Agregar colaborador">
@@ -314,7 +418,7 @@ export function EquipoClient({ miembros: initial, fincas }: { miembros: MiembroD
               value={form.rol}
               onChange={(e) => {
                 const rol = e.target.value as RolOrganizacion;
-                setForm({ ...form, rol, modulos: modulosPorDefecto(rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO") });
+                setForm({ ...form, rol, modulos: plantillas[rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"] });
               }}
               options={[
                 { value: "COLABORADOR", label: "Colaborador de campo" },
