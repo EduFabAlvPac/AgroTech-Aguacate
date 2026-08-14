@@ -1,13 +1,14 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Plus, Phone, Mail, Package, Star, Pencil, Trash2, Users } from "lucide-react";
-import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
+import { Button, Modal, EmptyState } from "@/components/ui";
 import { TIPO_COMPRADOR_LABELS } from "@/types";
-import { formatCOP, formatCOPFull } from "@/lib/utils";
-import { compradorFormSchema } from "@/lib/validations";
+import { formatCOPFull } from "@/lib/utils";
 import toast from "react-hot-toast";
-import type { Comprador, TipoComprador } from "@prisma/client";
+import type { Comprador } from "@prisma/client";
+import { CompradorForm } from "@/components/compradores/CompradorForm";
+import { cambiarEstadoComprador, eliminarComprador, type EliminarCompradorState } from "@/app/(dashboard)/dashboard/compradores/comprador-actions";
 
 type CompradorWithCount = Comprador & { _count: { ingresos: number } };
 
@@ -33,23 +34,13 @@ const AVATAR_COLORS = [
   "bg-positive-50 text-positive-600",
 ];
 
-const emptyForm = {
-  nombre: "", tipo: "COOPERATIVA" as TipoComprador,
-  ciudad: "", departamento: "", contacto: "",
-  email: "", telefono: "", capacidadTon: "",
-  precioKg: "", notas: "", estado: "ACTIVO",
-  especiesInteres: [] as string[],
-};
-
 export function CompradoresClient({ compradores: initial, especiesDisponibles = [] }: CompradoresClientProps) {
   const [compradores, setCompradores] = useState(initial);
   const [showModal, setShowModal] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [form, setForm] = useState(emptyForm);
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [editingComprador, setEditingComprador] = useState<CompradorWithCount | null>(null);
   const [filtroTipo, setFiltroTipo] = useState("Todos");
   const [filtroEspecie, setFiltroEspecie] = useState("Todos");
+  const [, startTransition] = useTransition();
 
   const FILTRO_TIPOS = ["Todos", "COOPERATIVA", "EXPORTADOR", "MAYORISTA", "SUPERMERCADO", "PLAZA_MERCADO", "RESTAURANTE", "OTRO"];
   const FILTRO_LABELS: Record<string, string> = {
@@ -71,88 +62,31 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
   );
 
   const handleOpen = (c?: CompradorWithCount) => {
-    if (c) {
-      setEditingId(c.id);
-      setForm({
-        nombre: c.nombre, tipo: c.tipo, ciudad: c.ciudad,
-        departamento: c.departamento ?? "", contacto: c.contacto ?? "",
-        email: c.email ?? "", telefono: c.telefono ?? "",
-        capacidadTon: c.capacidadTon?.toString() ?? "",
-        precioKg: c.precioKg?.toString() ?? "",
-        notas: c.notas ?? "", estado: c.estado,
-        especiesInteres: c.especiesInteres ?? [],
-      });
-    } else {
-      setEditingId(null);
-      setForm(emptyForm);
-    }
-    setErrors({});
+    setEditingComprador(c ?? null);
     setShowModal(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const payload = {
-      ...form,
-      capacidadTon: form.capacidadTon ? Number(form.capacidadTon) : undefined,
-      precioKg: form.precioKg ? Number(form.precioKg) : undefined,
-    };
-
-    // Zod validation
-    const result = compradorFormSchema.safeParse(payload);
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      for (const issue of result.error.issues) {
-        const key = issue.path[0]?.toString();
-        if (key && !fieldErrors[key]) {
-          fieldErrors[key] = issue.message;
-        }
-      }
-      setErrors(fieldErrors);
-      return;
-    }
-    setErrors({});
-
-    setLoading(true);
-
-    try {
-      const url = editingId ? `/api/compradores/${editingId}` : "/api/compradores";
-      const method = editingId ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const { data } = await res.json();
-      if (!res.ok) throw new Error();
-
-      if (editingId) {
-        setCompradores((prev) =>
-          prev.map((c) => (c.id === editingId ? { ...c, ...data } : c))
-        );
-        toast.success("Comprador actualizado");
-      } else {
-        setCompradores((prev) => [{ ...data, _count: { ingresos: 0 } }, ...prev]);
-        toast.success("Comprador creado");
-      }
-
-      setShowModal(false);
-    } catch {
-      toast.error("Error al guardar el comprador");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDelete = async (id: string) => {
+  // Server Action nativa (Fase 1, ADR-006) en vez de fetch DELETE — se
+  // llama directamente dentro de startTransition. No se usa el dispatcher
+  // de useActionState aquí: el toast de confirmación define su JSX una
+  // sola vez dentro de handleDelete y react-hot-toast no lo vuelve a crear
+  // en cada render de este componente, así que un dispatcher pre-atado
+  // por id quedaría con un closure desactualizado (mismo criterio ya
+  // aplicado en Finanzas/Alertas).
+  const handleDelete = (id: string) => {
     toast((t) => (
       <div className="flex items-center gap-3">
         <span className="text-[13px]">¿Eliminar este comprador?</span>
         <button
-          onClick={() => { toast.dismiss(t.id); doDeleteComprador(id); }}
+          onClick={() => {
+            toast.dismiss(t.id);
+            startTransition(async () => {
+              const result: EliminarCompradorState = await eliminarComprador({}, id);
+              if (result.error) { toast.error(result.error); return; }
+              setCompradores((prev) => prev.filter((c) => c.id !== id));
+              toast.success("Comprador eliminado");
+            });
+          }}
           className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
         >
           Eliminar
@@ -167,30 +101,13 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
     ), { duration: 10000 });
   };
 
-  const doDeleteComprador = async (id: string) => {
-    try {
-      await fetch(`/api/compradores/${id}`, { method: "DELETE" });
-      setCompradores((prev) => prev.filter((c) => c.id !== id));
-      toast.success("Comprador eliminado");
-    } catch {
-      toast.error("Error al eliminar");
-    }
-  };
-
-  const handleToggleEstado = async (c: CompradorWithCount) => {
+  const handleToggleEstado = (c: CompradorWithCount) => {
     const newEstado = c.estado === "ACTIVO" ? "PROSPECTO" : "ACTIVO";
-    try {
-      await fetch(`/api/compradores/${c.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...c, estado: newEstado }),
-      });
-      setCompradores((prev) =>
-        prev.map((cp) => (cp.id === c.id ? { ...cp, estado: newEstado } : cp))
-      );
-    } catch {
-      toast.error("Error al actualizar estado");
-    }
+    startTransition(async () => {
+      const result = await cambiarEstadoComprador(c.id, newEstado);
+      if (result.error) { toast.error(result.error); return; }
+      setCompradores((prev) => prev.map((cp) => (cp.id === c.id ? { ...cp, estado: newEstado } : cp)));
+    });
   };
 
   return (
@@ -394,187 +311,22 @@ export function CompradoresClient({ compradores: initial, especiesDisponibles = 
       <Modal
         isOpen={showModal}
         onClose={() => setShowModal(false)}
-        title={editingId ? "Editar comprador" : "Nuevo comprador"}
+        title={editingComprador ? "Editar comprador" : "Nuevo comprador"}
         size="md"
       >
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2">
-              <Input
-                label="Nombre o razón social"
-                value={form.nombre}
-                onChange={(e) => {
-                  setForm({ ...form, nombre: e.target.value });
-                  if (errors.nombre) setErrors((prev) => ({ ...prev, nombre: undefined! }));
-                }}
-                placeholder="Ej: CoopAgroNS"
-                error={errors.nombre}
-              />
-            </div>
-            <Select
-              label="Tipo"
-              value={form.tipo}
-              onChange={(e) => {
-                setForm({ ...form, tipo: e.target.value as TipoComprador });
-                if (errors.tipo) setErrors((prev) => ({ ...prev, tipo: undefined! }));
-              }}
-              options={Object.entries(TIPO_COMPRADOR_LABELS).map(([v, l]) => ({ value: v, label: l }))}
-              error={errors.tipo}
-            />
-            <Select
-              label="Estado"
-              value={form.estado}
-              onChange={(e) => {
-                setForm({ ...form, estado: e.target.value });
-                if (errors.estado) setErrors((prev) => ({ ...prev, estado: undefined! }));
-              }}
-              options={[
-                { value: "ACTIVO", label: "Activo" },
-                { value: "PROSPECTO", label: "Prospecto" },
-                { value: "INACTIVO", label: "Inactivo" },
-              ]}
-              error={errors.estado}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Ciudad"
-              value={form.ciudad}
-              onChange={(e) => {
-                setForm({ ...form, ciudad: e.target.value });
-                if (errors.ciudad) setErrors((prev) => ({ ...prev, ciudad: undefined! }));
-              }}
-              placeholder="Cúcuta"
-              error={errors.ciudad}
-            />
-            <Input
-              label="Departamento"
-              value={form.departamento}
-              onChange={(e) => {
-                setForm({ ...form, departamento: e.target.value });
-                if (errors.departamento) setErrors((prev) => ({ ...prev, departamento: undefined! }));
-              }}
-              placeholder="Norte de Santander"
-              error={errors.departamento}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Precio/kg (COP)"
-              type="number"
-              value={form.precioKg}
-              onChange={(e) => {
-                setForm({ ...form, precioKg: e.target.value });
-                if (errors.precioKg) setErrors((prev) => ({ ...prev, precioKg: undefined! }));
-              }}
-              placeholder="3200"
-              error={errors.precioKg}
-            />
-            <Input
-              label="Capacidad (ton/mes)"
-              type="number"
-              value={form.capacidadTon}
-              onChange={(e) => {
-                setForm({ ...form, capacidadTon: e.target.value });
-                if (errors.capacidadTon) setErrors((prev) => ({ ...prev, capacidadTon: undefined! }));
-              }}
-              placeholder="10"
-              error={errors.capacidadTon}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input
-              label="Teléfono"
-              value={form.telefono}
-              onChange={(e) => {
-                setForm({ ...form, telefono: e.target.value });
-                if (errors.telefono) setErrors((prev) => ({ ...prev, telefono: undefined! }));
-              }}
-              placeholder="+57 300 000 0000"
-              error={errors.telefono}
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={form.email}
-              onChange={(e) => {
-                setForm({ ...form, email: e.target.value });
-                if (errors.email) setErrors((prev) => ({ ...prev, email: undefined! }));
-              }}
-              placeholder="contacto@empresa.co"
-              error={errors.email}
-            />
-          </div>
-
-          <Input
-            label="Persona de contacto"
-            value={form.contacto}
-            onChange={(e) => {
-              setForm({ ...form, contacto: e.target.value });
-              if (errors.contacto) setErrors((prev) => ({ ...prev, contacto: undefined! }));
-            }}
-            placeholder="Nombre del contacto"
-            error={errors.contacto}
-          />
-
-          {especiesDisponibles.length > 0 && (
-            <div>
-              <label className="text-[12px] font-medium text-[var(--text-secondary)] block mb-1.5">
-                Cultivos que compra
-              </label>
-              <div className="flex flex-wrap gap-2">
-                {especiesDisponibles.map((especie) => {
-                  const checked = form.especiesInteres.includes(especie);
-                  return (
-                    <button
-                      key={especie}
-                      type="button"
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          especiesInteres: checked
-                            ? form.especiesInteres.filter((e) => e !== especie)
-                            : [...form.especiesInteres, especie],
-                        })
-                      }
-                      className={`px-3 py-1.5 rounded-full border text-[12px] transition-colors ${
-                        checked
-                          ? "border-brand-400 bg-brand-50 text-brand-600 font-medium"
-                          : "border-[var(--border-default)] text-[var(--text-secondary)] hover:border-agro-200"
-                      }`}
-                    >
-                      {especie}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <Textarea
-            label="Notas"
-            value={form.notas}
-            onChange={(e) => {
-              setForm({ ...form, notas: e.target.value });
-              if (errors.notas) setErrors((prev) => ({ ...prev, notas: undefined! }));
-            }}
-            placeholder="Condiciones de compra, horarios, requisitos especiales..."
-            rows={2}
-            error={errors.notas}
-          />
-
-          <div className="flex gap-3 justify-end pt-1">
-            <Button type="button" variant="secondary" onClick={() => setShowModal(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" loading={loading}>
-              {editingId ? "Guardar cambios" : "Crear comprador"}
-            </Button>
-          </div>
-        </form>
+        <CompradorForm
+          comprador={editingComprador}
+          especiesDisponibles={especiesDisponibles}
+          onSuccess={(comprador) => {
+            setCompradores((prev) =>
+              editingComprador
+                ? prev.map((c) => (c.id === comprador.id ? { ...c, ...comprador } : c))
+                : [{ ...comprador, _count: { ingresos: 0 } }, ...prev]
+            );
+            setShowModal(false);
+          }}
+          onCancel={() => setShowModal(false)}
+        />
       </Modal>
     </div>
   );
