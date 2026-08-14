@@ -1,11 +1,11 @@
 import { Header } from "@/components/layout/Header";
 import { CultivosList } from "@/components/cultivos/CultivosList";
-import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
 import { resolverFincaActiva } from "@/lib/finca-activa";
+import { getCultivos } from "@/lib/data/cultivos";
 
 export const metadata = { title: "Cultivos" };
 export const dynamic = "force-dynamic";
@@ -19,23 +19,7 @@ export default async function CultivosPage() {
   // ADMIN_FINCA/COLABORADOR no veía nada. Ahora se scopea a la finca activa
   // (funcionalidad de fincas, ver src/lib/finca-activa.ts).
   const { fincaActivaId } = await resolverFincaActiva(session);
-  const finca = fincaActivaId
-    ? await db.finca.findUnique({
-        where: { id: fincaActivaId },
-        include: {
-          lotes: {
-            include: {
-              cultivos: {
-                include: {
-                  registros: { orderBy: { fecha: "desc" }, take: 3 },
-                  _count: { select: { registros: true, gastos: true } },
-                },
-              },
-            },
-          },
-        },
-      })
-    : null;
+  const finca = await getCultivos(fincaActivaId);
 
   return (
     <>

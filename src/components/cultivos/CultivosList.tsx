@@ -12,20 +12,15 @@ import { CompartirCultivoModal } from "@/components/cultivos/CompartirCultivoMod
 import { ETAPA_LABELS } from "@/types";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
-import type { Finca, Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
+import type { Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
+import type { CultivoConDatos, LoteConCultivos, FincaConLotes } from "@/lib/data/cultivos";
 
-type CultivoWithData = Cultivo & {
-  registros: RegistroCultivo[];
-  _count: { registros: number; gastos: number };
-  sistemaSiembra?: string | null;
-  distanciaSiembra?: string | null;
-  portainjerto?: string | null;
-  proveedorMaterial?: string | null;
-  observaciones?: string | null;
-};
-
-type LoteWithCultivos = Lote & { cultivos: CultivoWithData[] };
-type FincaWithLotes = (Finca & { lotes: LoteWithCultivos[] }) | null;
+// Alias locales — mismo tipo que exporta la capa de datos (Fase 1, ver
+// ADR-006), se mantiene el nombre "WithData"/"WithCultivos" que ya usaba
+// este archivo para no tener que renombrar cada uso interno.
+type CultivoWithData = CultivoConDatos;
+type LoteWithCultivos = LoteConCultivos;
+type FincaWithLotes = FincaConLotes;
 
 interface CultivosListProps {
   finca: FincaWithLotes;
