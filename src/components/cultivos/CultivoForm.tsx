@@ -1,10 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useActionState } from "react";
+import { useFormStatus } from "react-dom";
 import { Button, Input, Select, Textarea } from "@/components/ui";
 import { ETAPA_LABELS, ESTADO_CULTIVO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import type { Cultivo, EtapaCultivo, EstadoCultivo } from "@prisma/client";
+import {
+  crearCultivo,
+  actualizarCultivo,
+  type CultivoActionState,
+} from "@/app/(dashboard)/dashboard/cultivos/cultivo-actions";
 
 const OTRO_CULTIVO = "__otro__";
 
@@ -55,6 +61,17 @@ const ESTADO_OPTIONS = Object.entries(ESTADO_CULTIVO_LABELS).map(([value, label]
   value,
   label,
 }));
+
+const initialState: CultivoActionState = {};
+
+function SubmitButton({ isEditing }: { isEditing: boolean }) {
+  const { pending } = useFormStatus();
+  return (
+    <Button type="submit" loading={pending}>
+      {isEditing ? "Actualizar" : "Crear cultivo"}
+    </Button>
+  );
+}
 
 export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess, onCancel }: CultivoFormProps) {
   const cultivo = rawCultivo as CultivoExtended | null | undefined;
@@ -130,8 +147,6 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
   const [etapa, setEtapa] = useState<EtapaCultivo>(cultivo?.etapa ?? "PREPARACION");
   const [observaciones, setObservaciones] = useState(cultivo?.observaciones ?? "");
 
-  const [loading, setLoading] = useState(false);
-
   // Auto-calculate density when cantidadPlantas changes and loteAreaHa is available
   useEffect(() => {
     if (cantidadPlantas && loteAreaHa && loteAreaHa > 0) {
@@ -142,59 +157,44 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
     }
   }, [cantidadPlantas, loteAreaHa]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Server Action (Fase 1, ADR-006) — useActionState reemplaza el
+  // fetch+useState(loading) manual.
+  const action = isEditing ? actualizarCultivo.bind(null, cultivo.id) : crearCultivo;
+  const [state, formAction] = useActionState(action, initialState);
 
-    if (!especie.trim()) {
-      toast.error("La especie es requerida");
-      return;
-    }
-
-    setLoading(true);
-
-    const payload = {
-      loteId,
-      especie: especie.trim(),
-      variedad: variedad.trim() || undefined,
-      variedadId: !modoManual && variedadId ? variedadId : undefined,
-      estado,
-      fechaSiembra: fechaSiembra || undefined,
-      cantidadPlantas: cantidadPlantas ? Number(cantidadPlantas) : undefined,
-      densidadHa: densidadHa ? Number(densidadHa) : undefined,
-      sistemaSiembra: sistemaSiembra.trim() || undefined,
-      distanciaSiembra: distanciaSiembra.trim() || undefined,
-      proveedorMaterial: proveedorMaterial.trim() || undefined,
-      etapa,
-      observaciones: observaciones.trim() || undefined,
-    };
-
-    try {
-      const url = isEditing ? `/api/cultivos/${cultivo.id}` : "/api/cultivos";
-      const method = isEditing ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al guardar el cultivo");
-      }
-
-      const { data } = await res.json();
+  useEffect(() => {
+    if (state.error) toast.error(state.error);
+    if (state.cultivo) {
       toast.success(isEditing ? "Cultivo actualizado" : "Cultivo registrado correctamente");
-      onSuccess(data);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
-    } finally {
-      setLoading(false);
+      onSuccess(state.cultivo);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form
+      action={formAction}
+      onSubmit={(e) => {
+        if (!especie.trim()) {
+          e.preventDefault();
+          toast.error("La especie es requerida");
+        }
+      }}
+      className="space-y-6"
+    >
+      <input type="hidden" name="loteId" value={loteId} />
+      <input type="hidden" name="variedadId" value={!modoManual && variedadId ? variedadId : ""} />
+      <input type="hidden" name="especie" value={especie.trim()} />
+      <input type="hidden" name="variedad" value={variedad.trim()} />
+      <input type="hidden" name="estado" value={estado} />
+      <input type="hidden" name="fechaSiembra" value={fechaSiembra} />
+      <input type="hidden" name="cantidadPlantas" value={cantidadPlantas} />
+      <input type="hidden" name="densidadHa" value={densidadHa} />
+      <input type="hidden" name="sistemaSiembra" value={sistemaSiembra.trim()} />
+      <input type="hidden" name="distanciaSiembra" value={distanciaSiembra.trim()} />
+      <input type="hidden" name="proveedorMaterial" value={proveedorMaterial.trim()} />
+      <input type="hidden" name="etapa" value={etapa} />
+      <input type="hidden" name="observaciones" value={observaciones.trim()} />
       {/* Section 1 — Información básica */}
       <div>
         <h3 className="text-[12px] font-semibold text-[var(--text-muted)] uppercase tracking-wide mb-3">
@@ -318,9 +318,7 @@ export function CultivoForm({ loteId, loteAreaHa, cultivo: rawCultivo, onSuccess
         <Button type="button" variant="secondary" onClick={onCancel}>
           Cancelar
         </Button>
-        <Button type="submit" loading={loading}>
-          {isEditing ? "Actualizar" : "Crear cultivo"}
-        </Button>
+        <SubmitButton isEditing={isEditing} />
       </div>
     </form>
   );

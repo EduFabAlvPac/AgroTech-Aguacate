@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Header } from "@/components/layout/Header";
 import { FichaTecnicaEditor } from "@/components/admin/FichaTecnicaEditor";
+import { getFichaCompleta } from "@/lib/data/fichas-tecnicas-admin";
 
 export const metadata = { title: "Editar ficha técnica — Admin" };
 export const dynamic = "force-dynamic";
@@ -20,17 +21,7 @@ export default async function FichaTecnicaEditorPage({
   const user = await db.user.findUnique({ where: { id: session.user.id }, select: { esSuperAdmin: true } });
   if (!user?.esSuperAdmin) redirect("/dashboard");
 
-  const ficha = await db.fichaTecnica.findUnique({
-    where: { id: fichaId },
-    include: {
-      variedad: { include: { especie: true } },
-      etapas: { orderBy: { orden: "asc" } },
-      plagas: { orderBy: { nombre: "asc" } },
-      costosRef: { orderBy: { categoria: "asc" } },
-      curvaProduccion: { orderBy: { anioProduccion: "asc" } },
-      _count: { select: { cultivos: true } },
-    },
-  });
+  const ficha = await getFichaCompleta(fichaId);
 
   if (!ficha) notFound();
 

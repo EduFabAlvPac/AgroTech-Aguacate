@@ -8,6 +8,7 @@ import { ETAPA_LABELS } from "@/types";
 import { calculateGeodesicArea, isSelfIntersecting } from "@/lib/geo";
 import { LOTE_COLORS } from "@/lib/constants";
 import { EditControls } from "@/components/mapa/EditControls";
+import { crearLote, actualizarLote } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
 import toast from "react-hot-toast";
 
 type LoteWithCultivo = Lote & {
@@ -297,23 +298,24 @@ export default function LeafletMap({
               (btnGuardar as HTMLButtonElement).disabled = true;
 
               try {
-                const res = await fetch('/api/lotes', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    nombre,
-                    areaHa: parseFloat(areaInput) || parseFloat(areaHa),
-                    altitud: altitudInput ? parseFloat(altitudInput) : undefined,
-                    lat: center.lat,
-                    lng: center.lng,
-                    geoJson,
-                  }),
-                });
+                // Server Action nativa (Fase 1, ADR-006) en vez de fetch a
+                // /api/lotes — se llama directamente con un FormData armado
+                // a mano porque este popup es HTML crudo de Leaflet, no un
+                // <form> de React (no hay useActionState/useFormStatus
+                // posibles aquí, no hay componente React que los reciba).
+                const fd = new FormData();
+                fd.set('nombre', nombre);
+                fd.set('areaHa', String(parseFloat(areaInput) || parseFloat(areaHa)));
+                if (altitudInput) fd.set('altitud', altitudInput);
+                fd.set('lat', String(center.lat));
+                fd.set('lng', String(center.lng));
+                fd.set('geoJson', JSON.stringify(geoJson));
+                if (finca?.id) fd.set('fincaId', finca.id);
 
-                const data = await res.json();
+                const result = await crearLote({}, fd);
 
-                if (!res.ok) {
-                  throw new Error(data.error || `Error ${res.status}`);
+                if (result.error || result.fieldErrors) {
+                  throw new Error(result.error || Object.values(result.fieldErrors ?? {})[0] || 'Error al guardar el lote');
                 }
 
                 map.closePopup();
@@ -569,24 +571,22 @@ export default function LeafletMap({
     setEditLoading(true);
 
     try {
-      const response = await fetch(`/api/lotes/${activeLoteId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          geoJson: editedGeoJson,
-          areaHa,
-        }),
-      });
+      // Server Action nativa (Fase 1, ADR-006) en vez de fetch PUT a
+      // /api/lotes/[id]. Se llama directamente (sin useActionState): este
+      // handler ya maneja su propio estado de pending con setEditLoading,
+      // igual que antes con el fetch manual.
+      const fd = new FormData();
+      fd.set("areaHa", String(areaHa));
+      fd.set("geoJson", JSON.stringify(editedGeoJson));
+      const result = await actualizarLote(activeLoteId, {}, fd);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: "No se pudieron guardar los cambios" }));
-        toast.error(errorData.error ?? "No se pudieron guardar los cambios");
+      if (result.error || result.fieldErrors) {
+        toast.error(result.error || Object.values(result.fieldErrors ?? {})[0] || "No se pudieron guardar los cambios");
         setEditLoading(false);
         return;
       }
 
-      const result = await response.json();
-      const updatedLote = result.data;
+      const updatedLote = result.lote!;
 
       // Disable editing on the layer
       if (editingLayerRef.current?.editing) {

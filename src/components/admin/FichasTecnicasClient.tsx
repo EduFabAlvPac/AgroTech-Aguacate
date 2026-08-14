@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Plus, Leaf, ChevronRight, FileText } from "lucide-react";
 import { Button, Modal, Input, EmptyState } from "@/components/ui";
 import { ESTADO_FICHA_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import type { EstadoFicha } from "@prisma/client";
+import { crearEspecie, crearVariedad, crearFicha } from "@/app/(dashboard)/dashboard/admin/fichas-tecnicas/ficha-actions";
 
 interface FichaResumen {
   id: string;
@@ -53,78 +54,86 @@ export function FichasTecnicasClient({ especies: initial }: { especies: EspecieC
   const [loadingVariedad, setLoadingVariedad] = useState(false);
 
   const [creandoFichaVariedadId, setCreandoFichaVariedadId] = useState<string | null>(null);
+  const [, startTransition] = useTransition();
 
   const slugify = (s: string) =>
     s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
-  const handleCrearEspecie = async () => {
+  // Server Action nativa (Fase 1, ADR-006) en vez de fetch — llamada
+  // directa dentro de startTransition. No se usa useActionState: estos
+  // modales manejan su propio "loading" local por handler, como el resto
+  // de módulos donde la mutación no está atada a un <form> con submit
+  // nativo (mismo criterio que Equipo/Compradores).
+  const handleCrearEspecie = () => {
     if (!especieForm.nombre.trim()) return toast.error("El nombre es requerido");
     const slug = especieForm.slug.trim() || slugify(especieForm.nombre);
     setLoadingEspecie(true);
-    try {
-      const res = await fetch("/api/admin/especies", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: especieForm.nombre.trim(), slug, familia: especieForm.familia.trim() || undefined }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al crear especie");
-      setEspecies((prev) => [...prev, { ...json.data, variedades: [] }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
-      toast.success("Especie creada");
-      setShowEspecieModal(false);
-      setEspecieForm(emptyEspecieForm);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al crear especie");
-    } finally {
-      setLoadingEspecie(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", especieForm.nombre.trim());
+        fd.set("slug", slug);
+        if (especieForm.familia.trim()) fd.set("familia", especieForm.familia.trim());
+
+        const result = await crearEspecie({}, fd);
+        if (result.error || !result.especie) {
+          toast.error(result.error || "Error al crear especie");
+          return;
+        }
+        setEspecies((prev) => [...prev, { ...result.especie!, variedades: [] }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        toast.success("Especie creada");
+        setShowEspecieModal(false);
+        setEspecieForm(emptyEspecieForm);
+      } finally {
+        setLoadingEspecie(false);
+      }
+    });
   };
 
-  const handleCrearVariedad = async () => {
+  const handleCrearVariedad = () => {
     if (!variedadModalEspecieId) return;
     if (!variedadForm.nombre.trim()) return toast.error("El nombre es requerido");
     const slug = variedadForm.slug.trim() || slugify(variedadForm.nombre);
+    const especieId = variedadModalEspecieId;
     setLoadingVariedad(true);
-    try {
-      const res = await fetch(`/api/admin/especies/${variedadModalEspecieId}/variedades`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nombre: variedadForm.nombre.trim(), slug }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al crear variedad");
-      setEspecies((prev) =>
-        prev.map((e) =>
-          e.id === variedadModalEspecieId
-            ? { ...e, variedades: [...e.variedades, { ...json.data, fichas: [], _count: { cultivos: 0 } }] }
-            : e
-        )
-      );
-      toast.success("Variedad creada");
-      setVariedadModalEspecieId(null);
-      setVariedadForm(emptyVariedadForm);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al crear variedad");
-    } finally {
-      setLoadingVariedad(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", variedadForm.nombre.trim());
+        fd.set("slug", slug);
+
+        const result = await crearVariedad(especieId, {}, fd);
+        if (result.error || !result.variedad) {
+          toast.error(result.error || "Error al crear variedad");
+          return;
+        }
+        setEspecies((prev) =>
+          prev.map((e) =>
+            e.id === especieId
+              ? { ...e, variedades: [...e.variedades, { ...result.variedad!, fichas: [], _count: { cultivos: 0 } }] }
+              : e
+          )
+        );
+        toast.success("Variedad creada");
+        setVariedadModalEspecieId(null);
+        setVariedadForm(emptyVariedadForm);
+      } finally {
+        setLoadingVariedad(false);
+      }
+    });
   };
 
-  const handleCrearFicha = async (variedadId: string, clonarDeId?: string) => {
+  const handleCrearFicha = (variedadId: string, clonarDeId?: string) => {
     setCreandoFichaVariedadId(variedadId);
-    try {
-      const res = await fetch("/api/admin/fichas-tecnicas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variedadId, clonarEtapasDeVersionId: clonarDeId }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al crear ficha técnica");
-      window.location.href = `/dashboard/admin/fichas-tecnicas/${json.data.id}`;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al crear ficha técnica");
-      setCreandoFichaVariedadId(null);
-    }
+    startTransition(async () => {
+      const result = await crearFicha(variedadId, clonarDeId);
+      if (result.error || !result.ficha) {
+        toast.error(result.error || "Error al crear ficha técnica");
+        setCreandoFichaVariedadId(null);
+        return;
+      }
+      window.location.href = `/dashboard/admin/fichas-tecnicas/${result.ficha.id}`;
+    });
   };
 
   return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { Plus, Sprout, ClipboardList, DollarSign, Pencil, Trash2, MapPin, Sparkles, Share2 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input, EmptyState } from "@/components/ui";
@@ -9,36 +9,26 @@ import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
 import { LoteForm } from "@/components/cultivos/LoteForm";
 import { CultivoForm } from "@/components/cultivos/CultivoForm";
 import { CompartirCultivoModal } from "@/components/cultivos/CompartirCultivoModal";
+import { EtapaSelect } from "@/components/cultivos/EtapaSelect";
 import { ETAPA_LABELS } from "@/types";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
-import type { Finca, Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
+import type { Lote, Cultivo, RegistroCultivo, EtapaCultivo } from "@prisma/client";
+import type { CultivoConDatos, LoteConCultivos, FincaConLotes } from "@/lib/data/cultivos";
+import { eliminarLote, type EliminarLoteState } from "@/app/(dashboard)/dashboard/cultivos/lote-actions";
+import { eliminarCultivo, type EliminarCultivoState } from "@/app/(dashboard)/dashboard/cultivos/cultivo-actions";
+import { eliminarRegistro, type EliminarRegistroState } from "@/app/(dashboard)/dashboard/cultivos/registro-actions";
 
-type CultivoWithData = Cultivo & {
-  registros: RegistroCultivo[];
-  _count: { registros: number; gastos: number };
-  sistemaSiembra?: string | null;
-  distanciaSiembra?: string | null;
-  portainjerto?: string | null;
-  proveedorMaterial?: string | null;
-  observaciones?: string | null;
-};
-
-type LoteWithCultivos = Lote & { cultivos: CultivoWithData[] };
-type FincaWithLotes = (Finca & { lotes: LoteWithCultivos[] }) | null;
+// Alias locales — mismo tipo que exporta la capa de datos (Fase 1, ver
+// ADR-006), se mantiene el nombre "WithData"/"WithCultivos" que ya usaba
+// este archivo para no tener que renombrar cada uso interno.
+type CultivoWithData = CultivoConDatos;
+type LoteWithCultivos = LoteConCultivos;
+type FincaWithLotes = FincaConLotes;
 
 interface CultivosListProps {
   finca: FincaWithLotes;
 }
-
-const ETAPA_COLORS: Record<EtapaCultivo, { bg: string; color: string }> = {
-  PREPARACION: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
-  SIEMBRA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
-  ESTABLECIMIENTO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
-  CRECIMIENTO: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
-  PRODUCCION: { bg: "var(--color-surface-gray)", color: "var(--color-text)" } /* TODO: sin token morado en la paleta nueva */,
-  COSECHA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
-};
 
 const TIPO_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
   RIEGO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
@@ -66,14 +56,19 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [diagnosticoCultivoId, setDiagnosticoCultivoId] = useState<string | null>(null);
   const [compartirCultivo, setCompartirCultivo] = useState<{ id: string; label: string } | null>(null);
-  const [etapaLoading, setEtapaLoading] = useState<string | null>(null);
 
   // Lote CRUD state
   const [showLoteModal, setShowLoteModal] = useState(false);
   const [editingLote, setEditingLote] = useState<Lote | null>(null);
   const [deletingLote, setDeletingLote] = useState<LoteWithCultivos | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState("");
-  const [deleteLoading, setDeleteLoading] = useState(false);
+  // Server Action (Fase 1, ADR-006) — useActionState reemplaza el
+  // useState(deleteLoading) manual que había antes.
+  const [deleteLoteState, deleteLoteFormAction, deleteLotePending] = useActionState(
+    eliminarLote.bind(null, deletingLote?.id ?? ""),
+    {} as EliminarLoteState
+  );
+  const [, startDeleteLoteTransition] = useTransition();
 
   // Cultivo CRUD state
   const [showCultivoModal, setShowCultivoModal] = useState(false);
@@ -82,13 +77,77 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [editingCultivo, setEditingCultivo] = useState<Cultivo | null>(null);
   const [deletingCultivo, setDeletingCultivo] = useState<CultivoWithData | null>(null);
   const [deleteCultivoConfirm, setDeleteCultivoConfirm] = useState("");
-  const [deleteCultivoLoading, setDeleteCultivoLoading] = useState(false);
+  const [deleteCultivoState, deleteCultivoFormAction, deleteCultivoPending] = useActionState(
+    eliminarCultivo.bind(null, deletingCultivo?.id ?? ""),
+    {} as EliminarCultivoState
+  );
+  const [, startDeleteCultivoTransition] = useTransition();
 
   // Registro edit/delete state
   const [editingRegistro, setEditingRegistro] = useState<RegistroCultivo | null>(null);
   const [editingRegistroCultivoId, setEditingRegistroCultivoId] = useState<string | null>(null);
   const [deletingRegistro, setDeletingRegistro] = useState<{ registroId: string; cultivoId: string } | null>(null);
-  const [deleteRegistroLoading, setDeleteRegistroLoading] = useState(false);
+  const [deleteRegistroState, deleteRegistroFormAction, deleteRegistroPending] = useActionState(
+    eliminarRegistro.bind(null, deletingRegistro?.registroId ?? ""),
+    {} as EliminarRegistroState
+  );
+  const [, startDeleteRegistroTransition] = useTransition();
+
+  useEffect(() => {
+    if (!deletingLote) return;
+    if (deleteLoteState.error) {
+      toast.error(deleteLoteState.error);
+    } else if (deleteLoteState.ok) {
+      setLotes((prev) => prev.filter((l) => l.id !== deletingLote.id));
+      setDeletingLote(null);
+      setDeleteConfirmName("");
+      toast.success("Lote eliminado correctamente");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteLoteState]);
+
+  useEffect(() => {
+    if (!deletingCultivo) return;
+    if (deleteCultivoState.error) {
+      toast.error(deleteCultivoState.error);
+    } else if (deleteCultivoState.ok) {
+      setLotes((prev) =>
+        prev.map((lote) => ({
+          ...lote,
+          cultivos: lote.cultivos.filter((c) => c.id !== deletingCultivo.id),
+        }))
+      );
+      setDeletingCultivo(null);
+      setDeleteCultivoConfirm("");
+      toast.success("Cultivo eliminado");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteCultivoState]);
+
+  useEffect(() => {
+    if (!deletingRegistro) return;
+    if (deleteRegistroState.error) {
+      toast.error(deleteRegistroState.error);
+    } else if (deleteRegistroState.ok) {
+      setLotes((prev) =>
+        prev.map((lote) => ({
+          ...lote,
+          cultivos: lote.cultivos.map((cultivo) =>
+            cultivo.id === deletingRegistro.cultivoId
+              ? {
+                  ...cultivo,
+                  registros: cultivo.registros.filter((r) => r.id !== deletingRegistro.registroId),
+                  _count: { ...cultivo._count, registros: cultivo._count.registros - 1 },
+                }
+              : cultivo
+          ),
+        }))
+      );
+      setDeletingRegistro(null);
+      toast.success("Registro eliminado correctamente");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteRegistroState]);
 
   if (!finca) {
     return (
@@ -193,26 +252,6 @@ export function CultivosList({ finca }: CultivosListProps) {
   const handleOpenEditLote = (lote: Lote) => { setEditingLote(lote); setShowLoteModal(true); };
   const handleOpenDeleteLote = (lote: LoteWithCultivos) => { setDeletingLote(lote); setDeleteConfirmName(""); };
 
-  const handleDeleteLote = async () => {
-    if (!deletingLote) return;
-    setDeleteLoading(true);
-    try {
-      const res = await fetch(`/api/lotes/${deletingLote.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el lote");
-      }
-      setLotes((prev) => prev.filter((l) => l.id !== deletingLote.id));
-      setDeletingLote(null);
-      setDeleteConfirmName("");
-      toast.success("Lote eliminado correctamente");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el lote");
-    } finally {
-      setDeleteLoading(false);
-    }
-  };
-
   // ── Cultivo CRUD handlers ──────────────────────────────
 
   const handleOpenCreateCultivo = (loteId: string, loteArea: number) => {
@@ -266,31 +305,6 @@ export function CultivosList({ finca }: CultivosListProps) {
     setDeleteCultivoConfirm("");
   };
 
-  const handleDeleteCultivo = async () => {
-    if (!deletingCultivo) return;
-    setDeleteCultivoLoading(true);
-    try {
-      const res = await fetch(`/api/cultivos/${deletingCultivo.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el cultivo");
-      }
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.filter((c) => c.id !== deletingCultivo.id),
-        }))
-      );
-      setDeletingCultivo(null);
-      setDeleteCultivoConfirm("");
-      toast.success("Cultivo eliminado");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el cultivo");
-    } finally {
-      setDeleteCultivoLoading(false);
-    }
-  };
-
   // ── Registro edit/delete handlers ──────────────────────
 
   const handleOpenEditRegistro = (registro: RegistroCultivo, cultivoId: string) => {
@@ -298,29 +312,15 @@ export function CultivosList({ finca }: CultivosListProps) {
     setEditingRegistroCultivoId(cultivoId);
   };
 
-  const handleEtapaChange = async (cultivoId: string, newEtapa: EtapaCultivo) => {
-    setEtapaLoading(cultivoId);
-    try {
-      const res = await fetch(`/api/cultivos/${cultivoId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ etapa: newEtapa }),
-      });
-      if (!res.ok) throw new Error();
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.map((c) =>
-            c.id === cultivoId ? { ...c, etapa: newEtapa } : c
-          ),
-        }))
-      );
-      toast.success(`Etapa actualizada a ${ETAPA_LABELS[newEtapa]}`);
-    } catch {
-      toast.error("Error al actualizar la etapa");
-    } finally {
-      setEtapaLoading(null);
-    }
+  const handleEtapaChanged = (cultivoId: string, newEtapa: EtapaCultivo) => {
+    setLotes((prev) =>
+      prev.map((lote) => ({
+        ...lote,
+        cultivos: lote.cultivos.map((c) =>
+          c.id === cultivoId ? { ...c, etapa: newEtapa } : c
+        ),
+      }))
+    );
   };
 
   const handleRegistroEditSuccess = (updatedRegistro: RegistroCultivo) => {
@@ -343,40 +343,6 @@ export function CultivosList({ finca }: CultivosListProps) {
     setDeletingRegistro({ registroId, cultivoId });
   };
 
-  const handleDeleteRegistro = async () => {
-    if (!deletingRegistro) return;
-    setDeleteRegistroLoading(true);
-    try {
-      const res = await fetch(
-        `/api/cultivos/${deletingRegistro.cultivoId}/registros/${deletingRegistro.registroId}`,
-        { method: "DELETE" }
-      );
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => null);
-        throw new Error(errorData?.error || "Error al eliminar el registro");
-      }
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.map((cultivo) =>
-            cultivo.id === deletingRegistro.cultivoId
-              ? {
-                  ...cultivo,
-                  registros: cultivo.registros.filter((r) => r.id !== deletingRegistro.registroId),
-                  _count: { ...cultivo._count, registros: cultivo._count.registros - 1 },
-                }
-              : cultivo
-          ),
-        }))
-      );
-      setDeletingRegistro(null);
-      toast.success("Registro eliminado correctamente");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar el registro");
-    } finally {
-      setDeleteRegistroLoading(false);
-    }
-  };
 
   // ── Render ──────────────────────────────────────────────
 
@@ -485,25 +451,11 @@ export function CultivosList({ finca }: CultivosListProps) {
                               <span className="text-[14px] font-semibold text-[var(--text-primary)]">
                                 {cultivo.especie} {cultivo.variedad}
                               </span>
-                              <select
-                                value={cultivo.etapa}
-                                onChange={(e) => handleEtapaChange(cultivo.id, e.target.value as EtapaCultivo)}
-                                disabled={etapaLoading === cultivo.id}
-                                className="badge text-[10px] font-medium border-0 cursor-pointer rounded-full px-2 py-0.5 appearance-none pr-5"
-                                style={{
-                                  background: ETAPA_COLORS[cultivo.etapa].bg,
-                                  color: ETAPA_COLORS[cultivo.etapa].color,
-                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                                  backgroundRepeat: "no-repeat",
-                                  backgroundPosition: "right 4px center",
-                                }}
-                              >
-                                {(Object.keys(ETAPA_LABELS) as EtapaCultivo[]).map((etapa) => (
-                                  <option key={etapa} value={etapa}>
-                                    {ETAPA_LABELS[etapa]}
-                                  </option>
-                                ))}
-                              </select>
+                              <EtapaSelect
+                                cultivoId={cultivo.id}
+                                etapa={cultivo.etapa}
+                                onChanged={(nuevaEtapa) => handleEtapaChanged(cultivo.id, nuevaEtapa)}
+                              />
                             </div>
                             {cultivo.fechaSiembra && (
                               <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
@@ -791,8 +743,8 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button
                 variant="danger"
                 disabled={deleteCultivoConfirm !== deletingCultivo.especie}
-                loading={deleteCultivoLoading}
-                onClick={handleDeleteCultivo}
+                loading={deleteCultivoPending}
+                onClick={() => startDeleteCultivoTransition(() => deleteCultivoFormAction())}
               >
                 Eliminar cultivo
               </Button>
@@ -842,8 +794,8 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button
                 variant="danger"
                 disabled={deleteConfirmName !== deletingLote.nombre}
-                loading={deleteLoading}
-                onClick={handleDeleteLote}
+                loading={deleteLotePending}
+                onClick={() => startDeleteLoteTransition(() => deleteLoteFormAction())}
               >
                 Eliminar lote
               </Button>
@@ -885,7 +837,11 @@ export function CultivosList({ finca }: CultivosListProps) {
               <Button variant="secondary" onClick={() => setDeletingRegistro(null)}>
                 Cancelar
               </Button>
-              <Button variant="danger" loading={deleteRegistroLoading} onClick={handleDeleteRegistro}>
+              <Button
+                variant="danger"
+                loading={deleteRegistroPending}
+                onClick={() => startDeleteRegistroTransition(() => deleteRegistroFormAction())}
+              >
                 Confirmar
               </Button>
             </div>

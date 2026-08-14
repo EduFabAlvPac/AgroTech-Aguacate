@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -9,16 +9,28 @@ import {
   Plus, Trash2, DollarSign, TrendingDown, TrendingUp, Wallet,
   FileDown, Users, Pencil, BarChart3, Calculator, ClipboardList, PiggyBank, Receipt,
 } from "lucide-react";
-import { Button, Modal, Input, Select, Textarea, EmptyState } from "@/components/ui";
+import { Button, Modal, EmptyState } from "@/components/ui";
 import { RegistroJornalForm } from "@/components/finanzas/RegistroJornalForm";
+import { GastoForm } from "@/components/finanzas/GastoForm";
+import { IngresoForm } from "@/components/finanzas/IngresoForm";
+import { PresupuestoForm } from "@/components/finanzas/PresupuestoForm";
 import { ExportarFinagroButton } from "@/components/finanzas/ExportarFinagroButton";
 import { EstadoResultadosTab } from "@/components/finanzas/EstadoResultadosTab";
 import { CATEGORIA_LABELS, TIPO_GASTO_LABELS } from "@/types";
 import { formatCOP, formatCOPFull, formatDate } from "@/lib/utils";
-import { gastoFormSchema, ingresoFormSchema } from "@/lib/validations";
 import { exportFinanciasPDF } from "@/lib/pdf-export";
+import {
+  calcularIndicadoresFinancieros,
+  calcularPresupuestoVsReal,
+  calcularCostosPorTipo,
+  calcularCostosPorLote,
+  calcularPorCategoria,
+  calcularEvolucionMensual,
+} from "@/lib/finanzas/calculos";
+import { eliminarGasto, type EliminarGastoState } from "@/app/(dashboard)/dashboard/finanzas/gasto-actions";
+import { eliminarIngreso, type EliminarIngresoState } from "@/app/(dashboard)/dashboard/finanzas/ingreso-actions";
 import toast from "react-hot-toast";
-import type { CategoriaGasto, Comprador, Cultivo, Gasto, Lote, Presupuesto, TipoGasto } from "@prisma/client";
+import type { CategoriaGasto, Comprador, Cultivo, Gasto, Lote, Presupuesto } from "@prisma/client";
 import type { IngresoWithRelations } from "@/types";
 
 type GastoWithRelations = Gasto & { cultivo: (Cultivo & { lote: Lote }) | null; lote: Lote | null };
@@ -74,63 +86,15 @@ export function FinanzasClient({
   const [showGastoModal, setShowGastoModal] = useState(false);
   const [showJornalModal, setShowJornalModal] = useState(false);
   const [editingGasto, setEditingGasto] = useState<GastoWithRelations | null>(null);
-  const [gastoLoading, setGastoLoading] = useState(false);
   const [filterCat, setFilterCat] = useState("");
   const [filterPeriodo, setFilterPeriodo] = useState("2026");
-
-  const [gastoForm, setGastoForm] = useState({
-    concepto: "",
-    categoria: "INSUMOS" as CategoriaGasto,
-    monto: "",
-    fecha: today,
-    proveedor: "",
-    notas: "",
-    cultivoId: cultivos[0]?.id ?? "",
-    loteId: "",
-    subcategoria: "",
-    tipoGasto: "VARIABLE" as TipoGasto,
-    cantidad: "",
-    unidad: "",
-    precioUnitario: "",
-  });
-  const [gastoErrors, setGastoErrors] = useState<Record<string, string>>({});
 
   // ── Ingresos state ────────────────────────────────────────────────────────
   const [ingresos, setIngresos] = useState(initialIngresos);
   const [showIngresoModal, setShowIngresoModal] = useState(false);
-  const [ingresoLoading, setIngresoLoading] = useState(false);
-
-  const [ingresoForm, setIngresoForm] = useState({
-    concepto: "",
-    monto: "",
-    cantidadKg: "",
-    fecha: today,
-    compradorId: "",
-    cultivoId: cultivos[0]?.id ?? "",
-    notas: "",
-  });
-  const [ingresoErrors, setIngresoErrors] = useState<Record<string, string>>({});
 
   // ── Presupuesto state ─────────────────────────────────────────────────────
   const [presupuestos, setPresupuestos] = useState(initialPresupuestos);
-  const [presupuestoForm, setPresupuestoForm] = useState<Record<string, string>>({});
-  const [presupuestoLoading, setPresupuestoLoading] = useState(false);
-
-  // Auto-calculate precioKg display
-  const precioKgCalc = useMemo(() => {
-    const kg = Number(ingresoForm.cantidadKg);
-    const monto = Number(ingresoForm.monto);
-    if (kg > 0 && monto > 0) return (monto / kg).toFixed(0);
-    return null;
-  }, [ingresoForm.cantidadKg, ingresoForm.monto]);
-
-  // Auto-calculate monto from cantidad × precioUnitario
-  const montoCalc = useMemo(() => {
-    const cant = Number(gastoForm.cantidad);
-    const precio = Number(gastoForm.precioUnitario);
-    if (cant > 0 && precio > 0) return (cant * precio).toString();
-    return null;
-  }, [gastoForm.cantidad, gastoForm.precioUnitario]);
 
   // ── Derived stats ─────────────────────────────────────────────────────────
   const gastosFiltrados = useMemo(() => {
@@ -161,103 +125,47 @@ export function FinanzasClient({
   const totalIngresos = useMemo(() => ingresosFiltrados.reduce((s, i) => s + i.monto, 0), [ingresosFiltrados]);
   const saldo = totalIngresos - totalGastos;
 
+  // Todos los bloques de abajo delegan a funciones puras de
+  // lib/finanzas/calculos.ts (Fase 1, ADR-006, condición del módulo
+  // Finanzas) — mismas fórmulas de antes, ahora verificadas con un caso
+  // hecho a mano en src/__tests__/lib/finanzas-calculos.test.ts. Se
+  // mantiene la reactividad al filtro de período: se recalculan con
+  // gastosFiltrados/ingresosFiltrados, no con la lista completa.
   const byCategory = useMemo(() => {
-    const map: Record<string, number> = {};
-    gastosFiltrados.forEach((g) => {
-      map[g.categoria] = (map[g.categoria] ?? 0) + g.monto;
-    });
-    return Object.entries(map)
-      .map(([name, value]) => ({ name, label: CATEGORIA_LABELS[name as CategoriaGasto] ?? name, value }))
-      .sort((a, b) => b.value - a.value);
+    return calcularPorCategoria(gastosFiltrados).map((c) => ({
+      ...c,
+      label: CATEGORIA_LABELS[c.name as CategoriaGasto] ?? c.name,
+    }));
   }, [gastosFiltrados]);
 
-  const gastosPorMes = useMemo(() => {
-    return Array.from({ length: 12 }, (_, i) => {
-      const mes = new Date(2026, i, 1);
-      const label = mes.toLocaleDateString("es-CO", { month: "short" });
-      const totalGastosMonth = gastosFiltrados
-        .filter((g) => new Date(g.fecha).getMonth() === i && new Date(g.fecha).getFullYear() === 2026)
-        .reduce((s, g) => s + g.monto, 0);
-      const totalIngresosMonth = ingresosFiltrados
-        .filter((ing) => new Date(ing.fecha).getMonth() === i && new Date(ing.fecha).getFullYear() === 2026)
-        .reduce((s, ing) => s + ing.monto, 0);
-      return { mes: label, gastos: totalGastosMonth, ingresos: totalIngresosMonth };
-    });
-  }, [gastosFiltrados, ingresosFiltrados]);
+  // Nota: sigue fijo al año 2026 (mismo comportamiento que antes de la
+  // extracción, no se corrige aquí — fuera de alcance de este módulo).
+  const gastosPorMes = useMemo(
+    () => calcularEvolucionMensual(2026, gastosFiltrados, ingresosFiltrados),
+    [gastosFiltrados, ingresosFiltrados]
+  );
 
-  // Costos por tipo
-  const costosPorTipo = useMemo(() => {
-    const result = { FIJO: 0, VARIABLE: 0, INVERSION: 0 };
-    gastosFiltrados.forEach((g) => { result[g.tipoGasto] += g.monto; });
-    return result;
-  }, [gastosFiltrados]);
+  const costosPorTipo = useMemo(() => calcularCostosPorTipo(gastosFiltrados), [gastosFiltrados]);
 
-  // Costos por lote
-  const costosPorLote = useMemo(() => {
-    const map: Record<string, { nombre: string; areaHa: number; total: number }> = {};
-    let sinAsignar = 0;
-    gastosFiltrados.forEach((g) => {
-      const lote = g.lote || g.cultivo?.lote;
-      if (lote) {
-        if (!map[lote.id]) map[lote.id] = { nombre: lote.nombre, areaHa: lote.areaHa, total: 0 };
-        map[lote.id].total += g.monto;
-      } else {
-        sinAsignar += g.monto;
-      }
-    });
-    const result = Object.values(map).sort((a, b) => b.total - a.total);
-    if (sinAsignar > 0) result.push({ nombre: "Sin asignar", areaHa: 0, total: sinAsignar });
-    return result;
-  }, [gastosFiltrados]);
+  const costosPorLote = useMemo(() => calcularCostosPorLote(gastosFiltrados), [gastosFiltrados]);
 
   // Top 5 gastos
   const top5Gastos = useMemo(() => {
     return [...gastosFiltrados].sort((a, b) => b.monto - a.monto).slice(0, 5);
   }, [gastosFiltrados]);
 
-  // Indicadores financieros
-  const indicadores = useMemo(() => {
-    const hectareasActivas = lotes.reduce((s, l) => s + l.areaHa, 0);
-    const plantasActivas = cultivos.reduce((s, c) => s + (c.cantidadPlantas ?? 0), 0);
-    const costoTotalPorHa = hectareasActivas > 0 ? totalGastos / hectareasActivas : 0;
-    const costoTotalPorPlanta = plantasActivas > 0 ? totalGastos / plantasActivas : 0;
-    // Antes asumía 8 ton/ha fijas (rendimiento típico de aguacate en plena
-    // producción) para cualquier especie — ahora usa el rendimiento real por
-    // planta de la ficha técnica del cultivo (motor de fichas técnicas, §4);
-    // si no hay ficha con ese dato, la proyección queda en 0 en vez de
-    // inventar un número.
-    const produccionEstimadaKg = cultivos.reduce(
-      (s, c) => s + (c.cantidadPlantas ?? 0) * (c.especieCultivo?.produccionKgArbolAnual ?? 0), 0
-    );
-    const puntoEquilibrioPrecio = produccionEstimadaKg > 0 ? totalGastos / produccionEstimadaKg : 0;
-    const preciosCompradores = compradores.filter((c) => c.precioKg).map((c) => c.precioKg!);
-    const precioPromedioCompradores = preciosCompradores.length > 0
-      ? preciosCompradores.reduce((s, p) => s + p, 0) / preciosCompradores.length
-      : 0;
-    const ingresoProyectado = produccionEstimadaKg * precioPromedioCompradores;
-    const margenBruto = ingresoProyectado - totalGastos;
-    const margenPorcentaje = ingresoProyectado > 0 ? (margenBruto / ingresoProyectado) * 100 : 0;
-    // Sin producción proyectada (sin ficha técnica con rendimiento) no hay
-    // base real para un ROI — se deja en 0 en vez de mostrar un engañoso
-    // "-100%" cuando en realidad es "sin datos suficientes".
-    const roi = totalGastos > 0 && ingresoProyectado > 0 ? ((ingresoProyectado - totalGastos) / totalGastos) * 100 : 0;
-    return {
-      hectareasActivas, plantasActivas, costoTotalPorHa, costoTotalPorPlanta,
-      produccionEstimadaKg, puntoEquilibrioPrecio, precioPromedioCompradores,
-      ingresoProyectado, margenBruto, margenPorcentaje, roi,
-    };
-  }, [totalGastos, lotes, cultivos, compradores]);
+  // Indicadores financieros (ROI, punto de equilibrio, margen bruto) — usan
+  // totalGastos ya filtrado por período, no gastos.length completo.
+  const indicadores = useMemo(
+    () => calcularIndicadoresFinancieros({ totalGastos, lotes, cultivos, compradores }),
+    [totalGastos, lotes, cultivos, compradores]
+  );
 
   // Presupuesto vs Real
-  const presupuestoVsReal = useMemo(() => {
-    return presupuestos.map((p) => {
-      const real = gastosFiltrados
-        .filter((g) => g.categoria === p.categoria)
-        .reduce((s, g) => s + g.monto, 0);
-      const porcentaje = p.montoPlaneado > 0 ? (real / p.montoPlaneado) * 100 : 0;
-      return { categoria: p.categoria, planeado: p.montoPlaneado, real, variacion: real - p.montoPlaneado, porcentaje };
-    });
-  }, [presupuestos, gastosFiltrados]);
+  const presupuestoVsReal = useMemo(
+    () => calcularPresupuestoVsReal(presupuestos, gastosFiltrados),
+    [presupuestos, gastosFiltrados]
+  );
 
   const filteredGastos = filterCat ? gastosFiltrados.filter((g) => g.categoria === filterCat) : gastosFiltrados;
 
@@ -292,79 +200,35 @@ export function FinanzasClient({
     } catch { toast.error("Error al generar el PDF"); }
   };
 
-  // ── Gasto handlers ────────────────────────────────────────────────────────
-  const handleGastoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setGastoErrors({});
+  // ── Gasto: crear/editar (GastoForm) + eliminar (Server Action) ────────────
+  // La confirmación es un toast con dos botones inline (no un Modal, mismo
+  // patrón visual que ya tenía FinanzasClient) — la función que arma esos
+  // botones se define UNA vez dentro de handleGastoDelete y react-hot-toast
+  // no la vuelve a crear en cada render, así que un dispatch de
+  // useActionState pre-atado por id (el patrón de Cultivos, pensado para un
+  // Modal cuyo JSX sí se re-evalúa en cada render) quedaría con un closure
+  // desactualizado. Se llama la Server Action directamente dentro de
+  // startTransition — sigue siendo la Server Action nativa de Next 15, sin
+  // fetch a una ruta API, solo sin pasar por el dispatcher de
+  // useActionState para este caso puntual.
+  const [, startDeleteGastoTransition] = useTransition();
 
-    const montoFinal = montoCalc || gastoForm.monto;
-    const result = gastoFormSchema.safeParse({
-      ...gastoForm,
-      monto: montoFinal ? Number(montoFinal) : undefined,
-    });
-
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        const field = err.path[0] as string;
-        if (!fieldErrors[field]) fieldErrors[field] = err.message;
-      });
-      setGastoErrors(fieldErrors);
-      return;
-    }
-
-    setGastoLoading(true);
-    try {
-      const url = editingGasto ? `/api/gastos/${editingGasto.id}` : "/api/gastos";
-      const method = editingGasto ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...gastoForm,
-          monto: Number(montoFinal || gastoForm.monto),
-          cultivoId: gastoForm.cultivoId || undefined,
-          loteId: gastoForm.loteId || undefined,
-          subcategoria: gastoForm.subcategoria || undefined,
-          cantidad: gastoForm.cantidad ? Number(gastoForm.cantidad) : undefined,
-          unidad: gastoForm.unidad || undefined,
-          precioUnitario: gastoForm.precioUnitario ? Number(gastoForm.precioUnitario) : undefined,
-        }),
-      });
-      const { data } = await res.json();
-      if (!res.ok) throw new Error();
-
-      if (editingGasto) {
-        setGastos((prev) => prev.map((g) => g.id === editingGasto.id ? data : g));
-        toast.success("Gasto actualizado");
-      } else {
-        setGastos((prev) => [data, ...prev]);
-        toast.success("Gasto registrado");
-      }
-
-      setShowGastoModal(false);
-      setEditingGasto(null);
-      resetGastoForm();
-    } catch { toast.error("Error al registrar el gasto"); }
-    finally { setGastoLoading(false); }
-  };
-
-  const resetGastoForm = () => {
-    setGastoForm({
-      concepto: "", categoria: "INSUMOS", monto: "", fecha: today,
-      proveedor: "", notas: "", cultivoId: cultivos[0]?.id ?? "",
-      loteId: "", subcategoria: "", tipoGasto: "VARIABLE",
-      cantidad: "", unidad: "", precioUnitario: "",
-    });
-  };
-
-  const handleGastoDelete = async (id: string) => {
+  const handleGastoDelete = (id: string) => {
     toast((t) => (
       <div className="flex items-center gap-3">
         <span className="text-[13px]">¿Eliminar este gasto?</span>
         <button
-          onClick={() => { toast.dismiss(t.id); doDeleteGasto(id); }}
+          onClick={() => {
+            toast.dismiss(t.id);
+            startDeleteGastoTransition(async () => {
+              const result = await eliminarGasto({} as EliminarGastoState, id);
+              if (result.error) toast.error(result.error);
+              else if (result.ok) {
+                setGastos((prev) => prev.filter((g) => g.id !== id));
+                toast.success("Gasto eliminado");
+              }
+            });
+          }}
           className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
         >Eliminar</button>
         <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">
@@ -374,108 +238,31 @@ export function FinanzasClient({
     ), { duration: 10000 });
   };
 
-  const doDeleteGasto = async (id: string) => {
-    try {
-      await fetch(`/api/gastos/${id}`, { method: "DELETE" });
-      setGastos((prev) => prev.filter((g) => g.id !== id));
-      toast.success("Gasto eliminado");
-    } catch { toast.error("Error al eliminar"); }
-  };
+  // ── Ingreso: crear (IngresoForm) + eliminar (Server Action) ───────────────
+  const [, startDeleteIngresoTransition] = useTransition();
 
-  // ── Ingreso handlers ──────────────────────────────────────────────────────
-  const handleIngresoSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIngresoErrors({});
-
-    const result = ingresoFormSchema.safeParse({
-      concepto: ingresoForm.concepto,
-      monto: ingresoForm.monto ? Number(ingresoForm.monto) : undefined,
-      cantidadKg: ingresoForm.cantidadKg ? Number(ingresoForm.cantidadKg) : undefined,
-      fecha: ingresoForm.fecha,
-      compradorId: ingresoForm.compradorId || undefined,
-      cultivoId: ingresoForm.cultivoId || undefined,
-      notas: ingresoForm.notas || undefined,
-    });
-
-    if (!result.success) {
-      const fieldErrors: Record<string, string> = {};
-      result.error.errors.forEach((err) => {
-        const field = err.path[0] as string;
-        if (!fieldErrors[field]) fieldErrors[field] = err.message;
-      });
-      setIngresoErrors(fieldErrors);
-      return;
-    }
-
-    setIngresoLoading(true);
-    try {
-      const res = await fetch("/api/ingresos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          concepto: ingresoForm.concepto,
-          monto: Number(ingresoForm.monto),
-          cantidadKg: ingresoForm.cantidadKg ? Number(ingresoForm.cantidadKg) : undefined,
-          fecha: ingresoForm.fecha,
-          compradorId: ingresoForm.compradorId || undefined,
-          cultivoId: ingresoForm.cultivoId || undefined,
-          notas: ingresoForm.notas || undefined,
-        }),
-      });
-      const { data } = await res.json();
-      if (!res.ok) throw new Error();
-      setIngresos((prev) => [data, ...prev]);
-      setShowIngresoModal(false);
-      setIngresoForm({ concepto: "", monto: "", cantidadKg: "", fecha: today, compradorId: "", cultivoId: cultivos[0]?.id ?? "", notas: "" });
-      toast.success("Ingreso registrado");
-    } catch { toast.error("Error al registrar el ingreso"); }
-    finally { setIngresoLoading(false); }
-  };
-
-  const handleIngresoDelete = async (id: string) => {
+  const handleIngresoDelete = (id: string) => {
     toast((t) => (
       <div className="flex items-center gap-3">
         <span className="text-[13px]">¿Eliminar este ingreso?</span>
-        <button onClick={() => { toast.dismiss(t.id); doDeleteIngreso(id); }} className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium">Eliminar</button>
+        <button
+          onClick={() => {
+            toast.dismiss(t.id);
+            startDeleteIngresoTransition(async () => {
+              const result = await eliminarIngreso({} as EliminarIngresoState, id);
+              if (result.error) toast.error(result.error);
+              else if (result.ok) {
+                setIngresos((prev) => prev.filter((i) => i.id !== id));
+                toast.success("Ingreso eliminado");
+              }
+            });
+          }}
+          className="px-3 py-1 bg-negative-400 text-white text-[12px] rounded-md font-medium"
+        >Eliminar</button>
         <button onClick={() => toast.dismiss(t.id)} className="px-3 py-1 border border-[var(--border-default)] text-[12px] rounded-md">Cancelar</button>
       </div>
     ), { duration: 10000 });
   };
-
-  const doDeleteIngreso = async (id: string) => {
-    try {
-      await fetch(`/api/ingresos/${id}`, { method: "DELETE" });
-      setIngresos((prev) => prev.filter((i) => i.id !== id));
-      toast.success("Ingreso eliminado");
-    } catch { toast.error("Error al eliminar"); }
-  };
-
-  // ── Presupuesto handler ───────────────────────────────────────────────────
-  const handlePresupuestoSave = async () => {
-    setPresupuestoLoading(true);
-    try {
-      const anio = new Date().getFullYear();
-      const entries = Object.entries(presupuestoForm).filter(([, v]) => v && Number(v) > 0);
-      const results = await Promise.all(
-        entries.map(([categoria, monto]) =>
-          fetch("/api/presupuesto", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ anio, categoria, montoPlaneado: Number(monto) }),
-          }).then((r) => r.json())
-        )
-      );
-      setPresupuestos(results.map((r) => r.data).filter(Boolean));
-      toast.success("Presupuesto guardado");
-    } catch { toast.error("Error al guardar presupuesto"); }
-    finally { setPresupuestoLoading(false); }
-  };
-
-  // Cultivos filtrados por lote seleccionado
-  const cultivosFiltrados = useMemo(() => {
-    if (!gastoForm.loteId) return cultivos;
-    return cultivos.filter((c) => c.loteId === gastoForm.loteId);
-  }, [gastoForm.loteId, cultivos]);
 
   return (
     <div className="space-y-6">
@@ -728,36 +515,7 @@ export function FinanzasClient({
       {/* ════════ TAB: PRESUPUESTO ════════ */}
       {activeTab === "presupuesto" && (
         <div className="space-y-6">
-          {/* Formulario presupuesto */}
-          <div className="card p-5">
-            <h3 className="text-[14px] font-semibold text-[var(--text-primary)] mb-4">
-              Presupuesto anual {new Date().getFullYear()} por categoría
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {Object.entries(CATEGORIA_LABELS).map(([cat, label]) => {
-                const existing = presupuestos.find((p) => p.categoria === cat);
-                return (
-                  <div key={cat}>
-                    <label className="text-[11px] text-[var(--text-secondary)] mb-1 block">{label}</label>
-                    <input
-                      type="number"
-                      className="w-full h-9 px-3 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white"
-                      placeholder={existing ? formatCOPFull(existing.montoPlaneado) : "0"}
-                      value={presupuestoForm[cat] ?? (existing?.montoPlaneado?.toString() || "")}
-                      onChange={(e) => setPresupuestoForm((prev) => ({ ...prev, [cat]: e.target.value }))}
-                      min="0"
-                    />
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-4 flex justify-end">
-              <Button onClick={handlePresupuestoSave} loading={presupuestoLoading}>
-                <PiggyBank size={14} />
-                Guardar presupuesto
-              </Button>
-            </div>
-          </div>
+          <PresupuestoForm presupuestos={presupuestos} onSuccess={(nuevos) => setPresupuestos(nuevos)} />
 
           {/* Tabla comparativa presupuesto vs real */}
           {presupuestoVsReal.length > 0 && (
@@ -888,7 +646,7 @@ export function FinanzasClient({
               </div>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <Button size="sm" onClick={() => setShowJornalModal(true)}><Users size={14} /> Jornal</Button>
-                <Button size="sm" onClick={() => { setEditingGasto(null); resetGastoForm(); setShowGastoModal(true); }}><Plus size={14} /> Nuevo gasto</Button>
+                <Button size="sm" onClick={() => { setEditingGasto(null); setShowGastoModal(true); }}><Plus size={14} /> Nuevo gasto</Button>
               </div>
             </div>
             {filteredGastos.length === 0 ? (
@@ -924,7 +682,7 @@ export function FinanzasClient({
                         <td className="px-4 sm:px-5 py-3 text-[13px] font-semibold text-negative-600 whitespace-nowrap">{formatCOPFull(g.monto)}</td>
                         <td className="px-4 sm:px-5 py-3">
                           <div className="flex items-center gap-1">
-                            <button onClick={() => { setEditingGasto(g); setGastoForm({ concepto: g.concepto, categoria: g.categoria, monto: g.monto.toString(), fecha: new Date(g.fecha).toISOString().split("T")[0], proveedor: g.proveedor ?? "", notas: g.notas ?? "", cultivoId: g.cultivoId ?? "", loteId: g.loteId ?? "", subcategoria: g.subcategoria ?? "", tipoGasto: g.tipoGasto, cantidad: g.cantidad?.toString() ?? "", unidad: g.unidad ?? "", precioUnitario: g.precioUnitario?.toString() ?? "" }); setShowGastoModal(true); }} className="p-1.5 hover:bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-agro-600 transition-colors" aria-label="Editar gasto"><Pencil size={14} /></button>
+                            <button onClick={() => { setEditingGasto(g); setShowGastoModal(true); }} className="p-1.5 hover:bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-agro-600 transition-colors" aria-label="Editar gasto"><Pencil size={14} /></button>
                             <button onClick={() => handleGastoDelete(g.id)} className="p-1.5 hover:bg-negative-50 rounded-[var(--radius-md)] text-[var(--text-muted)] hover:text-negative-400 transition-colors" aria-label="Eliminar gasto"><Trash2 size={14} /></button>
                           </div>
                         </td>
@@ -940,75 +698,27 @@ export function FinanzasClient({
 
       {/* ── Ingreso Modal ── */}
       <Modal isOpen={showIngresoModal} onClose={() => setShowIngresoModal(false)} title="Registrar ingreso">
-        <form onSubmit={handleIngresoSubmit} className="space-y-4">
-          <Input label="Concepto" value={ingresoForm.concepto} onChange={(e) => { setIngresoForm({ ...ingresoForm, concepto: e.target.value }); if (ingresoErrors.concepto) setIngresoErrors((prev) => ({ ...prev, concepto: undefined! })); }} placeholder="Ej: Venta aguacate Hass" error={ingresoErrors.concepto} />
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Monto total (COP)" type="number" value={ingresoForm.monto} onChange={(e) => { setIngresoForm({ ...ingresoForm, monto: e.target.value }); if (ingresoErrors.monto) setIngresoErrors((prev) => ({ ...prev, monto: undefined! })); }} placeholder="0" min="1" error={ingresoErrors.monto} />
-            <Input label="Cantidad (kg)" type="number" value={ingresoForm.cantidadKg} onChange={(e) => { setIngresoForm({ ...ingresoForm, cantidadKg: e.target.value }); }} placeholder="Opcional" min="0" />
-          </div>
-          {precioKgCalc && (
-            <p className="text-[12px] text-agro-600 bg-agro-50 px-3 py-2 rounded-[var(--radius-md)]">
-              Precio calculado: <strong>{formatCOP(Number(precioKgCalc))}/kg</strong>
-            </p>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input label="Fecha" type="date" value={ingresoForm.fecha} max={today} onChange={(e) => setIngresoForm({ ...ingresoForm, fecha: e.target.value })} error={ingresoErrors.fecha} />
-            <Select label="Cultivo asociado" value={ingresoForm.cultivoId} onChange={(e) => setIngresoForm({ ...ingresoForm, cultivoId: e.target.value })} options={cultivos.map((c) => ({ value: c.id, label: `${c.lote.nombre} · ${c.variedad}` }))} placeholder="Sin asociar" />
-          </div>
-          {compradores.length > 0 && (
-            <Select label="Comprador" value={ingresoForm.compradorId} onChange={(e) => setIngresoForm({ ...ingresoForm, compradorId: e.target.value })} options={compradores.map((c) => ({ value: c.id, label: c.nombre }))} placeholder="Sin comprador" />
-          )}
-          <Textarea label="Notas (opcional)" value={ingresoForm.notas} onChange={(e) => setIngresoForm({ ...ingresoForm, notas: e.target.value })} placeholder="Detalles adicionales..." rows={2} />
-          <div className="flex gap-3 justify-end pt-1">
-            <Button type="button" variant="secondary" onClick={() => setShowIngresoModal(false)}>Cancelar</Button>
-            <Button type="submit" loading={ingresoLoading}>Guardar ingreso</Button>
-          </div>
-        </form>
+        <IngresoForm
+          cultivos={cultivos}
+          compradores={compradores}
+          onSuccess={(ingreso) => { setIngresos((prev) => [ingreso, ...prev]); setShowIngresoModal(false); }}
+          onCancel={() => setShowIngresoModal(false)}
+        />
       </Modal>
 
       {/* ── Gasto Modal (mejorado) ── */}
       <Modal isOpen={showGastoModal} onClose={() => { setShowGastoModal(false); setEditingGasto(null); }} title={editingGasto ? "Editar gasto" : "Registrar gasto"} size="md">
-        <form onSubmit={handleGastoSubmit} className="space-y-4">
-          <Input label="Concepto del gasto" value={gastoForm.concepto} onChange={(e) => { setGastoForm({ ...gastoForm, concepto: e.target.value }); if (gastoErrors.concepto) setGastoErrors((prev) => ({ ...prev, concepto: undefined! })); }} placeholder="Ej: Plántulas Hass certificadas" error={gastoErrors.concepto} />
-
-          <div className="grid grid-cols-2 gap-3">
-            <Select label="Categoría" value={gastoForm.categoria} onChange={(e) => { setGastoForm({ ...gastoForm, categoria: e.target.value as CategoriaGasto }); }} options={Object.entries(CATEGORIA_LABELS).map(([v, l]) => ({ value: v, label: l }))} error={gastoErrors.categoria} />
-            <Select label="Tipo de gasto" value={gastoForm.tipoGasto} onChange={(e) => setGastoForm({ ...gastoForm, tipoGasto: e.target.value as TipoGasto })} options={Object.entries(TIPO_GASTO_LABELS).map(([v, l]) => ({ value: v, label: l }))} />
-          </div>
-
-          <Input label="Subcategoría (opcional)" value={gastoForm.subcategoria} onChange={(e) => setGastoForm({ ...gastoForm, subcategoria: e.target.value })} placeholder="Ej: Fungicida, Jornal poda" />
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select label="Lote (opcional)" value={gastoForm.loteId} onChange={(e) => setGastoForm({ ...gastoForm, loteId: e.target.value, cultivoId: "" })} options={lotes.map((l) => ({ value: l.id, label: `${l.nombre} (${l.areaHa} ha)` }))} placeholder="Sin asignar" />
-            <Select label="Cultivo (opcional)" value={gastoForm.cultivoId} onChange={(e) => setGastoForm({ ...gastoForm, cultivoId: e.target.value })} options={cultivosFiltrados.map((c) => ({ value: c.id, label: `${c.lote.nombre} · ${c.variedad}` }))} placeholder="Sin asociar" />
-          </div>
-
-          <div className="grid grid-cols-3 gap-3">
-            <Input label="Cantidad" type="number" value={gastoForm.cantidad} onChange={(e) => setGastoForm({ ...gastoForm, cantidad: e.target.value })} placeholder="Ej: 10" min="0" />
-            <Input label="Unidad" value={gastoForm.unidad} onChange={(e) => setGastoForm({ ...gastoForm, unidad: e.target.value })} placeholder="kg, litros, jornales" />
-            <Input label="Precio unitario" type="number" value={gastoForm.precioUnitario} onChange={(e) => setGastoForm({ ...gastoForm, precioUnitario: e.target.value })} placeholder="$/unidad" min="0" />
-          </div>
-
-          {montoCalc && (
-            <p className="text-[12px] text-agro-600 bg-agro-50 px-3 py-2 rounded-[var(--radius-md)]">
-              Monto calculado: <strong>{formatCOPFull(Number(montoCalc))}</strong> ({gastoForm.cantidad} × {formatCOP(Number(gastoForm.precioUnitario))})
-            </p>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Monto total (COP)" type="number" value={montoCalc || gastoForm.monto} onChange={(e) => { setGastoForm({ ...gastoForm, monto: e.target.value }); if (gastoErrors.monto) setGastoErrors((prev) => ({ ...prev, monto: undefined! })); }} placeholder="0" min="0" error={gastoErrors.monto} disabled={!!montoCalc} />
-            <Input label="Fecha" type="date" value={gastoForm.fecha} max={today} onChange={(e) => setGastoForm({ ...gastoForm, fecha: e.target.value })} error={gastoErrors.fecha} />
-          </div>
-
-          <Input label="Proveedor (opcional)" value={gastoForm.proveedor} onChange={(e) => setGastoForm({ ...gastoForm, proveedor: e.target.value })} placeholder="Nombre del proveedor" />
-
-          <Textarea label="Notas (opcional)" value={gastoForm.notas} onChange={(e) => setGastoForm({ ...gastoForm, notas: e.target.value })} placeholder="Detalles adicionales..." rows={2} />
-
-          <div className="flex gap-3 justify-end pt-1">
-            <Button type="button" variant="secondary" onClick={() => { setShowGastoModal(false); setEditingGasto(null); }}>Cancelar</Button>
-            <Button type="submit" loading={gastoLoading}>Guardar gasto</Button>
-          </div>
-        </form>
+        <GastoForm
+          gasto={editingGasto}
+          cultivos={cultivos}
+          lotes={lotes}
+          onSuccess={(gasto) => {
+            setGastos((prev) => (editingGasto ? prev.map((g) => (g.id === gasto.id ? gasto : g)) : [gasto, ...prev]));
+            setShowGastoModal(false);
+            setEditingGasto(null);
+          }}
+          onCancel={() => { setShowGastoModal(false); setEditingGasto(null); }}
+        />
       </Modal>
 
       {/* ── Jornal Modal ── */}

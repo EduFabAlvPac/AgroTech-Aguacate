@@ -1,10 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { signOut } from "next-auth/react";
 import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2 } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
 import toast from "react-hot-toast";
+import { generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
+import {
+  actualizarPerfil,
+  actualizarFinca,
+  actualizarAlertas,
+  exportarMisDatos,
+  eliminarCuenta,
+} from "@/app/(dashboard)/dashboard/configuracion/config-actions";
 
 interface ConfigClientProps {
   user: { name: string | null; email: string; telefono: string | null };
@@ -29,6 +37,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
   const [showEliminar, setShowEliminar] = useState(false);
   const [passwordEliminar, setPasswordEliminar] = useState("");
   const [eliminando, setEliminando] = useState(false);
+  const [, startTransition] = useTransition();
 
   const [profileForm, setProfileForm] = useState({
     name: user?.name ?? "",
@@ -56,85 +65,146 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
     pushAlerts: prefs?.pushAlerts ?? true,
   });
 
-  const save = async (section: Tab, data: any) => {
+  // Server Actions nativas (Fase 1, ADR-006) en vez de fetch a
+  // /api/configuracion — llamadas directas dentro de startTransition. No
+  // se usa useActionState: cada tab guarda su propia sección con un botón
+  // suelto (no un <form> con submit nativo), mismo criterio que
+  // Equipo/Compradores/Alertas/Fichas técnicas.
+  const saveProfile = () => {
     setSaving(true);
-    try {
-      const res = await fetch("/api/configuracion", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ section, data }),
-      });
-      if (!res.ok) {
-        const { error } = await res.json();
-        throw new Error(error);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("name", profileForm.name);
+        fd.set("telefono", profileForm.telefono);
+        if (profileForm.currentPassword) fd.set("currentPassword", profileForm.currentPassword);
+        if (profileForm.newPassword) fd.set("newPassword", profileForm.newPassword);
+
+        const result = await actualizarPerfil({}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Configuración guardada");
+      } finally {
+        setSaving(false);
       }
-      toast.success("Configuración guardada");
-    } catch (err: any) {
-      toast.error(err.message ?? "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
-  const handleGenerateAlerts = async () => {
+  const saveFinca = () => {
+    setSaving(true);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", fincaForm.nombre);
+        fd.set("municipio", fincaForm.municipio);
+        fd.set("departamento", fincaForm.departamento);
+        fd.set("lat", fincaForm.lat);
+        fd.set("lng", fincaForm.lng);
+        fd.set("areaTotal", fincaForm.areaTotal);
+
+        const result = await actualizarFinca({}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Configuración guardada");
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
+  const saveAlertas = () => {
+    setSaving(true);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("tempMinAlert", String(alertaForm.tempMinAlert));
+        fd.set("tempMaxAlert", String(alertaForm.tempMaxAlert));
+        fd.set("rainAlertMm", String(alertaForm.rainAlertMm));
+        fd.set("windAlertKmh", String(alertaForm.windAlertKmh));
+        fd.set("droughtDays", String(alertaForm.droughtDays));
+        fd.set("emailAlerts", String(alertaForm.emailAlerts));
+        fd.set("pushAlerts", String(alertaForm.pushAlerts));
+
+        const result = await actualizarAlertas({}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Configuración guardada");
+      } finally {
+        setSaving(false);
+      }
+    });
+  };
+
+  const handleGenerateAlerts = () => {
     setGeneratingAlerts(true);
-    try {
-      const res = await fetch("/api/alertas/generate", { method: "POST" });
-      const { data } = await res.json();
-      toast.success(data?.message ?? "Alertas generadas");
-    } catch {
-      toast.error("Error al generar alertas");
-    } finally {
-      setGeneratingAlerts(false);
-    }
+    startTransition(async () => {
+      try {
+        const result = await generarAlertas();
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(result.message ?? "Alertas generadas");
+      } finally {
+        setGeneratingAlerts(false);
+      }
+    });
   };
 
-  const handleExportar = async () => {
+  const handleExportar = () => {
     setExportando(true);
-    try {
-      const res = await fetch("/api/cuenta/exportar");
-      if (!res.ok) throw new Error("No se pudo generar el archivo");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `agrotech-mis-datos-${new Date().toISOString().slice(0, 10)}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      toast.success("Descarga iniciada");
-    } catch {
-      toast.error("Error al exportar tus datos");
-    } finally {
-      setExportando(false);
-    }
+    startTransition(async () => {
+      try {
+        const result = await exportarMisDatos();
+        if (result.error || !result.json) {
+          toast.error(result.error || "No se pudo generar el archivo");
+          return;
+        }
+        const blob = new Blob([result.json], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename ?? `agrotech-mis-datos-${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Descarga iniciada");
+      } finally {
+        setExportando(false);
+      }
+    });
   };
 
-  const handleEliminarCuenta = async () => {
+  const handleEliminarCuenta = () => {
     if (!passwordEliminar) return toast.error("Ingresa tu contraseña para confirmar");
     setEliminando(true);
-    try {
-      const res = await fetch("/api/cuenta/eliminar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: passwordEliminar }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "No se pudo procesar la solicitud");
-
-      if (json.data.eliminadaDeInmediato) {
-        toast.success("Tu cuenta fue eliminada");
-        await signOut({ callbackUrl: "/login" });
-      } else {
-        toast.success("Solicitud registrada");
-        setShowEliminar(false);
-        setPasswordEliminar("");
-        window.alert(json.data.mensaje);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("password", passwordEliminar);
+        const result = await eliminarCuenta({}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        if (result.eliminadaDeInmediato) {
+          toast.success("Tu cuenta fue eliminada");
+          await signOut({ callbackUrl: "/login" });
+        } else {
+          toast.success("Solicitud registrada");
+          setShowEliminar(false);
+          setPasswordEliminar("");
+          window.alert(result.mensaje);
+        }
+      } finally {
+        setEliminando(false);
       }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar la cuenta");
-    } finally {
-      setEliminando(false);
-    }
+    });
   };
 
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
@@ -213,7 +283,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
           </div>
 
           <Button
-            onClick={() => save("profile", profileForm)}
+            onClick={saveProfile}
             loading={saving}
             className="w-full"
           >
@@ -282,7 +352,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
           </div>
 
           <Button
-            onClick={() => save("finca", fincaForm)}
+            onClick={saveFinca}
             loading={saving}
             className="w-full"
           >
@@ -400,7 +470,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
             </div>
 
             <Button
-              onClick={() => save("alertas", alertaForm)}
+              onClick={saveAlertas}
               loading={saving}
               className="w-full"
             >

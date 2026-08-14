@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import {
   ArrowLeft, Plus, Trash2, Pencil, Rocket, Copy, Sprout,
@@ -20,6 +20,20 @@ import type {
   TipoPlagaEnfermedad,
   CategoriaGasto,
 } from "@prisma/client";
+import {
+  actualizarFichaCore,
+  publicarFicha,
+  eliminarFicha,
+  agregarEtapa,
+  eliminarEtapa,
+  agregarPlaga,
+  eliminarPlaga,
+  agregarCosto,
+  eliminarCosto,
+  agregarPuntoCurva,
+  eliminarPuntoCurva,
+  crearFicha,
+} from "@/app/(dashboard)/dashboard/admin/fichas-tecnicas/ficha-actions";
 
 type FichaCompleta = FichaTecnica & {
   variedad: Variedad & { especie: EspecieCultivo };
@@ -63,6 +77,7 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   const [ficha, setFicha] = useState(initial);
   const editable = ficha.estado === "BORRADOR";
   const nombreFicha = `${ficha.variedad.especie.nombre} ${ficha.variedad.nombre} v${ficha.version}`;
+  const [, startTransition] = useTransition();
 
   const [publishing, setPublishing] = useState(false);
   const [cloning, setCloning] = useState(false);
@@ -74,53 +89,53 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   const [deleteConfirm, setDeleteConfirm] = useState("");
   const [deleting, setDeleting] = useState(false);
 
-  const handleEliminarFicha = async () => {
+  // Server Actions nativas (Fase 1, ADR-006) en vez de fetch — llamadas
+  // directas dentro de startTransition. No se usa useActionState: cada
+  // acción es un botón/modal puntual con su propio "loading" local, no un
+  // <form> con submit nativo (mismo criterio que Equipo/Compradores).
+  const handleEliminarFicha = () => {
     setDeleting(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}`, { method: "DELETE" });
-      if (!res.ok) {
-        const json = await res.json().catch(() => null);
-        throw new Error(json?.error || "Error al eliminar");
+    startTransition(async () => {
+      const result = await eliminarFicha(ficha.id);
+      if (result.error) {
+        toast.error(result.error);
+        setDeleting(false);
+        return;
       }
       toast.success("Ficha técnica eliminada");
       window.location.href = "/dashboard/admin/fichas-tecnicas";
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al eliminar");
-      setDeleting(false);
-    }
+    });
   };
 
-  const handlePublicar = async () => {
+  const handlePublicar = () => {
     if (!confirm("¿Publicar esta ficha técnica? Quedará activa para todos los cultivos nuevos de esta variedad.")) return;
     setPublishing(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/publicar`, { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al publicar");
-      toast.success("Ficha técnica publicada");
-      setFicha((prev) => ({ ...prev, estado: json.data.estado, publicadaEn: json.data.publicadaEn }));
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al publicar");
-    } finally {
-      setPublishing(false);
-    }
+    startTransition(async () => {
+      try {
+        const result = await publicarFicha(ficha.id);
+        if (result.error || !result.ficha) {
+          toast.error(result.error || "Error al publicar");
+          return;
+        }
+        toast.success("Ficha técnica publicada");
+        setFicha((prev) => ({ ...prev, estado: result.ficha!.estado, publicadaEn: result.ficha!.publicadaEn }));
+      } finally {
+        setPublishing(false);
+      }
+    });
   };
 
-  const handleNuevaVersion = async () => {
+  const handleNuevaVersion = () => {
     setCloning(true);
-    try {
-      const res = await fetch("/api/admin/fichas-tecnicas", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ variedadId: ficha.variedadId, clonarEtapasDeVersionId: ficha.id }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al crear nueva versión");
-      window.location.href = `/dashboard/admin/fichas-tecnicas/${json.data.id}`;
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al crear nueva versión");
-      setCloning(false);
-    }
+    startTransition(async () => {
+      const result = await crearFicha(ficha.variedadId, ficha.id);
+      if (result.error || !result.ficha) {
+        toast.error(result.error || "Error al crear nueva versión");
+        setCloning(false);
+        return;
+      }
+      window.location.href = `/dashboard/admin/fichas-tecnicas/${result.ficha.id}`;
+    });
   };
 
   // ── Etapas ─────────────────────────────────────────────────────────────────
@@ -129,41 +144,42 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   const [nuevaEtapa, setNuevaEtapa] = useState({ nombre: "", duracionDiasMin: "", duracionDiasMax: "", descripcion: "" });
   const [addingEtapa, setAddingEtapa] = useState(false);
 
-  const handleAgregarEtapa = async () => {
+  const handleAgregarEtapa = () => {
     if (!nuevaEtapa.nombre.trim()) return toast.error("El nombre de la etapa es requerido");
     setAddingEtapa(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/etapas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: nuevaEtapa.nombre.trim(),
-          duracionDiasMin: nuevaEtapa.duracionDiasMin || undefined,
-          duracionDiasMax: nuevaEtapa.duracionDiasMax || undefined,
-          descripcion: nuevaEtapa.descripcion.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar etapa");
-      setEtapas((prev) => [...prev, json.data]);
-      setNuevaEtapa({ nombre: "", duracionDiasMin: "", duracionDiasMax: "", descripcion: "" });
-      setShowEtapaModal(false);
-      toast.success("Etapa agregada");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar etapa");
-    } finally {
-      setAddingEtapa(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", nuevaEtapa.nombre.trim());
+        if (nuevaEtapa.duracionDiasMin) fd.set("duracionDiasMin", nuevaEtapa.duracionDiasMin);
+        if (nuevaEtapa.duracionDiasMax) fd.set("duracionDiasMax", nuevaEtapa.duracionDiasMax);
+        if (nuevaEtapa.descripcion.trim()) fd.set("descripcion", nuevaEtapa.descripcion.trim());
+
+        const result = await agregarEtapa(ficha.id, fd);
+        if (result.error || !result.etapa) {
+          toast.error(result.error || "Error al agregar etapa");
+          return;
+        }
+        setEtapas((prev) => [...prev, result.etapa!]);
+        setNuevaEtapa({ nombre: "", duracionDiasMin: "", duracionDiasMax: "", descripcion: "" });
+        setShowEtapaModal(false);
+        toast.success("Etapa agregada");
+      } finally {
+        setAddingEtapa(false);
+      }
+    });
   };
 
-  const handleEliminarEtapa = async (id: string) => {
+  const handleEliminarEtapa = (id: string) => {
     const anterior = etapas;
     setEtapas((prev) => prev.filter((e) => e.id !== id));
-    const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/etapas/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      setEtapas(anterior);
-      toast.error("Error al eliminar etapa");
-    }
+    startTransition(async () => {
+      const result = await eliminarEtapa(ficha.id, id);
+      if (result.error) {
+        setEtapas(anterior);
+        toast.error("Error al eliminar etapa");
+      }
+    });
   };
 
   // ── Plagas y enfermedades ──────────────────────────────────────────────────
@@ -175,47 +191,46 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   });
   const [addingPlaga, setAddingPlaga] = useState(false);
 
-  const handleAgregarPlaga = async () => {
+  const handleAgregarPlaga = () => {
     if (!nuevaPlaga.nombre.trim()) return toast.error("El nombre es requerido");
     setAddingPlaga(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/plagas`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: nuevaPlaga.nombre.trim(),
-          tipo: nuevaPlaga.tipo,
-          sintomas: nuevaPlaga.sintomas.trim() || undefined,
-          manejoRecomendado: nuevaPlaga.manejoRecomendado.trim() || undefined,
-          umbralAlerta: {
-            humedadMinPct: nuevaPlaga.humedadMinPct,
-            tempMinC: nuevaPlaga.tempMinC,
-            tempMaxC: nuevaPlaga.tempMaxC,
-            lluviaMinMm: nuevaPlaga.lluviaMinMm,
-          },
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar");
-      setPlagas((prev) => [...prev, json.data]);
-      setNuevaPlaga({ nombre: "", tipo: "PLAGA", sintomas: "", manejoRecomendado: "", humedadMinPct: "", tempMinC: "", tempMaxC: "", lluviaMinMm: "" });
-      setShowPlagaModal(false);
-      toast.success("Plaga/enfermedad agregada");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar");
-    } finally {
-      setAddingPlaga(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", nuevaPlaga.nombre.trim());
+        fd.set("tipo", nuevaPlaga.tipo);
+        if (nuevaPlaga.sintomas.trim()) fd.set("sintomas", nuevaPlaga.sintomas.trim());
+        if (nuevaPlaga.manejoRecomendado.trim()) fd.set("manejoRecomendado", nuevaPlaga.manejoRecomendado.trim());
+        if (nuevaPlaga.humedadMinPct) fd.set("humedadMinPct", nuevaPlaga.humedadMinPct);
+        if (nuevaPlaga.tempMinC) fd.set("tempMinC", nuevaPlaga.tempMinC);
+        if (nuevaPlaga.tempMaxC) fd.set("tempMaxC", nuevaPlaga.tempMaxC);
+        if (nuevaPlaga.lluviaMinMm) fd.set("lluviaMinMm", nuevaPlaga.lluviaMinMm);
+
+        const result = await agregarPlaga(ficha.id, fd);
+        if (result.error || !result.plaga) {
+          toast.error(result.error || "Error al agregar");
+          return;
+        }
+        setPlagas((prev) => [...prev, result.plaga!]);
+        setNuevaPlaga({ nombre: "", tipo: "PLAGA", sintomas: "", manejoRecomendado: "", humedadMinPct: "", tempMinC: "", tempMaxC: "", lluviaMinMm: "" });
+        setShowPlagaModal(false);
+        toast.success("Plaga/enfermedad agregada");
+      } finally {
+        setAddingPlaga(false);
+      }
+    });
   };
 
-  const handleEliminarPlaga = async (id: string) => {
+  const handleEliminarPlaga = (id: string) => {
     const anterior = plagas;
     setPlagas((prev) => prev.filter((p) => p.id !== id));
-    const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/plagas/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      setPlagas(anterior);
-      toast.error("Error al eliminar");
-    }
+    startTransition(async () => {
+      const result = await eliminarPlaga(ficha.id, id);
+      if (result.error) {
+        setPlagas(anterior);
+        toast.error("Error al eliminar");
+      }
+    });
   };
 
   // ── Costos de referencia ──────────────────────────────────────────────────
@@ -224,41 +239,42 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   const [nuevoCosto, setNuevoCosto] = useState({ categoria: "INSUMOS" as CategoriaGasto, montoPorHa: "", montoPorPlanta: "", frecuencia: "", descripcion: "" });
   const [addingCosto, setAddingCosto] = useState(false);
 
-  const handleAgregarCosto = async () => {
+  const handleAgregarCosto = () => {
     setAddingCosto(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/costos`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          categoria: nuevoCosto.categoria,
-          montoPorHa: nuevoCosto.montoPorHa || undefined,
-          montoPorPlanta: nuevoCosto.montoPorPlanta || undefined,
-          frecuencia: nuevoCosto.frecuencia.trim() || undefined,
-          descripcion: nuevoCosto.descripcion.trim() || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar");
-      setCostos((prev) => [...prev, json.data]);
-      setNuevoCosto({ categoria: "INSUMOS", montoPorHa: "", montoPorPlanta: "", frecuencia: "", descripcion: "" });
-      setShowCostoModal(false);
-      toast.success("Costo de referencia agregado");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar");
-    } finally {
-      setAddingCosto(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("categoria", nuevoCosto.categoria);
+        if (nuevoCosto.montoPorHa) fd.set("montoPorHa", nuevoCosto.montoPorHa);
+        if (nuevoCosto.montoPorPlanta) fd.set("montoPorPlanta", nuevoCosto.montoPorPlanta);
+        if (nuevoCosto.frecuencia.trim()) fd.set("frecuencia", nuevoCosto.frecuencia.trim());
+        if (nuevoCosto.descripcion.trim()) fd.set("descripcion", nuevoCosto.descripcion.trim());
+
+        const result = await agregarCosto(ficha.id, fd);
+        if (result.error || !result.costo) {
+          toast.error(result.error || "Error al agregar");
+          return;
+        }
+        setCostos((prev) => [...prev, result.costo!]);
+        setNuevoCosto({ categoria: "INSUMOS", montoPorHa: "", montoPorPlanta: "", frecuencia: "", descripcion: "" });
+        setShowCostoModal(false);
+        toast.success("Costo de referencia agregado");
+      } finally {
+        setAddingCosto(false);
+      }
+    });
   };
 
-  const handleEliminarCosto = async (id: string) => {
+  const handleEliminarCosto = (id: string) => {
     const anterior = costos;
     setCostos((prev) => prev.filter((c) => c.id !== id));
-    const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/costos/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      setCostos(anterior);
-      toast.error("Error al eliminar");
-    }
+    startTransition(async () => {
+      const result = await eliminarCosto(ficha.id, id);
+      if (result.error) {
+        setCostos(anterior);
+        toast.error("Error al eliminar");
+      }
+    });
   };
 
   // ── Curva de producción ───────────────────────────────────────────────────
@@ -267,40 +283,41 @@ export function FichaTecnicaEditor({ ficha: initial }: { ficha: FichaCompleta })
   const [nuevoPunto, setNuevoPunto] = useState({ anioProduccion: "", kgPorPlantaEsperado: "", kgPorHaEsperado: "" });
   const [addingPunto, setAddingPunto] = useState(false);
 
-  const handleAgregarPunto = async () => {
+  const handleAgregarPunto = () => {
     if (!nuevoPunto.anioProduccion) return toast.error("El año de producción es requerido");
     setAddingPunto(true);
-    try {
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/curva`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          anioProduccion: nuevoPunto.anioProduccion,
-          kgPorPlantaEsperado: nuevoPunto.kgPorPlantaEsperado || undefined,
-          kgPorHaEsperado: nuevoPunto.kgPorHaEsperado || undefined,
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al agregar");
-      setCurva((prev) => [...prev, json.data].sort((a, b) => a.anioProduccion - b.anioProduccion));
-      setNuevoPunto({ anioProduccion: "", kgPorPlantaEsperado: "", kgPorHaEsperado: "" });
-      setShowCurvaModal(false);
-      toast.success("Punto de curva agregado");
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al agregar");
-    } finally {
-      setAddingPunto(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("anioProduccion", nuevoPunto.anioProduccion);
+        if (nuevoPunto.kgPorPlantaEsperado) fd.set("kgPorPlantaEsperado", nuevoPunto.kgPorPlantaEsperado);
+        if (nuevoPunto.kgPorHaEsperado) fd.set("kgPorHaEsperado", nuevoPunto.kgPorHaEsperado);
+
+        const result = await agregarPuntoCurva(ficha.id, fd);
+        if (result.error || !result.punto) {
+          toast.error(result.error || "Error al agregar");
+          return;
+        }
+        setCurva((prev) => [...prev, result.punto!].sort((a, b) => a.anioProduccion - b.anioProduccion));
+        setNuevoPunto({ anioProduccion: "", kgPorPlantaEsperado: "", kgPorHaEsperado: "" });
+        setShowCurvaModal(false);
+        toast.success("Punto de curva agregado");
+      } finally {
+        setAddingPunto(false);
+      }
+    });
   };
 
-  const handleEliminarPunto = async (id: string) => {
+  const handleEliminarPunto = (id: string) => {
     const anterior = curva;
     setCurva((prev) => prev.filter((p) => p.id !== id));
-    const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}/curva/${id}`, { method: "DELETE" });
-    if (!res.ok) {
-      setCurva(anterior);
-      toast.error("Error al eliminar");
-    }
+    startTransition(async () => {
+      const result = await eliminarPuntoCurva(ficha.id, id);
+      if (result.error) {
+        setCurva(anterior);
+        toast.error("Error al eliminar");
+      }
+    });
   };
 
   return (
@@ -738,43 +755,42 @@ function FichaCoreModal({
     vidaUtilAnios: ficha.vidaUtilAnios?.toString() ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [, startTransition] = useTransition();
 
-  const handleGuardar = async () => {
+  const handleGuardar = () => {
     setSaving(true);
-    try {
-      const payload = {
-        notasVersion: core.notasVersion || null,
-        altitudMinM: numOrNull(core.altitudMinM),
-        altitudMaxM: numOrNull(core.altitudMaxM),
-        tempMinC: numOrNull(core.tempMinC),
-        tempMaxC: numOrNull(core.tempMaxC),
-        humedadMinPct: numOrNull(core.humedadMinPct),
-        humedadMaxPct: numOrNull(core.humedadMaxPct),
-        phMin: numOrNull(core.phMin),
-        phMax: numOrNull(core.phMax),
-        precipitacionAnualMinMm: numOrNull(core.precipitacionAnualMinMm),
-        precipitacionAnualMaxMm: numOrNull(core.precipitacionAnualMaxMm),
-        densidadPlantasHaMin: numOrNull(core.densidadPlantasHaMin),
-        densidadPlantasHaMax: numOrNull(core.densidadPlantasHaMax),
-        distanciaSiembraM: core.distanciaSiembraM || null,
-        cicloProductivoMeses: numOrNull(core.cicloProductivoMeses),
-        vidaUtilAnios: numOrNull(core.vidaUtilAnios),
-      };
-      const res = await fetch(`/api/admin/fichas-tecnicas/${ficha.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Error al guardar");
-      toast.success("Cambios guardados");
-      onSaved(json.data);
-      onClose();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("notasVersion", core.notasVersion);
+        fd.set("altitudMinM", core.altitudMinM);
+        fd.set("altitudMaxM", core.altitudMaxM);
+        fd.set("tempMinC", core.tempMinC);
+        fd.set("tempMaxC", core.tempMaxC);
+        fd.set("humedadMinPct", core.humedadMinPct);
+        fd.set("humedadMaxPct", core.humedadMaxPct);
+        fd.set("phMin", core.phMin);
+        fd.set("phMax", core.phMax);
+        fd.set("precipitacionAnualMinMm", core.precipitacionAnualMinMm);
+        fd.set("precipitacionAnualMaxMm", core.precipitacionAnualMaxMm);
+        fd.set("densidadPlantasHaMin", core.densidadPlantasHaMin);
+        fd.set("densidadPlantasHaMax", core.densidadPlantasHaMax);
+        fd.set("distanciaSiembraM", core.distanciaSiembraM);
+        fd.set("cicloProductivoMeses", core.cicloProductivoMeses);
+        fd.set("vidaUtilAnios", core.vidaUtilAnios);
+
+        const result = await actualizarFichaCore(ficha.id, {}, fd);
+        if (result.error || !result.ficha) {
+          toast.error(result.error || "Error al guardar");
+          return;
+        }
+        toast.success("Cambios guardados");
+        onSaved(result.ficha);
+        onClose();
+      } finally {
+        setSaving(false);
+      }
+    });
   };
 
   return (

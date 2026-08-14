@@ -2,42 +2,13 @@ import { Sprout, Calendar, TrendingDown, AlertTriangle, TrendingUp } from "lucid
 import { formatCOP, cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/Skeleton";
 import Link from "next/link";
+import type { DashboardKpis } from "@/lib/data/dashboard";
 
-// Estimación de cosecha calculada por el server component (KpiCardsLoader) a
-// partir del ciclo real de la especie (EspecieCultivo.cicloMesesPrimeraCosecha)
-// y la fecha de siembra del cultivo activo — nunca un valor fijo ni asumiendo
-// aguacate por defecto (ver CLAUDE.md §4).
-export interface CosechaEstimada {
-  dias: number;
-  fechaLabel: string;
-}
-
-interface KpiCardsProps {
-  totalHa: number;
-  totalPlantas: number;
-  gastosMes: number;
-  alertasActivas: number;
-  ingresosTotal: number;
-  etapaCultivo?: string;
-  diasDesdeSiembra?: number;
-  variedad?: string | null;
-  cosechaEstimada?: CosechaEstimada | null;
-}
-
-const getProximaActividad = (etapa: string, diasDesdeSiembra: number) => {
-  if (etapa === "PREPARACION") return { texto: "Iniciar siembra", icono: "🌱", urgencia: "alta" as const };
-  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 7)
-    return { texto: "Primer riego (3L/planta)", icono: "💧", urgencia: "alta" as const };
-  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 30)
-    return { texto: "Riego cada 3 días", icono: "💧", urgencia: "media" as const };
-  if (etapa === "SIEMBRA" && diasDesdeSiembra <= 60)
-    return { texto: "Primera fertilización (mes 2)", icono: "🌿", urgencia: "media" as const };
-  if (etapa === "ESTABLECIMIENTO")
-    return { texto: "Poda de formación", icono: "✂️", urgencia: "media" as const };
-  if (etapa === "CRECIMIENTO")
-    return { texto: "Análisis foliar", icono: "🔬", urgencia: "baja" as const };
-  return { texto: "Revisar cultivo", icono: "👁️", urgencia: "baja" as const };
-};
+// KpiCardsProps == DashboardKpis (el contrato de datos vive en
+// src/lib/data/dashboard.ts — Fase 1, ver ADR-006). El componente ya no
+// decide la "próxima actividad" (antes tenía su propio getProximaActividad
+// aquí) — solo pinta lo que la capa de datos ya resolvió.
+type KpiCardsProps = DashboardKpis;
 
 const URGENCIA_COLORS = {
   alta: { text: "text-negative-600", bg: "bg-negative-50" },
@@ -45,13 +16,8 @@ const URGENCIA_COLORS = {
   baja: { text: "text-positive-600", bg: "bg-positive-50" },
 };
 
-export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, diasDesdeSiembra, variedad, cosechaEstimada }: KpiCardsProps) {
-  // Sin cultivo activo no hay etapa real que proyectar — se muestra un
-  // estado neutro en vez de asumir una etapa/actividad por defecto.
-  const actividad = etapaCultivo
-    ? getProximaActividad(etapaCultivo, diasDesdeSiembra ?? 30)
-    : { texto: "Registra un cultivo", icono: "🌱", urgencia: "baja" as const };
-  const urgColors = URGENCIA_COLORS[actividad.urgencia];
+export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ingresosTotal, etapaCultivo, variedad, cosechaEstimada, proximaActividad }: KpiCardsProps) {
+  const urgColors = URGENCIA_COLORS[proximaActividad.urgencia];
 
   const kpis = [
     {
@@ -74,8 +40,8 @@ export function KpiCards({ totalHa, totalPlantas, gastosMes, alertasActivas, ing
     },
     {
       label: "Próxima actividad",
-      value: `${actividad.icono} ${actividad.texto}`,
-      sub: etapaCultivo ? `Urgencia ${actividad.urgencia}` : "Aún no hay cultivo activo",
+      value: `${proximaActividad.icono} ${proximaActividad.texto}`,
+      sub: etapaCultivo ? `Urgencia ${proximaActividad.urgencia}` : "Aún no hay cultivo activo",
       icon: Sprout,
       iconColor: urgColors.text,
       valueColor: urgColors.text,
