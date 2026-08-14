@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
+import { MODULOS_DASHBOARD, obtenerPlantillaModulos, type ModuloKey } from "@/lib/modulos";
 import { membresiaOwner } from "@/lib/equipo";
 import { registrarAuditoria } from "@/lib/audit";
 
@@ -113,7 +113,7 @@ export async function POST(req: Request) {
     }
 
     const fincaRol = rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
-    const modulosFinal = modulosValidos(modulos) ?? modulosPorDefecto(fincaRol);
+    const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[fincaRol];
 
     const [membresia] = await db.$transaction([
       db.membresia.create({

@@ -73,10 +73,30 @@ model Organizacion {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  fincas     Finca[]
-  membresias Membresia[]
+  fincas             Finca[]
+  membresias         Membresia[]
+  plantillasModulos  RolModulosDefault[]
 
   @@map("organizaciones")
+}
+
+// Plantilla de módulos visibles por defecto según el rol de FincaAcceso —
+// configurable por el OWNER de cada organización (antes era un default fijo
+// en código, ver modulosPorDefecto() en src/lib/modulos.ts, que sigue como
+// fallback cuando el dueño no ha personalizado la plantilla de un rol
+// todavía). Al invitar/editar a UNA persona en el panel Equipo se sigue
+// pudiendo ajustar su acceso puntual — esto es la base de la que parte, no
+// un reemplazo de esa personalización por persona.
+model RolModulosDefault {
+  id             String       @id @default(cuid())
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  rol            RolFinca
+  modulos        String[]
+  updatedAt      DateTime     @updatedAt
+
+  @@unique([organizacionId, rol])
+  @@map("rol_modulos_default")
 }
 
 enum PlanOrganizacion {

@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { membresiaOwner } from "@/lib/equipo";
-import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey } from "@/lib/modulos";
+import { MODULOS_DASHBOARD, obtenerPlantillaModulos, type ModuloKey } from "@/lib/modulos";
 import { registrarAuditoria } from "@/lib/audit";
 
 function modulosValidos(modulos: unknown): ModuloKey[] | null {
@@ -52,7 +52,7 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       if (!finca) return NextResponse.json({ error: "Finca no encontrada en tu organización" }, { status: 404 });
 
       const fincaRol = rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
-      const modulosFinal = modulosValidos(modulos) ?? modulosPorDefecto(fincaRol);
+      const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[fincaRol];
       const fincasDeLaOrg = await db.finca.findMany({ where: { organizacionId: propia.organizacionId }, select: { id: true } });
 
       await db.$transaction([

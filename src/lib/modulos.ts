@@ -34,7 +34,13 @@ export const MODULOS_DASHBOARD: { key: ModuloKey; label: string; href: string }[
   { key: "compradores", label: "Compradores", href: "/dashboard/compradores" },
 ];
 
-/** Default razonable al crear un FincaAcceso — el dueño lo puede personalizar después. */
+/**
+ * Default de fábrica al crear un FincaAcceso — se usa como fallback cuando
+ * el dueño de la organización no ha personalizado la plantilla de ese rol
+ * todavía (ver RolModulosDefault/obtenerPlantillaModulos abajo). No borrar
+ * ni volver async: sigue siendo el valor inicial que ve el formulario de
+ * "Roles y permisos" la primera vez que un dueño lo abre.
+ */
 export function modulosPorDefecto(rolFinca: "ADMIN" | "OPERARIO" | "LECTURA"): ModuloKey[] {
   if (rolFinca === "ADMIN") {
     return MODULOS_DASHBOARD.map((m) => m.key);
@@ -42,6 +48,31 @@ export function modulosPorDefecto(rolFinca: "ADMIN" | "OPERARIO" | "LECTURA"): M
   // OPERARIO/LECTURA (colaborador de campo): operativo, sin módulos
   // financieros/comerciales sensibles por defecto.
   return ["cultivos", "mapa", "alertas", "asistente"];
+}
+
+export type PlantillasModulos = Record<"ADMIN" | "OPERARIO" | "LECTURA", ModuloKey[]>;
+
+/**
+ * Plantilla de módulos por rol configurada por el dueño de `organizacionId`
+ * (pantalla "Roles y permisos" en Equipo) — roles sin fila en
+ * RolModulosDefault todavía caen al default de fábrica de modulosPorDefecto().
+ * Import dinámico de `db` para que este archivo lo puedan importar
+ * componentes de cliente sin arrastrar Prisma al bundle (solo esta función
+ * lo toca, es la única que corre en servidor).
+ */
+export async function obtenerPlantillaModulos(organizacionId: string): Promise<PlantillasModulos> {
+  const { db } = await import("./db");
+  const filas = await db.rolModulosDefault.findMany({ where: { organizacionId } });
+
+  const base: PlantillasModulos = {
+    ADMIN: modulosPorDefecto("ADMIN"),
+    OPERARIO: modulosPorDefecto("OPERARIO"),
+    LECTURA: modulosPorDefecto("LECTURA"),
+  };
+  for (const fila of filas) {
+    base[fila.rol as "ADMIN" | "OPERARIO" | "LECTURA"] = fila.modulos as ModuloKey[];
+  }
+  return base;
 }
 
 /**
