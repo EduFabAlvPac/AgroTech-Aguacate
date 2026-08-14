@@ -9,6 +9,7 @@ import { DiagnosticoForm } from "@/components/cultivos/DiagnosticoForm";
 import { LoteForm } from "@/components/cultivos/LoteForm";
 import { CultivoForm } from "@/components/cultivos/CultivoForm";
 import { CompartirCultivoModal } from "@/components/cultivos/CompartirCultivoModal";
+import { EtapaSelect } from "@/components/cultivos/EtapaSelect";
 import { ETAPA_LABELS } from "@/types";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -28,15 +29,6 @@ type FincaWithLotes = FincaConLotes;
 interface CultivosListProps {
   finca: FincaWithLotes;
 }
-
-const ETAPA_COLORS: Record<EtapaCultivo, { bg: string; color: string }> = {
-  PREPARACION: { bg: "var(--color-surface-gray)", color: "var(--color-text-soft)" },
-  SIEMBRA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
-  ESTABLECIMIENTO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
-  CRECIMIENTO: { bg: "var(--color-brand-bg)", color: "var(--color-brand-dark)" },
-  PRODUCCION: { bg: "var(--color-surface-gray)", color: "var(--color-text)" } /* TODO: sin token morado en la paleta nueva */,
-  COSECHA: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
-};
 
 const TIPO_BADGE_COLORS: Record<string, { bg: string; color: string }> = {
   RIEGO: { bg: "var(--color-info-bg)", color: "var(--color-info)" },
@@ -64,7 +56,6 @@ export function CultivosList({ finca }: CultivosListProps) {
   const [showRegistroModal, setShowRegistroModal] = useState(false);
   const [diagnosticoCultivoId, setDiagnosticoCultivoId] = useState<string | null>(null);
   const [compartirCultivo, setCompartirCultivo] = useState<{ id: string; label: string } | null>(null);
-  const [etapaLoading, setEtapaLoading] = useState<string | null>(null);
 
   // Lote CRUD state
   const [showLoteModal, setShowLoteModal] = useState(false);
@@ -321,29 +312,15 @@ export function CultivosList({ finca }: CultivosListProps) {
     setEditingRegistroCultivoId(cultivoId);
   };
 
-  const handleEtapaChange = async (cultivoId: string, newEtapa: EtapaCultivo) => {
-    setEtapaLoading(cultivoId);
-    try {
-      const res = await fetch(`/api/cultivos/${cultivoId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ etapa: newEtapa }),
-      });
-      if (!res.ok) throw new Error();
-      setLotes((prev) =>
-        prev.map((lote) => ({
-          ...lote,
-          cultivos: lote.cultivos.map((c) =>
-            c.id === cultivoId ? { ...c, etapa: newEtapa } : c
-          ),
-        }))
-      );
-      toast.success(`Etapa actualizada a ${ETAPA_LABELS[newEtapa]}`);
-    } catch {
-      toast.error("Error al actualizar la etapa");
-    } finally {
-      setEtapaLoading(null);
-    }
+  const handleEtapaChanged = (cultivoId: string, newEtapa: EtapaCultivo) => {
+    setLotes((prev) =>
+      prev.map((lote) => ({
+        ...lote,
+        cultivos: lote.cultivos.map((c) =>
+          c.id === cultivoId ? { ...c, etapa: newEtapa } : c
+        ),
+      }))
+    );
   };
 
   const handleRegistroEditSuccess = (updatedRegistro: RegistroCultivo) => {
@@ -474,25 +451,11 @@ export function CultivosList({ finca }: CultivosListProps) {
                               <span className="text-[14px] font-semibold text-[var(--text-primary)]">
                                 {cultivo.especie} {cultivo.variedad}
                               </span>
-                              <select
-                                value={cultivo.etapa}
-                                onChange={(e) => handleEtapaChange(cultivo.id, e.target.value as EtapaCultivo)}
-                                disabled={etapaLoading === cultivo.id}
-                                className="badge text-[10px] font-medium border-0 cursor-pointer rounded-full px-2 py-0.5 appearance-none pr-5"
-                                style={{
-                                  background: ETAPA_COLORS[cultivo.etapa].bg,
-                                  color: ETAPA_COLORS[cultivo.etapa].color,
-                                  backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-                                  backgroundRepeat: "no-repeat",
-                                  backgroundPosition: "right 4px center",
-                                }}
-                              >
-                                {(Object.keys(ETAPA_LABELS) as EtapaCultivo[]).map((etapa) => (
-                                  <option key={etapa} value={etapa}>
-                                    {ETAPA_LABELS[etapa]}
-                                  </option>
-                                ))}
-                              </select>
+                              <EtapaSelect
+                                cultivoId={cultivo.id}
+                                etapa={cultivo.etapa}
+                                onChanged={(nuevaEtapa) => handleEtapaChanged(cultivo.id, nuevaEtapa)}
+                              />
                             </div>
                             {cultivo.fechaSiembra && (
                               <p className="text-[12px] text-[var(--text-muted)] mt-0.5">
