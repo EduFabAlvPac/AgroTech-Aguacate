@@ -75,14 +75,18 @@ export async function POST(req: Request) {
     if (!propia) return NextResponse.json({ error: "Solo el dueño de la organización puede agregar colaboradores" }, { status: 403 });
 
     const body = await req.json();
-    const { nombre, email, password, rol, fincaId, modulos } = body;
+    const { nombre, email, password, rolFinca, fincaId, modulos } = body;
 
-    if (!email || !rol || !fincaId) {
-      return NextResponse.json({ error: "email, rol y fincaId son requeridos" }, { status: 400 });
+    if (!email || !rolFinca || !fincaId) {
+      return NextResponse.json({ error: "email, rolFinca y fincaId son requeridos" }, { status: 400 });
     }
-    if (rol !== "ADMIN_FINCA" && rol !== "COLABORADOR") {
-      return NextResponse.json({ error: "rol debe ser ADMIN_FINCA o COLABORADOR" }, { status: 400 });
+    if (rolFinca !== "ADMIN" && rolFinca !== "OPERARIO" && rolFinca !== "LECTURA") {
+      return NextResponse.json({ error: "rolFinca debe ser ADMIN, OPERARIO o LECTURA" }, { status: 400 });
     }
+    // A nivel de organización solo existen dos baldes (ver RolOrganizacion):
+    // OPERARIO/LECTURA caen ambos en COLABORADOR — la diferencia real la
+    // impone FincaAcceso.rol (MATRIZ_FINCA en authz.ts), no la membresía.
+    const rol = rolFinca === "ADMIN" ? "ADMIN_FINCA" : "COLABORADOR";
 
     const finca = await db.finca.findFirst({ where: { id: fincaId, organizacionId: propia.organizacionId } });
     if (!finca) return NextResponse.json({ error: "Finca no encontrada en tu organización" }, { status: 404 });
@@ -112,8 +116,7 @@ export async function POST(req: Request) {
       });
     }
 
-    const fincaRol = rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
-    const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[fincaRol];
+    const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[rolFinca as "ADMIN" | "OPERARIO" | "LECTURA"];
 
     const [membresia] = await db.$transaction([
       db.membresia.create({
@@ -121,8 +124,8 @@ export async function POST(req: Request) {
       }),
       db.fincaAcceso.upsert({
         where: { userId_fincaId: { userId: user.id, fincaId } },
-        update: { rol: fincaRol, modulos: modulosFinal },
-        create: { userId: user.id, fincaId, rol: fincaRol, modulos: modulosFinal, creadoPorId: session.user.id },
+        update: { rol: rolFinca, modulos: modulosFinal },
+        create: { userId: user.id, fincaId, rol: rolFinca, modulos: modulosFinal, creadoPorId: session.user.id },
       }),
     ]);
 

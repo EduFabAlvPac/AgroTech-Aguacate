@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
 import { MODULOS_DASHBOARD, modulosPorDefecto, type ModuloKey, type PlantillasModulos } from "@/lib/modulos";
+
+type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
 interface FincaOption {
   id: string;
@@ -28,21 +30,40 @@ interface MiembroData {
   fincas: FincaAccesoData[];
 }
 
-const ROL_LABELS: Record<string, string> = {
-  ADMIN_FINCA: "Administrador de finca",
-  COLABORADOR: "Colaborador",
+// El rol que de verdad importa para "qué puede hacer/ver" es el de finca
+// (RolFinca — ver src/lib/authz.ts, MATRIZ_FINCA). El rol de organización
+// (RolOrganizacion) solo distingue ADMIN_FINCA de COLABORADOR a nivel de
+// membresía — OPERARIO y LECTURA caen ambos en COLABORADOR ahí, la
+// diferencia real la impone FincaAcceso.rol.
+const ROL_FINCA_LABELS: Record<RolFinca, string> = {
+  ADMIN: "Administrador de finca",
+  OPERARIO: "Colaborador de campo",
+  LECTURA: "Solo lectura",
 };
 
-const ROL_COLORS: Record<string, { bg: string; color: string }> = {
-  ADMIN_FINCA: { bg: "#E6F1FB", color: "#185FA5" },
-  COLABORADOR: { bg: "#EAF3DE", color: "#3B6D11" },
+const ROL_FINCA_COLORS: Record<RolFinca, { bg: string; color: string }> = {
+  ADMIN: { bg: "#E6F1FB", color: "#185FA5" },
+  OPERARIO: { bg: "#EAF3DE", color: "#3B6D11" },
+  LECTURA: { bg: "#F1EFE8", color: "#5F5E5A" },
 };
+
+const ROL_FINCA_ICONS: Record<RolFinca, React.ElementType> = {
+  ADMIN: ShieldCheck,
+  OPERARIO: Wrench,
+  LECTURA: Eye,
+};
+
+const ROL_FINCA_OPTIONS = [
+  { value: "OPERARIO", label: "Colaborador de campo" },
+  { value: "LECTURA", label: "Solo lectura" },
+  { value: "ADMIN", label: "Administrador de finca" },
+];
 
 const emptyForm = {
   nombre: "",
   email: "",
   password: "",
-  rol: "COLABORADOR" as RolOrganizacion,
+  rolFinca: "OPERARIO" as RolFinca,
   fincaId: "",
   modulos: modulosPorDefecto("OPERARIO"),
 };
@@ -75,13 +96,13 @@ export function EquipoClient({
   const [deletingLoading, setDeletingLoading] = useState(false);
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
-  const [guardandoRol, setGuardandoRol] = useState<"ADMIN" | "OPERARIO" | null>(null);
+  const [guardandoRol, setGuardandoRol] = useState<RolFinca | null>(null);
 
   function toggleModulo<T>(list: T[], key: T): T[] {
     return list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
   }
 
-  const handleGuardarPlantilla = async (rol: "ADMIN" | "OPERARIO") => {
+  const handleGuardarPlantilla = async (rol: RolFinca) => {
     setGuardandoRol(rol);
     try {
       const res = await fetch("/api/equipo/roles", {
@@ -123,7 +144,7 @@ export function EquipoClient({
           fincas: [{
             fincaId: form.fincaId,
             nombre: fincas.find((f) => f.id === form.fincaId)?.nombre ?? "?",
-            rol: form.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO",
+            rol: form.rolFinca,
             modulos: form.modulos,
           }],
         },
@@ -141,13 +162,17 @@ export function EquipoClient({
 
   const abrirEditar = (m: MiembroData) => {
     const acceso = m.fincas[0];
+    const rolFinca: RolFinca =
+      acceso?.rol === "ADMIN" || acceso?.rol === "OPERARIO" || acceso?.rol === "LECTURA"
+        ? acceso.rol
+        : m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
     setEditForm({
       nombre: m.nombre ?? "",
       email: m.email,
       password: "",
-      rol: m.rol,
+      rolFinca,
       fincaId: acceso?.fincaId ?? fincas[0]?.id ?? "",
-      modulos: acceso?.modulos && acceso.modulos.length > 0 ? (acceso.modulos as ModuloKey[]) : plantillas[m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"],
+      modulos: acceso?.modulos && acceso.modulos.length > 0 ? (acceso.modulos as ModuloKey[]) : plantillas[rolFinca],
     });
     setEditing(m);
   };
@@ -160,7 +185,7 @@ export function EquipoClient({
       const res = await fetch(`/api/equipo/${editing.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rol: editForm.rol, fincaId: editForm.fincaId, modulos: editForm.modulos }),
+        body: JSON.stringify({ rolFinca: editForm.rolFinca, fincaId: editForm.fincaId, modulos: editForm.modulos }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Error al guardar");
@@ -169,11 +194,11 @@ export function EquipoClient({
           m.id === editing.id
             ? {
                 ...m,
-                rol: editForm.rol,
+                rol: editForm.rolFinca === "ADMIN" ? "ADMIN_FINCA" : "COLABORADOR",
                 fincas: [{
                   fincaId: editForm.fincaId,
                   nombre: fincas.find((f) => f.id === editForm.fincaId)?.nombre ?? "?",
-                  rol: editForm.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO",
+                  rol: editForm.rolFinca,
                   modulos: editForm.modulos,
                 }],
               }
@@ -265,14 +290,19 @@ export function EquipoClient({
             Define qué menús ve por defecto cada tipo de rol al agregarlo. Puedes seguir ajustando el acceso de una
             persona puntual desde la pestaña Miembros — eso no cambia por editar la plantilla aquí.
           </p>
-          {(["ADMIN_FINCA", "COLABORADOR"] as const).map((rolOrg) => {
-            const rolFinca = rolOrg === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
+          {(["ADMIN", "OPERARIO", "LECTURA"] as const).map((rolFinca) => {
+            const Icon = ROL_FINCA_ICONS[rolFinca];
             return (
-              <div key={rolOrg} className="card p-5 space-y-3">
+              <div key={rolFinca} className="card p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  {rolOrg === "ADMIN_FINCA" ? <ShieldCheck size={16} className="text-agro-400" /> : <Wrench size={16} className="text-agro-400" />}
-                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{ROL_LABELS[rolOrg]}</h3>
+                  <Icon size={16} className="text-agro-400" />
+                  <h3 className="text-[14px] font-semibold text-[var(--text-primary)]">{ROL_FINCA_LABELS[rolFinca]}</h3>
                 </div>
+                {rolFinca === "LECTURA" && (
+                  <p className="text-[11px] text-[var(--text-muted)] -mt-2">
+                    Sin importar los menús marcados aquí, este rol nunca puede crear/editar/borrar — solo consultar.
+                  </p>
+                )}
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {MODULOS_DASHBOARD.map((mod) => (
                     <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
@@ -315,20 +345,26 @@ export function EquipoClient({
         />
       ) : (
         <div className="space-y-2">
-          {miembros.map((m) => (
+          {miembros.map((m) => {
+            const rolFincaActual: RolFinca =
+              m.fincas[0]?.rol === "ADMIN" || m.fincas[0]?.rol === "OPERARIO" || m.fincas[0]?.rol === "LECTURA"
+                ? m.fincas[0].rol
+                : m.rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO";
+            const Icon = ROL_FINCA_ICONS[rolFincaActual];
+            return (
             <div key={m.id} className={`card p-4 flex items-center justify-between flex-wrap gap-3 ${!m.activa ? "opacity-60" : ""}`}>
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-[var(--radius-md)] bg-agro-50 flex items-center justify-center flex-shrink-0">
-                  {m.rol === "ADMIN_FINCA" ? <ShieldCheck size={18} className="text-agro-400" /> : <Wrench size={18} className="text-agro-400" />}
+                  <Icon size={18} className="text-agro-400" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[13px] font-medium text-[var(--text-primary)]">{m.nombre ?? m.email}</span>
                     <span
                       className="badge text-[10px] font-medium rounded-full px-2 py-0.5"
-                      style={{ background: ROL_COLORS[m.rol].bg, color: ROL_COLORS[m.rol].color }}
+                      style={{ background: ROL_FINCA_COLORS[rolFincaActual].bg, color: ROL_FINCA_COLORS[rolFincaActual].color }}
                     >
-                      {ROL_LABELS[m.rol] ?? m.rol}
+                      {ROL_FINCA_LABELS[rolFincaActual]}
                     </span>
                     {!m.activa && (
                       <span className="badge text-[10px] font-medium rounded-full px-2 py-0.5" style={{ background: "#F1EFE8", color: "#5F5E5A" }}>
@@ -381,7 +417,8 @@ export function EquipoClient({
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       ))}
 
@@ -415,15 +452,12 @@ export function EquipoClient({
           <div className="grid grid-cols-2 gap-3">
             <Select
               label="Rol"
-              value={form.rol}
+              value={form.rolFinca}
               onChange={(e) => {
-                const rol = e.target.value as RolOrganizacion;
-                setForm({ ...form, rol, modulos: plantillas[rol === "ADMIN_FINCA" ? "ADMIN" : "OPERARIO"] });
+                const rolFinca = e.target.value as RolFinca;
+                setForm({ ...form, rolFinca, modulos: plantillas[rolFinca] });
               }}
-              options={[
-                { value: "COLABORADOR", label: "Colaborador de campo" },
-                { value: "ADMIN_FINCA", label: "Administrador de finca" },
-              ]}
+              options={ROL_FINCA_OPTIONS}
             />
             <Select
               label="Finca con acceso"
@@ -432,6 +466,11 @@ export function EquipoClient({
               options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
             />
           </div>
+          {form.rolFinca === "LECTURA" && (
+            <p className="text-[11px] text-[var(--text-muted)] -mt-1">
+              Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
+            </p>
+          )}
           <div>
             <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
               Menús a los que puede ingresar
@@ -465,15 +504,12 @@ export function EquipoClient({
             <div className="grid grid-cols-2 gap-3">
               <Select
                 label="Rol"
-                value={editForm.rol}
+                value={editForm.rolFinca}
                 onChange={(e) => {
-                  const rol = e.target.value as RolOrganizacion;
-                  setEditForm({ ...editForm, rol });
+                  const rolFinca = e.target.value as RolFinca;
+                  setEditForm({ ...editForm, rolFinca });
                 }}
-                options={[
-                  { value: "COLABORADOR", label: "Colaborador de campo" },
-                  { value: "ADMIN_FINCA", label: "Administrador de finca" },
-                ]}
+                options={ROL_FINCA_OPTIONS}
               />
               <Select
                 label="Finca con acceso"
@@ -482,6 +518,11 @@ export function EquipoClient({
                 options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
               />
             </div>
+            {editForm.rolFinca === "LECTURA" && (
+              <p className="text-[11px] text-[var(--text-muted)] -mt-1">
+                Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
+              </p>
+            )}
             <div>
               <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
                 Menús a los que puede ingresar
