@@ -1,11 +1,11 @@
 import { Header } from "@/components/layout/Header";
 import { AlertasClient } from "@/components/alertas/AlertasClient";
-import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
+import { getAlertas } from "@/lib/data/alertas";
 
 export const metadata = { title: "Alertas climáticas" };
 export const dynamic = "force-dynamic";
@@ -19,11 +19,7 @@ export default async function AlertasPage() {
   // TODA la base de datos a cualquier usuario autenticado. Ahora se scopea a
   // UNA finca activa (funcionalidad de fincas, ver src/lib/finca-activa.ts).
   const { fincaActivaId } = await resolverFincaActiva(session);
-  const alertas = await db.alertaClimatica.findMany({
-    where: { fincaId: fincaActivaId ?? SIN_FINCA_SENTINEL },
-    orderBy: [{ activa: "desc" }, { createdAt: "desc" }],
-    take: 50,
-  });
+  const alertas = await getAlertas(fincaActivaId, SIN_FINCA_SENTINEL);
 
   return (
     <>

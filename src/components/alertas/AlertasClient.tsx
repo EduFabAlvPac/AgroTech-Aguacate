@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useTransition } from "react";
 import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X, CalendarClock } from "lucide-react";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
 import type { AlertaClimatica, TipoAlerta, Severidad } from "@prisma/client";
 import Link from "next/link";
+import { marcarLeida, marcarVencida, descartarAlerta, generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
 
 const TIPO_ICONS: Record<TipoAlerta, React.ElementType> = {
   HELADA: Thermometer,
@@ -46,6 +47,7 @@ interface AlertasClientProps {
 export function AlertasClient({ alertas: initial }: AlertasClientProps) {
   const [alertas, setAlertas] = useState(initial);
   const [filter, setFilter] = useState<"todas" | "activas" | "leidas">("todas");
+  const [, startTransition] = useTransition();
 
   // Auto-expire alerts where fechaFin < now and still active
   useEffect(() => {
@@ -62,13 +64,12 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
       )
     );
 
-    // Persist to server silently
+    // Persist to server silently — Server Action nativa (Fase 1, ADR-006)
+    // en vez de fetch PUT a /api/alertas/[id]. Se llama directamente
+    // (mismo criterio que las eliminaciones de Finanzas/Mapa): no hay
+    // <form> aquí, es un efecto en segundo plano sin UI de pending.
     expired.forEach((a) => {
-      fetch(`/api/alertas/${a.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activa: false }),
-      }).catch(() => {});
+      startTransition(() => { marcarVencida(a.id, {}).catch(() => {}); });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -81,54 +82,55 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
 
   const noLeidas = alertas.filter((a) => a.activa && !a.leida).length;
 
-  const markAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/alertas/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leida: true }),
-      });
-      setAlertas((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, leida: true } : a))
-      );
-    } catch {}
+  const markAsRead = (id: string) => {
+    startTransition(async () => {
+      const result = await marcarLeida(id, {});
+      if (result.alerta) {
+        setAlertas((prev) => prev.map((a) => (a.id === id ? result.alerta! : a)));
+      }
+    });
   };
 
-  const markAllRead = async () => {
+  // Nota: preexistente — "Marcar todas como leídas" solo actualiza el
+  // estado local, nunca persistió al servidor (ni con el fetch manual
+  // anterior). Se preserva el comportamiento exacto, no se corrige aquí
+  // (fuera de alcance de este refactor).
+  const markAllRead = () => {
     setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
   };
 
   // Descartar (eliminar) una alerta — útil para limpiar alertas de prueba o
-  // que ya no aplican. El API la scopea a la finca del usuario (ver
-  // /api/alertas/[id]).
-  const dismissAlert = async (id: string) => {
-    try {
-      const res = await fetch(`/api/alertas/${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error();
+  // que ya no aplican. La Server Action la scopea a la finca del usuario
+  // (mismo requireAccess que tenía /api/alertas/[id] DELETE).
+  const dismissAlert = (id: string) => {
+    startTransition(async () => {
+      const result = await descartarAlerta(id, {});
+      if (result.error) {
+        toast.error("No se pudo descartar la alerta");
+        return;
+      }
       setAlertas((prev) => prev.filter((a) => a.id !== id));
       toast.success("Alerta descartada");
-    } catch {
-      toast.error("No se pudo descartar la alerta");
-    }
+    });
   };
 
   const [generating, setGenerating] = useState(false);
 
-  const handleGenerarAlertas = async () => {
+  const handleGenerarAlertas = () => {
     setGenerating(true);
-    try {
-      const res = await fetch("/api/alertas/generate", { method: "POST" });
-      const { data } = await res.json();
-      toast.success(data?.message ?? "Alertas actualizadas");
-      // Reload alertas
-      const alertasRes = await fetch("/api/alertas");
-      const alertasData = await alertasRes.json();
-      if (alertasData.data) setAlertas(alertasData.data);
-    } catch {
-      toast.error("Error al generar alertas");
-    } finally {
-      setGenerating(false);
-    }
+    startTransition(async () => {
+      try {
+        const result = await generarAlertas();
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(result.message ?? "Alertas actualizadas");
+        if (result.alertas) setAlertas(result.alertas);
+      } finally {
+        setGenerating(false);
+      }
+    });
   };
 
   return (
