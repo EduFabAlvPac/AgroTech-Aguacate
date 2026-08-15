@@ -12,6 +12,7 @@ import {
   eliminarFinca,
   type FincaActionState,
 } from "@/app/(dashboard)/dashboard/fincas/finca-actions";
+import { ConfirmSheet } from "@/components/modo-simple/ConfirmSheet";
 
 interface MisFincasSimpleClientProps {
   fincas: FincaResumen[];
@@ -39,9 +40,10 @@ export function MisFincasSimpleClient({ fincas }: MisFincasSimpleClientProps) {
   const [editando, setEditando] = useState<FincaResumen | null>(null);
   const [, startTransition] = useTransition();
   const [eliminandoId, setEliminandoId] = useState<string | null>(null);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState<FincaResumen | null>(null);
 
   const eliminar = (finca: FincaResumen) => {
-    if (!window.confirm(`¿Eliminar la finca "${finca.nombre}"? Esta acción no se puede deshacer.`)) return;
+    setConfirmandoEliminar(null);
     setEliminandoId(finca.id);
     startTransition(async () => {
       const result = await eliminarFinca({}, finca.id);
@@ -88,10 +90,19 @@ export function MisFincasSimpleClient({ fincas }: MisFincasSimpleClientProps) {
               finca={f}
               eliminando={eliminandoId === f.id}
               onEditar={() => setEditando(f)}
-              onEliminar={() => eliminar(f)}
+              onEliminar={() => setConfirmandoEliminar(f)}
             />
           ))}
         </div>
+      )}
+
+      {confirmandoEliminar && (
+        <ConfirmSheet
+          titulo={`¿Eliminar "${confirmandoEliminar.nombre}"?`}
+          mensaje="Esta acción no se puede deshacer."
+          onConfirm={() => eliminar(confirmandoEliminar)}
+          onCancel={() => setConfirmandoEliminar(null)}
+        />
       )}
 
       {/* ── Modales: nueva / editar ── */}

@@ -19,6 +19,7 @@ import {
   cambiarEtapaCultivo,
   type CambiarEtapaState,
 } from "@/app/(dashboard)/dashboard/cultivos/etapa-actions";
+import { ConfirmSheet } from "@/components/modo-simple/ConfirmSheet";
 
 export interface CultivoSimpleItem {
   id: string;
@@ -170,6 +171,7 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
   const [, startTransition] = useTransition();
   const [cambiando, setCambiando] = useState(false);
   const [eliminando, setEliminando] = useState(false);
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
   const router = useRouter();
   const salud = ESTADO_SALUD_STYLE[item.estadoSalud];
 
@@ -190,7 +192,7 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
   };
 
   const eliminar = () => {
-    if (!window.confirm(`¿Eliminar el cultivo "${nombreCompleto}"? Esta acción no se puede deshacer.`)) return;
+    setConfirmandoEliminar(false);
     setEliminando(true);
     startTransition(async () => {
       const result = await eliminarCultivo(item.id, {});
@@ -219,7 +221,7 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
           <button onClick={onEditar} disabled={eliminando} aria-label="Editar cultivo" className="p-1.5">
             <Pencil size={15} style={{ color: "var(--text-muted)" }} />
           </button>
-          <button onClick={eliminar} disabled={eliminando} aria-label="Eliminar cultivo" className="p-1.5">
+          <button onClick={() => setConfirmandoEliminar(true)} disabled={eliminando} aria-label="Eliminar cultivo" className="p-1.5">
             <Trash2 size={15} style={{ color: eliminando ? "var(--text-muted)" : "var(--color-negative)" }} />
           </button>
           <div className="relative">
@@ -272,6 +274,15 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
             <div className="h-full rounded-full" style={{ width: `${item.progreso}%`, background: "var(--color-amber)" }} />
           </div>
         </div>
+      )}
+
+      {confirmandoEliminar && (
+        <ConfirmSheet
+          titulo={`¿Eliminar "${nombreCompleto}"?`}
+          mensaje="Esta acción no se puede deshacer."
+          onConfirm={eliminar}
+          onCancel={() => setConfirmandoEliminar(false)}
+        />
       )}
     </div>
   );
