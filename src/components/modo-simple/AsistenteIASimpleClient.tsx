@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useSession } from "next-auth/react";
-import { Send, RotateCcw, Mic, Image as ImageIcon, X, Eye, Pill } from "lucide-react";
+import { Send, RotateCcw, Mic, Sparkles, MapPin, X, Eye, Pill, Camera, Image as ImageIcon } from "lucide-react";
 import toast from "react-hot-toast";
 import { VoiceRecorder } from "@/components/ui/VoiceRecorder";
 import { compressImage } from "@/components/ui/PhotoCapture";
@@ -11,16 +11,22 @@ import { compressImage } from "@/components/ui/PhotoCapture";
  * Pantalla "Asistente IA" de modo simple (Fase 2, ADR-006). Reutiliza
  * exactamente los mismos endpoints que ChatInterface.tsx (modo completo):
  * /api/chat, /api/chat/context, /api/cultivos, /api/cultivos/[id]/diagnostico
- * y los mismos componentes de UI (VoiceRecorder, compressImage) — RF14
- * (voz) y RF15 (diagnóstico por foto) ya están implementados en el backend,
- * verificado leyendo diagnostico-ia.ts y la ruta de diagnóstico antes de
- * construir esta pantalla (pregunta abierta #3, resuelta: sí existen).
+ * — RF14 (voz) y RF15 (diagnóstico por foto) ya implementados, verificado
+ * antes de construir esta pantalla. Además reutiliza
+ * /api/lotes/[id]/recomendacion (RF3, motor real en
+ * lib/agronomia/recomendacion-cultivo.ts) para la tarjeta "Recomendar
+ * cultivo según mi finca" — confirmado con el usuario que esa lógica ya
+ * existe (vive hoy en el modal de Mapa al crear un lote), así que aquí solo
+ * se reutiliza, no se inventa ningún motor nuevo.
  *
- * No es el mismo componente que ChatInterface.tsx porque esa pantalla usa
- * clases/tokens de estilo previos a la paleta de "modo simple"
- * (bg-agro-600, badge-success, etc.) — aquí se restylea con los tokens
- * --color-brand/--color-positive/etc. ya usados en el resto de Fase 2, sin
- * tocar el componente original ni su página en modo completo.
+ * Reescrita tras feedback directo del usuario ("la imagen del asistente IA
+ * no se parece en nada" al mockup real de referencia) — antes se había
+ * construido con el mismo patrón visual que ChatInterface.tsx (grid 2x2 de
+ * prompts con emoji, foto adjunta desde un ícono en la barra de entrada).
+ * Ahora sigue la estructura real del mockup: bloque "Asistente del Campo",
+ * banner de diagnóstico por foto, tarjeta de recomendación de cultivo,
+ * chips de preguntas en una sola columna, barra de entrada sin ícono de
+ * foto aparte (el banner es la única entrada a RF15).
  */
 
 interface DiagnosticoResultado {
@@ -38,12 +44,32 @@ interface CultivoOption {
   lote: { nombre: string };
 }
 
+interface FactorEvaluado {
+  criterio: "altitud" | "ph";
+  nivel: "OPTIMO" | "FUERA_RANGO" | "SIN_DATO";
+  mensaje: string;
+}
+interface CandidatoRecomendacion {
+  fichaTecnicaId: string;
+  especie: string;
+  variedad: string;
+  score: number;
+  factores: FactorEvaluado[];
+}
+interface RecomendacionData {
+  loteAltitud: number | null;
+  ultimoAnalisisPh: number | null;
+  ultimoAnalisisFecha: string | null;
+  recomendaciones: CandidatoRecomendacion[] | null;
+}
+
 type Message = {
   role: string;
   content: string;
   imagen?: string;
   diagnostico?: DiagnosticoResultado;
   alertaCreada?: boolean;
+  recomendacion?: RecomendacionData;
 };
 
 const CONFIANZA_STYLE: Record<string, { bg: string; color: string }> = {
@@ -51,6 +77,14 @@ const CONFIANZA_STYLE: Record<string, { bg: string; color: string }> = {
   media: { bg: "var(--color-amber-bg)", color: "#8A5E20" },
   baja: { bg: "var(--color-negative-bg)", color: "var(--color-negative)" },
 };
+
+const NIVEL_ICONO: Record<string, string> = { OPTIMO: "✅", FUERA_RANGO: "⚠️", SIN_DATO: "ℹ️" };
+
+function scoreColor(score: number) {
+  if (score >= 75) return { bar: "var(--color-brand)", text: "var(--color-brand-dark)" };
+  if (score >= 50) return { bar: "var(--color-amber)", text: "#8A5E20" };
+  return { bar: "var(--color-negative)", text: "var(--color-negative)" };
+}
 
 /** Idéntica a la de ChatInterface.tsx — arma el bloque de contexto de finca
  * para el prompt. Duplicada aquí (no exportada del original) en vez de
@@ -92,15 +126,18 @@ function buildContextString(ctx: any): string {
 }
 
 const PROMPTS_RAPIDOS = [
-  { emoji: "🐛", titulo: "Plagas", prompt: "¿Qué plagas son más comunes en mi cultivo y cómo las controlo?" },
-  { emoji: "💧", titulo: "Riego", prompt: "¿Cuál es el plan de riego óptimo para mi cultivo en esta etapa?" },
-  { emoji: "🌡️", titulo: "Clima", prompt: "¿Cómo protejo mi cultivo ante una helada nocturna?" },
-  { emoji: "💰", titulo: "Costos", prompt: "¿Cuánto debería invertir en fertilizantes para mi área en establecimiento?" },
+  "¿Qué plagas son más comunes en mi cultivo y cómo las controlo?",
+  "¿Cuál es el plan de riego óptimo para mi cultivo en esta etapa?",
+  "¿Cómo protejo mi cultivo ante una helada nocturna?",
+  "¿Cuánto debería invertir en fertilizantes para mi área en establecimiento?",
 ];
 
-export function AsistenteIASimpleClient() {
+interface AsistenteIASimpleClientProps {
+  lotesDisponibles: { id: string; nombre: string }[];
+}
+
+export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleClientProps) {
   const { data: session } = useSession();
-  const nombreUsuario = session?.user?.name?.split(" ")[0] ?? "Productor";
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const adjuntarMenuRef = useRef<HTMLDivElement>(null);
@@ -115,10 +152,20 @@ export function AsistenteIASimpleClient() {
   const [cultivoSeleccionado, setCultivoSeleccionado] = useState("");
   const [imagenAdjunta, setImagenAdjunta] = useState<string | null>(null);
   const [comprimiendoImagen, setComprimiendoImagen] = useState(false);
+  // Dos triggers independientes al mismo par de <input type="file"> ocultos:
+  // el ícono junto al micrófono en la barra de entrada (siempre visible,
+  // popover ancla arriba del ícono — pedido explícito del usuario, no
+  // quitarlo) y el banner "Asistente de cultivos" (solo en el estado de
+  // bienvenida, menú en línea debajo del banner). Estados separados para
+  // que no se pisen si ambos existen en pantalla a la vez.
   const [mostrarMenuImagen, setMostrarMenuImagen] = useState(false);
+  const [mostrarMenuBanner, setMostrarMenuBanner] = useState(false);
   const [mostrarGrabadora, setMostrarGrabadora] = useState(false);
   const [cargandoCultivos, setCargandoCultivos] = useState(true);
   const [errorCultivos, setErrorCultivos] = useState(false);
+
+  const [loteSeleccionado, setLoteSeleccionado] = useState(lotesDisponibles[0]?.id ?? "");
+  const [cargandoRecomendacion, setCargandoRecomendacion] = useState(false);
 
   useEffect(() => {
     fetch("/api/cultivos")
@@ -141,6 +188,8 @@ export function AsistenteIASimpleClient() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  // Cerrar el popover del ícono de la barra de entrada al tocar afuera —
+  // mismo patrón que ya tenía ChatInterface.tsx en modo completo.
   useEffect(() => {
     if (!mostrarMenuImagen) return;
     const onClickOutside = (e: MouseEvent) => {
@@ -224,6 +273,31 @@ export function AsistenteIASimpleClient() {
     }
   };
 
+  // ── "Recomendar cultivo según mi finca" — reutiliza
+  // /api/lotes/[id]/recomendacion (RF3) tal cual, sin ningún motor nuevo. El
+  // resultado se muestra como un mensaje más del chat (mismo patrón que un
+  // diagnóstico por foto), en vez de un modal aparte como en Mapa — encaja
+  // mejor con que esta pantalla ES una conversación.
+  const pedirRecomendacion = async () => {
+    if (!loteSeleccionado || isLoading || cargandoRecomendacion) return;
+    const loteNombre = lotesDisponibles.find((l) => l.id === loteSeleccionado)?.nombre ?? "este lote";
+    setMessages((prev) => [...prev, { role: "user", content: `¿Qué cultivo me conviene en ${loteNombre}?` }]);
+    setCargandoRecomendacion(true);
+    try {
+      const res = await fetch(`/api/lotes/${loteSeleccionado}/recomendacion`);
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "No se pudo calcular la recomendación");
+      setMessages((prev) => [...prev, { role: "assistant", content: "", recomendacion: json.data }]);
+    } catch (err) {
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: `Error: ${err instanceof Error ? err.message : "No se pudo calcular la recomendación"}` },
+      ]);
+    } finally {
+      setCargandoRecomendacion(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (imagenAdjunta) await submitImagen();
@@ -232,6 +306,7 @@ export function AsistenteIASimpleClient() {
 
   const handleAdjuntarImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setMostrarMenuImagen(false);
+    setMostrarMenuBanner(false);
     const file = e.target.files?.[0];
     if (!file) return;
     if (cultivos.length === 0) {
@@ -253,41 +328,106 @@ export function AsistenteIASimpleClient() {
 
   return (
     <div className="flex flex-col">
-      {/* ── Área de mensajes ──
-          Sin altura fija ni overflow propio: el scroll lo maneja el <main>
-          del shell compartido (igual que las otras 5 pantallas) — la barra
-          de entrada de abajo usa position:sticky para quedar pegada justo
-          encima del nav inferior fijo mientras el usuario se desplaza por
-          el historial, sin anidar dos contenedores con scroll. */}
+      {/* Inputs de archivo ocultos — compartidos por el banner de foto de
+          abajo, sin importar dónde vivan en el árbol. */}
+      <input id={camaraInputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleAdjuntarImagen} />
+      <input id={galeriaInputId} type="file" accept="image/*" className="hidden" onChange={handleAdjuntarImagen} />
+
       <div className="px-4 py-4">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center text-center py-6">
-            <div
-              className="w-16 h-16 rounded-2xl flex items-center justify-center text-[28px] mb-4"
-              style={{ background: "var(--color-brand-bg)" }}
-            >
-              🌿
+          <div className="space-y-4 mb-2">
+            {/* ── Encabezado "Asistente del Campo" ── */}
+            <div className="flex items-center gap-3">
+              <div
+                className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0"
+                style={{ background: "var(--color-brand)" }}
+              >
+                <Sparkles size={20} color="white" />
+              </div>
+              <div>
+                <h2 className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>Asistente del Campo</h2>
+                <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>Tu consultor agrícola con IA</p>
+              </div>
             </div>
-            <h2 className="text-[16px] font-bold mb-1.5" style={{ color: "var(--text-primary)" }}>Hola {nombreUsuario}, soy AgroIA</h2>
-            <p className="text-[12.5px] mb-5" style={{ color: "var(--text-secondary)", maxWidth: 300, lineHeight: 1.5 }}>
-              Tu asistente para aguacate, café y cacao. Pregúntame sobre plagas, riego,
-              fertilización o clima, o adjunta una foto de tu cultivo.
-            </p>
-            <div className="grid grid-cols-2 gap-2.5 w-full">
-              {PROMPTS_RAPIDOS.map(({ emoji, titulo, prompt }) => (
-                <button
-                  key={titulo}
-                  onClick={() => submitMessage(prompt)}
-                  className="text-left p-3 rounded-2xl"
-                  style={{ border: "1px solid var(--border-subtle)", background: "var(--surface-page)" }}
+
+            {/* ── Banner: diagnóstico por foto (RF15) — única entrada a
+                adjuntar imagen en esta pantalla, por fidelidad al mockup ── */}
+            <button
+              onClick={() => setMostrarMenuBanner((v) => !v)}
+              disabled={comprimiendoImagen}
+              className="w-full text-left p-4 rounded-2xl"
+              style={{ background: "linear-gradient(135deg, var(--color-amber), #E0A94E)" }}
+            >
+              <div className="flex items-center gap-1.5 text-[13px] font-bold text-white mb-1">
+                <Sparkles size={14} /> Asistente de cultivos
+              </div>
+              <p className="text-[12px] text-white" style={{ opacity: 0.95 }}>
+                Toma una foto de la hoja o el fruto y te ayudo a diagnosticar plagas o enfermedades.
+              </p>
+            </button>
+
+            {mostrarMenuBanner && (
+              <div className="flex gap-2.5 -mt-2">
+                <label
+                  htmlFor={camaraInputId}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-semibold cursor-pointer"
+                  style={{ background: "var(--surface-page)", color: "var(--text-primary)" }}
                 >
-                  <div className="text-[20px] mb-1">{emoji}</div>
-                  <div className="text-[11.5px] font-semibold" style={{ color: "var(--text-primary)" }}>{titulo}</div>
+                  <Camera size={15} /> Tomar foto
+                </label>
+                <label
+                  htmlFor={galeriaInputId}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[12.5px] font-semibold cursor-pointer"
+                  style={{ background: "var(--surface-page)", color: "var(--text-primary)" }}
+                >
+                  <ImageIcon size={15} /> Galería
+                </label>
+              </div>
+            )}
+
+            {/* ── Tarjeta: recomendar cultivo según lote (RF3, reutilizada) ── */}
+            {lotesDisponibles.length > 0 && (
+              <div className="p-4 rounded-2xl" style={{ background: "var(--color-brand-bg)", border: "1px solid #A0DBC3" }}>
+                <div className="flex items-center gap-1.5 text-[13px] font-bold mb-2.5" style={{ color: "var(--color-brand-dark)" }}>
+                  <Sparkles size={14} /> Recomendar cultivo según mi finca
+                </div>
+                <select
+                  value={loteSeleccionado}
+                  onChange={(e) => setLoteSeleccionado(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl text-[13px] mb-2.5"
+                  style={{ border: "1px solid var(--border-default)", background: "white" }}
+                >
+                  {lotesDisponibles.map((l) => (
+                    <option key={l.id} value={l.id}>{l.nombre}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={pedirRecomendacion}
+                  disabled={cargandoRecomendacion}
+                  className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[13px] font-semibold disabled:opacity-60"
+                  style={{ background: "var(--color-brand)", color: "white" }}
+                >
+                  <MapPin size={14} /> {cargandoRecomendacion ? "Calculando..." : "¿Qué cultivo me conviene?"}
+                </button>
+              </div>
+            )}
+
+            {/* ── Chips de preguntas rápidas — una sola columna, sin emoji ── */}
+            <div className="space-y-2">
+              {PROMPTS_RAPIDOS.map((prompt) => (
+                <button
+                  key={prompt}
+                  onClick={() => submitMessage(prompt)}
+                  className="w-full text-left px-4 py-2.5 rounded-full text-[12.5px] font-medium"
+                  style={{ background: "var(--color-brand-bg)", color: "var(--color-brand-dark)", border: "1px solid #A0DBC3" }}
+                >
+                  {prompt}
                 </button>
               ))}
             </div>
+
             {errorCultivos && (
-              <p className="text-[11px] mt-4" style={{ color: "var(--color-negative)" }}>
+              <p className="text-[11px]" style={{ color: "var(--color-negative)" }}>
                 No se pudo cargar la lista de tus cultivos. El chat funciona igual; el diagnóstico por foto podría no estar disponible.
               </p>
             )}
@@ -336,6 +476,47 @@ export function AsistenteIASimpleClient() {
                       ✅ Guardado en el cuaderno de campo{msg.alertaCreada && " · ⚠️ Alerta generada"}
                     </p>
                   </div>
+                ) : msg.recomendacion ? (
+                  <div className="space-y-2 min-w-[220px]">
+                    {msg.recomendacion.recomendaciones === null ? (
+                      <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                        Falta la altitud de este lote — regístrala en el mapa (editar lote) para poder comparar contra el rango ideal de cada cultivo.
+                      </p>
+                    ) : msg.recomendacion.recomendaciones.length === 0 ? (
+                      <p className="text-[12px]" style={{ color: "var(--text-secondary)" }}>
+                        Aún no hay fichas técnicas publicadas en el catálogo para comparar.
+                      </p>
+                    ) : (
+                      <>
+                        <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
+                          Lote a {msg.recomendacion.loteAltitud?.toLocaleString()} msnm
+                          {msg.recomendacion.ultimoAnalisisPh != null && <> · pH {msg.recomendacion.ultimoAnalisisPh}</>}
+                        </p>
+                        {msg.recomendacion.recomendaciones.slice(0, 3).map((c, i) => {
+                          const color = scoreColor(c.score);
+                          return (
+                            <div key={c.fichaTecnicaId} className="p-2.5 rounded-xl" style={{ background: "var(--surface-page)" }}>
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[12.5px] font-semibold" style={{ color: "var(--text-primary)" }}>
+                                  {i === 0 && c.score >= 50 && "🌱 "}{c.especie} {c.variedad}
+                                </span>
+                                <span className="text-[12px] font-bold" style={{ color: color.text }}>{c.score}%</span>
+                              </div>
+                              <div className="h-1.5 rounded-full overflow-hidden mb-1.5" style={{ background: "white" }}>
+                                <div className="h-full rounded-full" style={{ width: `${c.score}%`, background: color.bar }} />
+                              </div>
+                              {c.factores.map((f) => (
+                                <div key={f.criterio} className="text-[11px] flex items-start gap-1" style={{ color: "var(--text-secondary)" }}>
+                                  <span>{NIVEL_ICONO[f.nivel]}</span>
+                                  <span>{f.mensaje.replace(/^[✅⚠️ℹ️]+\s*/, "")}</span>
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
                 ) : (
                   <div className="whitespace-pre-wrap">{msg.content}</div>
                 )}
@@ -343,7 +524,7 @@ export function AsistenteIASimpleClient() {
             </div>
           ))}
 
-          {isLoading && (
+          {(isLoading || cargandoRecomendacion) && (
             <div className="flex justify-start">
               <div
                 className="rounded-2xl px-4 py-3 flex items-center gap-1"
@@ -440,6 +621,11 @@ export function AsistenteIASimpleClient() {
             <Mic size={17} />
           </button>
 
+          {/* Ícono de adjuntar foto junto al micrófono — el usuario pidió
+              explícitamente no quitarlo al agregar el banner "Asistente de
+              cultivos"; ambos disparan el mismo par de <input type="file">
+              ocultos, con su propio estado de popover (mostrarMenuImagen)
+              para no interferir con el menú en línea del banner. */}
           <div className="relative flex-shrink-0" ref={adjuntarMenuRef}>
             <button
               type="button"
@@ -454,24 +640,31 @@ export function AsistenteIASimpleClient() {
 
             {mostrarMenuImagen && (
               <div className="absolute bottom-full left-0 mb-2 w-44 rounded-xl shadow-lg py-1 z-10" style={{ background: "white", border: "1px solid var(--border-default)" }}>
-                <label htmlFor={camaraInputId} className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer" style={{ color: "var(--text-primary)" }}>
-                  📸 Tomar foto
+                <label
+                  htmlFor={camaraInputId}
+                  className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => setMostrarMenuImagen(false)}
+                >
+                  <Camera size={15} /> Tomar foto
                 </label>
-                <label htmlFor={galeriaInputId} className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer" style={{ color: "var(--text-primary)" }}>
-                  🖼️ Galería
+                <label
+                  htmlFor={galeriaInputId}
+                  className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => setMostrarMenuImagen(false)}
+                >
+                  <ImageIcon size={15} /> Galería
                 </label>
               </div>
             )}
-
-            <input id={camaraInputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleAdjuntarImagen} />
-            <input id={galeriaInputId} type="file" accept="image/*" className="hidden" onChange={handleAdjuntarImagen} />
           </div>
 
           <input
             ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder={imagenAdjunta ? "Agrega una nota (opcional)..." : "Escribe tu pregunta..."}
+            placeholder={imagenAdjunta ? "Agrega una nota (opcional)..." : "Escribe o dicta tu pregunta..."}
             disabled={isLoading}
             className="flex-1 h-11 px-3.5 rounded-full text-[13px]"
             style={{ background: "var(--surface-page)", border: "1px solid var(--border-default)" }}

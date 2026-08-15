@@ -1,6 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
+import { getAlertas } from "@/lib/data/alertas";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
 
@@ -20,9 +22,18 @@ export default async function ModoSimpleLayout({ children }: { children: React.R
   const nombre = session.user.name ?? session.user.email ?? "Usuario";
   const inicial = nombre.trim().charAt(0).toUpperCase();
 
+  // Campana de alertas visible en las 6 pantallas (ajuste pedido tras el
+  // checkpoint) — reutiliza getAlertas (Fase 1, ya usada en Inicio), se
+  // calcula una sola vez aquí en el layout compartido en vez de repetirla
+  // en cada página. "No leídas" = activa && !leida, mismo criterio que ya
+  // usa el motor de alertas (leida se marca al abrir el detalle en modo
+  // completo).
+  const { fincaActivaId } = await resolverFincaActiva(session);
+  const alertas = await getAlertas(fincaActivaId, SIN_FINCA_SENTINEL);
+
   return (
     <SessionProvider session={session}>
-      <ModoSimpleShell nombre={nombre} inicial={inicial}>
+      <ModoSimpleShell nombre={nombre} inicial={inicial} alertas={alertas}>
         {children}
       </ModoSimpleShell>
     </SessionProvider>
