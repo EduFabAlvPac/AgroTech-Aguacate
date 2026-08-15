@@ -47,6 +47,8 @@ export default async function CultivosSimplePage({
           estadoSalud: calcularEstadoSalud(cultivo),
           fechaCosechaEst: timeline.fechaCosechaEst,
           progreso: timeline.progreso,
+          fechaSiembra: cultivo.fechaSiembra,
+          cantidadPlantas: cultivo.cantidadPlantas,
         });
       });
     });

@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useState, useTransition, type FormEvent } from "react";
 import { useFormStatus } from "react-dom";
 import { useRouter } from "next/navigation";
-import { Sprout, Plus, MapPin, Calendar, MoreVertical, X } from "lucide-react";
+import { Sprout, Plus, MapPin, Calendar, MoreVertical, X, Pencil, Trash2 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ETAPA_LABELS } from "@/types";
 import type { EtapaCultivo, EstadoCultivo } from "@prisma/client";
@@ -11,6 +11,8 @@ import type { FincaResumen } from "@/lib/data/fincas";
 import type { EstadoSalud } from "@/lib/data/cultivos";
 import {
   crearCultivo,
+  actualizarCultivo,
+  eliminarCultivo,
   type CultivoActionState,
 } from "@/app/(dashboard)/dashboard/cultivos/cultivo-actions";
 import {
@@ -30,6 +32,10 @@ export interface CultivoSimpleItem {
   estadoSalud: EstadoSalud;
   fechaCosechaEst: Date | null;
   progreso: number;
+  // Ya venían en el mismo getCultivos (Cultivo completo, no un Pick) —
+  // faltaba solo mapearlos aquí para poder prellenar el modal de editar.
+  fechaSiembra: Date | null;
+  cantidadPlantas: number | null;
 }
 
 interface CultivosSimpleClientProps {
@@ -58,6 +64,7 @@ function SubmitButton() {
 export function CultivosSimpleClient({ fincas, fincaSeleccionada, items, lotesDisponibles }: CultivosSimpleClientProps) {
   const router = useRouter();
   const [showNuevo, setShowNuevo] = useState(false);
+  const [editando, setEditando] = useState<CultivoSimpleItem | null>(null);
 
   const totalCultivos = items.length;
   const saludables = items.filter((c) => c.estadoSalud === "saludable").length;
@@ -127,7 +134,7 @@ export function CultivosSimpleClient({ fincas, fincaSeleccionada, items, lotesDi
       ) : (
         <div className="space-y-3">
           {items.map((c) => (
-            <CultivoCard key={c.id} item={c} />
+            <CultivoCard key={c.id} item={c} onEditar={() => setEditando(c)} />
           ))}
         </div>
       )}
@@ -140,6 +147,15 @@ export function CultivosSimpleClient({ fincas, fincaSeleccionada, items, lotesDi
           onCreated={() => { setShowNuevo(false); router.refresh(); }}
         />
       )}
+
+      {/* ── Modal: editar cultivo ── */}
+      {editando && (
+        <EditarCultivoModal
+          item={editando}
+          onClose={() => setEditando(null)}
+          onSaved={() => { setEditando(null); router.refresh(); }}
+        />
+      )}
     </div>
   );
 }
@@ -149,10 +165,12 @@ const ESTADO_SALUD_STYLE: Record<EstadoSalud, { label: string; bg: string; color
   requiere_atencion: { label: "Requiere atención", bg: "var(--color-amber-bg)", color: "#8A5E20" },
 };
 
-function CultivoCard({ item }: { item: CultivoSimpleItem }) {
+function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
   const [cambiando, setCambiando] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const router = useRouter();
   const salud = ESTADO_SALUD_STYLE[item.estadoSalud];
 
   const nombreCompleto = item.variedad ? `${item.especie} ${item.variedad}` : item.especie;
@@ -171,6 +189,20 @@ function CultivoCard({ item }: { item: CultivoSimpleItem }) {
     });
   };
 
+  const eliminar = () => {
+    if (!window.confirm(`¿Eliminar el cultivo "${nombreCompleto}"? Esta acción no se puede deshacer.`)) return;
+    setEliminando(true);
+    startTransition(async () => {
+      const result = await eliminarCultivo(item.id, {});
+      setEliminando(false);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Cultivo eliminado");
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="rounded-2xl p-4 relative" style={{ border: "1px solid var(--border-subtle)" }}>
       <div className="flex items-start justify-between mb-1">
@@ -183,8 +215,15 @@ function CultivoCard({ item }: { item: CultivoSimpleItem }) {
             <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>{ETAPA_LABELS[item.etapa]}</div>
           </div>
         </div>
-        <div className="relative">
-          <button onClick={() => setMenuOpen((v) => !v)} disabled={cambiando} aria-label="Más acciones" className="p-1">
+        <div className="flex items-center gap-1 flex-shrink-0">
+          <button onClick={onEditar} disabled={eliminando} aria-label="Editar cultivo" className="p-1.5">
+            <Pencil size={15} style={{ color: "var(--text-muted)" }} />
+          </button>
+          <button onClick={eliminar} disabled={eliminando} aria-label="Eliminar cultivo" className="p-1.5">
+            <Trash2 size={15} style={{ color: eliminando ? "var(--text-muted)" : "var(--color-negative)" }} />
+          </button>
+          <div className="relative">
+          <button onClick={() => setMenuOpen((v) => !v)} disabled={cambiando || eliminando} aria-label="Más acciones" className="p-1.5">
             <MoreVertical size={16} style={{ color: "var(--text-muted)" }} />
           </button>
           {menuOpen && (
@@ -202,6 +241,7 @@ function CultivoCard({ item }: { item: CultivoSimpleItem }) {
               ))}
             </div>
           )}
+          </div>
         </div>
       </div>
 
@@ -348,6 +388,129 @@ function NuevoCultivoModal({
           </div>
 
           <SubmitButton />
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function toDateInputValue(fecha: Date | null): string {
+  if (!fecha) return "";
+  const d = new Date(fecha);
+  return d.toISOString().slice(0, 10);
+}
+
+function EditarCultivoModal({
+  item,
+  onClose,
+  onSaved,
+}: {
+  item: CultivoSimpleItem;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [especie, setEspecie] = useState(item.especie);
+  const [variedad, setVariedad] = useState(item.variedad ?? "");
+  const [fechaSiembra, setFechaSiembra] = useState(toDateInputValue(item.fechaSiembra));
+  const [cantidadPlantas, setCantidadPlantas] = useState(item.cantidadPlantas?.toString() ?? "");
+
+  // actualizarCultivo recibe el id como primer argumento — se llama
+  // directamente dentro de startTransition (mismo patrón ya usado en
+  // actualizarFinca de Mis fincas) en vez de bindearlo a useActionState.
+  const [, startTransition] = useTransition();
+  const [guardando, setGuardando] = useState(false);
+
+  const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    if (!especie.trim()) {
+      toast.error("La especie es requerida");
+      return;
+    }
+    const fd = new FormData(e.currentTarget);
+    setGuardando(true);
+    startTransition(async () => {
+      const result = await actualizarCultivo(item.id, {}, fd);
+      setGuardando(false);
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success("Cultivo actualizado");
+        onSaved();
+      }
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
+      <div
+        className="w-full rounded-t-3xl p-5 space-y-4"
+        style={{ maxWidth: 540, background: "white", maxHeight: "85vh", overflowY: "auto" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between">
+          <h3 className="text-[16px] font-bold" style={{ color: "var(--text-primary)" }}>Editar cultivo</h3>
+          <button onClick={onClose} aria-label="Cerrar"><X size={20} style={{ color: "var(--text-muted)" }} /></button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-3">
+          <div>
+            <label className="text-[12px] font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Especie *</label>
+            <input
+              name="especie"
+              value={especie}
+              onChange={(e) => setEspecie(e.target.value)}
+              placeholder="Ej: Aguacate, Café, Cacao"
+              className="w-full h-11 px-3 rounded-xl text-[14px]"
+              style={{ border: "1px solid var(--border-default)" }}
+            />
+          </div>
+
+          <div>
+            <label className="text-[12px] font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Variedad</label>
+            <input
+              name="variedad"
+              value={variedad}
+              onChange={(e) => setVariedad(e.target.value)}
+              placeholder="Ej: Hass, Caturra"
+              className="w-full h-11 px-3 rounded-xl text-[14px]"
+              style={{ border: "1px solid var(--border-default)" }}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[12px] font-medium block mb-1" style={{ color: "var(--text-secondary)" }}>Fecha de siembra</label>
+              <input
+                name="fechaSiembra"
+                type="date"
+                value={fechaSiembra}
+                onChange={(e) => setFechaSiembra(e.target.value)}
+                className="w-full h-11 px-3 rounded-xl text-[14px]"
+                style={{ border: "1px solid var(--border-default)" }}
+              />
+            </div>
+            <div>
+              <label className="text-[12px] font-medium block mb-1" style={{ color: "var(--text-secondary)" }}># Plantas</label>
+              <input
+                name="cantidadPlantas"
+                type="number"
+                min={0}
+                value={cantidadPlantas}
+                onChange={(e) => setCantidadPlantas(e.target.value)}
+                placeholder="Ej: 160"
+                className="w-full h-11 px-3 rounded-xl text-[14px]"
+                style={{ border: "1px solid var(--border-default)" }}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={guardando}
+            className="w-full py-3 rounded-full text-[13px] font-semibold disabled:opacity-60"
+            style={{ background: "var(--color-brand)", color: "white" }}
+          >
+            {guardando ? "Guardando..." : "Guardar cambios"}
+          </button>
         </form>
       </div>
     </div>
