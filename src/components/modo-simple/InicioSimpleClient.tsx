@@ -27,15 +27,16 @@ interface WeatherCurrent {
 
 // Cartas de referencia — contenido informativo estático (no viene de datos
 // del usuario ni de ningún lib/data; son solo tarjetas ilustrativas del
-// mockup). Sin fotos reales disponibles en el proyecto todavía — se usa un
-// degradado + emoji en vez de una imagen nueva, para no incorporar assets
-// ni fetch de imágenes externas sin aprobación.
+// mockup). Fotos reales (Wikimedia Commons, CC0/dominio público/CC BY-SA —
+// ver public/images/cultivos/CREDITOS.md), autoalojadas en /public — sin
+// llamadas a servicios externos en producción. Reemplaza el degradado+emoji
+// que tenía la primera versión, por pedido explícito del usuario.
 const CULTIVOS_REFERENCIA = [
-  { nombre: "Café", hint: "Sombra · 1000–2000 m", emoji: "☕", gradient: "linear-gradient(135deg, #6B4226, #A9754F)" },
-  { nombre: "Maíz", hint: "Clima cálido y templado", emoji: "🌽", gradient: "linear-gradient(135deg, #D6A159, #F0C878)" },
-  { nombre: "Plátano", hint: "Tropical · húmedo", emoji: "🍌", gradient: "linear-gradient(135deg, #4CA154, #7FC788)" },
-  { nombre: "Aguacate", hint: "1500–2200 msnm", emoji: "🥑", gradient: "linear-gradient(135deg, #3E8F6C, #2F6E52)" },
-  { nombre: "Cacao", hint: "Agroforestal · sombra", emoji: "🍫", gradient: "linear-gradient(135deg, #5C3A21, #8A5E3C)" },
+  { nombre: "Café", hint: "Sombra · 1000–2000 m", foto: "/images/cultivos/cafe.jpg", creditoVisible: false },
+  { nombre: "Cacao", hint: "Agroforestal · sombra", foto: "/images/cultivos/cacao.jpg", creditoVisible: true },
+  { nombre: "Aguacate", hint: "1500–2200 msnm", foto: "/images/cultivos/aguacate.jpg", creditoVisible: false },
+  { nombre: "Limón", hint: "Cítrico · clima cálido", foto: "/images/cultivos/limon.jpg", creditoVisible: false },
+  { nombre: "Banano", hint: "Tropical · húmedo", foto: "/images/cultivos/banano.jpg", creditoVisible: true },
 ];
 
 const SEVERIDAD_ICON: Record<string, { icon: typeof AlertTriangle; bg: string; color: string }> = {
@@ -174,8 +175,9 @@ export function InicioSimpleClient({
         <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
           {CULTIVOS_REFERENCIA.map((c) => (
             <div key={c.nombre} className="flex-shrink-0 rounded-2xl overflow-hidden" style={{ width: 150, border: "1px solid var(--border-subtle)" }}>
-              <div className="h-24 flex items-center justify-center text-[36px]" style={{ background: c.gradient }}>
-                {c.emoji}
+              <div className="h-24" style={{ background: "var(--surface-page)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element -- mismo patrón que el resto de modo simple (sin next/image en el proyecto) */}
+                <img src={c.foto} alt={c.nombre} className="w-full h-full object-cover" loading="lazy" />
               </div>
               <div className="px-3 py-2.5">
                 <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>{c.nombre}</div>
@@ -184,6 +186,14 @@ export function InicioSimpleClient({
             </div>
           ))}
         </div>
+        {/* Crédito visible — Cacao y Banano son CC BY-SA (Wikimedia Commons),
+            requieren atribución (ver public/images/cultivos/CREDITOS.md).
+            Café/Aguacate/Limón son CC0/dominio público, no la necesitan. */}
+        {CULTIVOS_REFERENCIA.some((c) => c.creditoVisible) && (
+          <p className="text-[10px] mt-1.5" style={{ color: "var(--text-muted)" }}>
+            Fotos: Wikimedia Commons — cacao (ChiK, CC BY-SA 4.0), banano (Evan-Amos, CC BY-SA 3.0)
+          </p>
+        )}
       </div>
 
       {/* ── Alertas ── */}
