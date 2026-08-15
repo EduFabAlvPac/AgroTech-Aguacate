@@ -10,9 +10,10 @@ import { SidebarProvider } from "@/components/providers/SidebarProvider";
 import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { MobileFAB } from "@/components/ui/MobileFAB";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
-import { resolverModoApp } from "@/lib/modo-app";
+import { resolverModoApp, estaEnVisitaCompletaPuntual } from "@/lib/modo-app";
 import { getAlertas } from "@/lib/data/alertas";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
+import { VolverModoSimple } from "@/components/shared/VolverModoSimple";
 
 export default async function DashboardLayout({
   children,
@@ -57,11 +58,19 @@ export default async function DashboardLayout({
     orderBy: { createdAt: "asc" },
   });
 
+  // Fase 5 de ADR-006 — banner "volver a modo simple" solo cuando llegó
+  // acá vía SalidaModoCompleto (visita puntual), no cuando su preferencia
+  // real ya es Completa. Se muestra sin importar a qué pantalla de modo
+  // completo haya navegado, porque vive en el layout compartido, no en
+  // una pantalla puntual.
+  const visitaPuntual = await estaEnVisitaCompletaPuntual();
+
   return (
     <SessionProvider session={session}>
       <SidebarProvider>
         <div className="flex flex-col h-screen">
           <OfflineBanner />
+          {visitaPuntual && <VolverModoSimple />}
           <div className="app-shell flex-1 min-h-0">
             <Sidebar fincas={fincas} fincaActivaId={fincaActivaId} />
             {/* Overlay closes sidebar when tapping outside on mobile */}
