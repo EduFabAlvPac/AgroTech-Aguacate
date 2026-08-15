@@ -43,11 +43,24 @@ export default async function DashboardLayout({
     const inicial = nombre.trim().charAt(0).toUpperCase();
     const alertas = await getAlertas(fincaActivaId, SIN_FINCA_SENTINEL);
 
+    // Bug real encontrado en producción (hallazgo del usuario, 2026-08-15):
+    // las rutas sin versión modo simple (Mapa, Alertas, Compradores...)
+    // asumían "se ven sin cambios por dentro" (comentario original más
+    // abajo), pero su <Header> llama a useSidebar() incondicionalmente —
+    // sin este SidebarProvider, cualquier navegación DIRECTA (no vía
+    // SalidaModoCompleto: back/forward del navegador, refrescar una
+    // pestaña vieja, un bookmark) a una de esas rutas mientras el modo
+    // resuelve a "simple" tiraba "useSidebar must be used within a
+    // SidebarProvider" y rompía la página por completo. SidebarProvider es
+    // solo contexto de React (colapsado/abierto) — inofensivo montarlo acá
+    // aunque ModoSimpleShell no lo consuma.
     return (
       <SessionProvider session={session}>
-        <ModoSimpleShell nombre={nombre} inicial={inicial} alertas={alertas}>
-          {children}
-        </ModoSimpleShell>
+        <SidebarProvider>
+          <ModoSimpleShell nombre={nombre} inicial={inicial} alertas={alertas}>
+            {children}
+          </ModoSimpleShell>
+        </SidebarProvider>
       </SessionProvider>
     );
   }
