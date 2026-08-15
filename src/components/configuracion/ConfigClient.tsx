@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2 } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
@@ -30,9 +31,17 @@ interface ConfigClientProps {
 }
 
 type Tab = "profile" | "finca" | "alertas" | "privacidad";
+const TABS_VALIDOS: Tab[] = ["profile", "finca", "alertas", "privacidad"];
 
 export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
-  const [tab, setTab] = useState<Tab>("profile");
+  // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
+  // pueda aterrizar en la sección exacta (ej. "alertas" o "privacidad") en
+  // vez de siempre "profile". Sin el parámetro, comportamiento idéntico al
+  // de antes.
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab") as Tab | null;
+  const tabInicial = tabParam && TABS_VALIDOS.includes(tabParam) ? tabParam : "profile";
+  const [tab, setTab] = useState<Tab>(tabInicial);
   const [saving, setSaving] = useState(false);
   const [generatingAlerts, setGeneratingAlerts] = useState(false);
   const [exportando, setExportando] = useState(false);

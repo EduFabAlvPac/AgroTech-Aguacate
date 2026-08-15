@@ -1,17 +1,24 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { db } from "./db";
-import { ANCHO_PANTALLA_COOKIE, parsearAnchoCookie, resolverModoRuta, type RolAutoDefault } from "./vista-preferida";
+import {
+  ANCHO_PANTALLA_COOKIE,
+  VISITA_COMPLETA_COOKIE,
+  parsearAnchoCookie,
+  resolverModoRuta,
+  type RolAutoDefault,
+} from "./vista-preferida";
 
 /**
- * Orquestación server-only para Fase 3/4 de ADR-006: lee la preferencia
+ * Orquestación server-only para Fase 3/4/5 de ADR-006: lee la preferencia
  * persistida del usuario + el rol (Fase 4) + la cookie de ancho (Fase 3,
- * respaldo), y resuelve qué conjunto de componentes (completo/simple) le
- * corresponde. Envuelta en `cache()` de React — tanto (dashboard)/layout.tsx
- * (para elegir el envoltorio: sidebar vs. header+nav inferior) como cada
- * page.tsx bifurcada (para elegir el contenido) llaman a esta función en el
- * mismo request; sin `cache()` se repetirían las consultas dos veces por
- * carga de página.
+ * respaldo) + la "visita puntual" a modo completo (Fase 5), y resuelve qué
+ * conjunto de componentes (completo/simple) le corresponde. Envuelta en
+ * `cache()` de React — tanto (dashboard)/layout.tsx (para elegir el
+ * envoltorio: sidebar vs. header+nav inferior) como cada page.tsx
+ * bifurcada (para elegir el contenido) llaman a esta función en el mismo
+ * request; sin `cache()` se repetirían las consultas dos veces por carga
+ * de página.
  *
  * La lógica de resolución en sí (resolverModoRuta/resolverVistaAuto) vive
  * en vista-preferida.ts como funciones puras — este archivo es solo el
@@ -23,18 +30,32 @@ export const resolverModoApp = cache(async (userId: string): Promise<"simple" | 
     cookies(),
   ]);
   const vistaPreferida = user?.vistaPreferida ?? "AUTO";
+  const visitaCompletaForzada = cookieStore.get(VISITA_COMPLETA_COOKIE)?.value === "1";
 
   // El rol (Fase 4) y la cookie de ancho (Fase 3) solo importan cuando la
-  // preferencia es AUTO — regla explícita de la Fase 4: no tocar el
-  // comportamiento de SIMPLE/COMPLETA explícitos.
+  // preferencia es AUTO — regla explícita: no tocar el comportamiento de
+  // SIMPLE/COMPLETA explícitos. La visita puntual (Fase 5) es la única
+  // excepción a esa regla, por diseño — ver resolverModoRuta.
   let rolDefault: RolAutoDefault = null;
-  if (vistaPreferida === "AUTO") {
+  if (vistaPreferida === "AUTO" && !visitaCompletaForzada) {
     rolDefault = user?.esSuperAdmin ? "completa" : await resolverRolAutoDefault(userId);
   }
 
   const anchoCookie = parsearAnchoCookie(cookieStore.get(ANCHO_PANTALLA_COOKIE)?.value);
-  return resolverModoRuta(vistaPreferida, rolDefault, anchoCookie);
+  return resolverModoRuta(vistaPreferida, rolDefault, anchoCookie, visitaCompletaForzada);
 });
+
+/**
+ * Solo la cookie (sin consultar `User`) — usada por (dashboard)/layout.tsx
+ * para decidir si muestra el banner "Estás en modo completo temporalmente
+ * · Volver a modo simple" (VolverModoSimple.tsx). Deliberadamente no usa
+ * `cache()`: es una lectura de cookie, no una consulta a BD, no hay nada
+ * que deduplicar.
+ */
+export async function estaEnVisitaCompletaPuntual(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return cookieStore.get(VISITA_COMPLETA_COOKIE)?.value === "1";
+}
 
 /**
  * Default de "Automático" por rol (Fase 4, ADR-006) — auditado contra el

@@ -20,6 +20,20 @@ export const BREAKPOINT_MOVIL_PX = 768;
 export type AnchoBucket = "movil" | "escritorio";
 
 /**
+ * "Visita puntual" a modo completo (Fase 5, ADR-006, QA de paridad) — un
+ * usuario en modo simple (por preferencia SIMPLE explícita o por AUTO) que
+ * necesita una función excluida (dibujar un lote, invitar a Equipo,
+ * configurar umbrales de alerta...) puede visitar modo completo sin que eso
+ * cambie su `vistaPreferida` guardada. Es una cookie corta (no la
+ * preferencia persistida en `User`), con máxima precedencia — le gana
+ * incluso a SIMPLE explícito, exactamente al revés que el ancho de
+ * pantalla, que tiene la precedencia más baja. Ver SalidaModoCompleto.tsx
+ * (la escribe) y VolverModoSimple.tsx (la borra).
+ */
+export const VISITA_COMPLETA_COOKIE = "agrotech_visita_completa";
+export const VISITA_COMPLETA_MAX_AGE_S = 30 * 60; // 30 min — red de seguridad si el usuario no vuelve explícitamente
+
+/**
  * Default de "Automático" derivado del rol (Fase 4, ADR-006) — `null`
  * cuando el rol no tiene un default claro (INVERSIONISTA/COMPRADOR, hoy
  * inalcanzables en sesión real — ver checkpoint de Fase 4; o sin membresía
@@ -50,17 +64,26 @@ export function resolverVistaAuto(rolDefault: RolAutoDefault, anchoConocido: Anc
 }
 
 /**
- * Combina la preferencia persistida del usuario (SIMPLE/COMPLETA/AUTO) con
- * el default por rol y el bucket de ancho conocido (cookie, respaldo) para
- * decidir qué conjunto de componentes monta una ruta real. Preferencias
- * explícitas (SIMPLE/COMPLETA) no se tocan — ni rol ni ancho entran a jugar
- * para ellas, exactamente igual que en Fase 3.
+ * Combina la preferencia persistida del usuario (SIMPLE/COMPLETA/AUTO), el
+ * default por rol y el bucket de ancho conocido (cookie, respaldo), y la
+ * "visita puntual" a modo completo (Fase 5) para decidir qué conjunto de
+ * componentes monta una ruta real.
+ *
+ * Precedencia (de mayor a menor):
+ * 1. `visitaCompletaForzada` — gana incluso sobre SIMPLE explícito. Es la
+ *    única excepción a "las preferencias explícitas no se tocan": por
+ *    diseño, es precisamente lo que permite visitar modo completo SIN
+ *    tocar la preferencia guardada.
+ * 2. vistaPreferida SIMPLE/COMPLETA explícito.
+ * 3. AUTO → rol, con ancho de pantalla como respaldo.
  */
 export function resolverModoRuta(
   vistaPreferida: VistaPreferida,
   rolDefault: RolAutoDefault,
-  anchoConocido: AnchoBucket | null
+  anchoConocido: AnchoBucket | null,
+  visitaCompletaForzada: boolean = false
 ): "simple" | "completa" {
+  if (visitaCompletaForzada) return "completa";
   if (vistaPreferida === "SIMPLE") return "simple";
   if (vistaPreferida === "COMPLETA") return "completa";
   return resolverVistaAuto(rolDefault, anchoConocido);

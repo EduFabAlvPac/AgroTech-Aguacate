@@ -28,7 +28,11 @@ export function ConfirmSheet({
   onCancel,
 }: ConfirmSheetProps) {
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onCancel}>
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: "rgba(0,0,0,0.4)" }}
+      onClick={(e) => { e.stopPropagation(); onCancel(); }}
+    >
       <div
         className="w-full rounded-t-3xl p-5 space-y-4"
         style={{ maxWidth: 540, background: "white" }}

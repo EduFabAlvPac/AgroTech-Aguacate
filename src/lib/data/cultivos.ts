@@ -71,3 +71,39 @@ export async function getCultivos(fincaActivaId: string | null): Promise<FincaCo
     },
   });
 }
+
+/**
+ * Detalle completo de un cultivo (lote, finca, análisis de suelo,
+ * registros de bitácora, gastos/ingresos, rango altitudinal RF3) —
+ * extraída tal cual (Fase 5, ADR-006, QA de paridad) de donde vivía
+ * inline en dashboard/cultivos/[id]/page.tsx, sin cambiar la consulta, para
+ * que la nueva ruta bifurcada de modo simple (detalle/bitácora, gap #2 del
+ * checkpoint de Fase 5) pueda reutilizarla exacta en vez de duplicarla.
+ * Scoped por userId (misma condición que ya tenía la página).
+ */
+export async function getCultivoDetalle(id: string, userId: string) {
+  return db.cultivo.findFirst({
+    where: {
+      id,
+      lote: { finca: { userId } },
+    },
+    include: {
+      lote: {
+        include: {
+          finca: true,
+          analisisSuelo: { orderBy: { fechaMuestreo: "desc" } },
+        },
+      },
+      registros: { orderBy: { fecha: "desc" } },
+      gastos: { orderBy: { fecha: "desc" }, take: 10 },
+      ingresos: { include: { comprador: true }, orderBy: { fecha: "desc" } },
+      // cicloMesesPrimeraCosecha/produccionKgArbolAnual agregados (Fase 5,
+      // ADR-006) — la rama simple los necesita para computeCultivoTimeline
+      // (mismo cálculo de progreso/cosecha estimada que ya usa la lista de
+      // Cultivos). Extensión aditiva: CultivoDetail.tsx (modo completo) no
+      // los usa, los ignora — cero cambio de comportamiento para él, mismo
+      // patrón ya aplicado a getCultivos en Fase 2.
+      especieCultivo: { select: { nombre: true, altitudMin: true, altitudMax: true, cicloMesesPrimeraCosecha: true, produccionKgArbolAnual: true } },
+    },
+  });
+}

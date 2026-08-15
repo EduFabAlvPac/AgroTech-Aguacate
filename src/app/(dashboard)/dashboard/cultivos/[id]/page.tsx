@@ -4,6 +4,10 @@ import { db } from "@/lib/db";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
+import { resolverModoApp } from "@/lib/modo-app";
+import { getCultivoDetalle } from "@/lib/data/cultivos";
+import { computeCultivoTimeline } from "@/lib/data/dashboard";
+import { CultivoDetalleSimpleClient } from "@/components/modo-simple/CultivoDetalleSimpleClient";
 
 export const dynamic = "force-dynamic";
 
@@ -21,29 +25,22 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
 
-  const cultivo = await db.cultivo.findFirst({
-    where: {
-      id,
-      lote: { finca: { userId: session.user.id } },
-    },
-    include: {
-      lote: {
-        include: {
-          finca: true,
-          analisisSuelo: { orderBy: { fechaMuestreo: "desc" } },
-        },
-      },
-      registros: { orderBy: { fecha: "desc" } },
-      gastos: { orderBy: { fecha: "desc" }, take: 10 },
-      ingresos: { include: { comprador: true }, orderBy: { fecha: "desc" } },
-      // Rango altitudinal óptimo (RF3 criterio 1) — opcional, solo si el
-      // cultivo ya está vinculado al catálogo paramétrico (Fase 1, aún no
-      // obligatorio en el flujo de creación, ver CLAUDE.md §2.2).
-      especieCultivo: { select: { nombre: true, altitudMin: true, altitudMax: true } },
-    },
-  });
-
+  // getCultivoDetalle (lib/data/cultivos.ts) — misma consulta que antes
+  // vivía inline aquí, extraída tal cual (Fase 5, ADR-006) para que la
+  // rama simple de abajo la reutilice exacta, no una duplicada.
+  const cultivo = await getCultivoDetalle(id, session.user.id);
   if (!cultivo) notFound();
+
+  // Fase 5 de ADR-006 — gap #2 del checkpoint ("ver detalle/historial de
+  // un cultivo"): confirmado agregar a modo simple, no excluir. Vista de
+  // bitácora simplificada (sin las tablas de gastos/ingresos que ya cubre
+  // Finanzas) + "Registrar actividad" (gap #1, reutiliza crearRegistro tal
+  // cual).
+  const modo = await resolverModoApp(session.user.id);
+  if (modo === "simple") {
+    const timeline = computeCultivoTimeline(cultivo, cultivo.lote.finca.nombre, cultivo.cantidadPlantas ?? 0);
+    return <CultivoDetalleSimpleClient cultivo={cultivo as any} timeline={timeline} />;
+  }
 
   return (
     <>

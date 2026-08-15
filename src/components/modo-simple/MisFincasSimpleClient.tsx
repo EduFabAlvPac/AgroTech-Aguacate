@@ -13,6 +13,7 @@ import {
   type FincaActionState,
 } from "@/app/(dashboard)/dashboard/fincas/finca-actions";
 import { ConfirmSheet } from "@/components/modo-simple/ConfirmSheet";
+import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 
 interface MisFincasSimpleClientProps {
   fincas: FincaResumen[];
@@ -74,6 +75,18 @@ export function MisFincasSimpleClient({ fincas }: MisFincasSimpleClientProps) {
           <Plus size={14} /> Nueva
         </button>
       </div>
+
+      {/* ── Salida: lotes (Fase 5, ADR-006) — dibujar el polígono de un lote
+          necesita pantalla grande (Leaflet.draw), se formaliza como
+          exclusión en vez de meterlo en modo simple. Es también la única
+          forma de que una finca nueva llegue a tener un lote (y por lo
+          tanto poder crear un cultivo) — visible siempre, no solo cuando
+          ya hay fincas. */}
+      <SalidaModoCompleto
+        href="/dashboard/mapa"
+        titulo="Crear o editar lotes"
+        descripcion="Dibuja el polígono de tu terreno en el mapa completo"
+      />
 
       {/* ── Lista / vacío ── */}
       {fincas.length === 0 ? (
