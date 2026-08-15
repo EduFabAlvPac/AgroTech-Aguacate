@@ -20,32 +20,50 @@ export const BREAKPOINT_MOVIL_PX = 768;
 export type AnchoBucket = "movil" | "escritorio";
 
 /**
- * Puro — sin cookies() ni window aquí, para poder testear sin mocks de
- * Next.js y para que la Fase 4 (criterio de rol) solo tenga que extender
- * esta función, no el mecanismo de cookie/switch que la rodea.
- *
- * Sin cookie todavía (primera visita real de un dispositivo): sesgo hacia
- * "movil" — el público objetivo de AgroTech es predominantemente móvil
- * (ver CLAUDE.md), minimiza la probabilidad de necesitar la corrección de
- * AnchoPantallaSync en el caso común.
+ * Default de "Automático" derivado del rol (Fase 4, ADR-006) — `null`
+ * cuando el rol no tiene un default claro (INVERSIONISTA/COMPRADOR, hoy
+ * inalcanzables en sesión real — ver checkpoint de Fase 4; o sin membresía
+ * activa), caso en el que el ancho de pantalla decide como respaldo. La
+ * resolución de qué rol tiene cada usuario (consulta a `Membresia`/
+ * `esSuperAdmin`/`esOwner`) vive en modo-app.ts — esta función solo recibe
+ * el resultado ya resuelto, para seguir siendo pura y testeable.
  */
-export function resolverVistaAuto(anchoConocido: AnchoBucket | null): "simple" | "completa" {
+export type RolAutoDefault = "simple" | "completa" | null;
+
+/**
+ * Puro — sin cookies() ni window aquí, para poder testear sin mocks de
+ * Next.js. El rol manda sobre el ancho de pantalla (decisión confirmada
+ * explícitamente con el usuario en el checkpoint de Fase 4 — la razón
+ * original para incorporar el rol fue justamente que el ancho es la
+ * variable equivocada; dejar que el viewport le gane al rol reintroduciría
+ * ese problema). El ancho solo decide cuando `rolDefault` es `null`.
+ *
+ * Sin cookie todavía Y sin rol con default claro (primera visita real de
+ * un dispositivo, rol sin default): sesgo hacia "movil" — el público
+ * objetivo de AgroTech es predominantemente móvil (ver CLAUDE.md), minimiza
+ * la probabilidad de necesitar la corrección de AnchoPantallaSync.
+ */
+export function resolverVistaAuto(rolDefault: RolAutoDefault, anchoConocido: AnchoBucket | null): "simple" | "completa" {
+  if (rolDefault) return rolDefault;
   if (anchoConocido === "escritorio") return "completa";
   return "simple";
 }
 
 /**
  * Combina la preferencia persistida del usuario (SIMPLE/COMPLETA/AUTO) con
- * el bucket de ancho conocido (cookie) para decidir qué conjunto de
- * componentes monta una ruta real.
+ * el default por rol y el bucket de ancho conocido (cookie, respaldo) para
+ * decidir qué conjunto de componentes monta una ruta real. Preferencias
+ * explícitas (SIMPLE/COMPLETA) no se tocan — ni rol ni ancho entran a jugar
+ * para ellas, exactamente igual que en Fase 3.
  */
 export function resolverModoRuta(
   vistaPreferida: VistaPreferida,
+  rolDefault: RolAutoDefault,
   anchoConocido: AnchoBucket | null
 ): "simple" | "completa" {
   if (vistaPreferida === "SIMPLE") return "simple";
   if (vistaPreferida === "COMPLETA") return "completa";
-  return resolverVistaAuto(anchoConocido);
+  return resolverVistaAuto(rolDefault, anchoConocido);
 }
 
 /** Lee la cookie de ancho desde un string de cookie de Next.js
