@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Leaf, Lock, Mail, Eye, EyeOff } from "lucide-react";
+import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 
 export default function LoginPage() {
@@ -39,9 +39,11 @@ export default function LoginPage() {
 
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl bg-agro-400 flex items-center justify-center mx-auto mb-4 shadow-md">
-            <Leaf size={28} className="text-white" />
-          </div>
+          <img
+            src="/icons/icon-192.png"
+            alt="GermIA"
+            className="w-16 h-16 rounded-2xl mx-auto mb-4 shadow-md object-cover"
+          />
           <h1 className="text-2xl font-bold text-[var(--text-primary)]">AgroTech</h1>
           <p className="text-[14px] text-[var(--text-secondary)] mt-1">
             Gestión inteligente de tu cultivo
