@@ -74,22 +74,34 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // decisión explícita del producto (no Vercel Blob por ahora). Solo queda
     // el resultado textual en la bitácora; el usuario ya ve la foto que tomó
     // en su propia sesión (viene de su estado local, no de esta respuesta).
-    const registro = await db.registroCultivo.create({
-      data: {
-        cultivoId: id,
-        tipo: "INSPECCION",
-        descripcion: `🤖 Diagnóstico IA: ${resultado.diagnostico}${descripcion ? ` — ${descripcion}` : ""} (foto no archivada)`,
-        imagenes: [],
-        datos: { diagnosticoIA: resultado } as unknown as Prisma.InputJsonValue,
-      },
-    });
+    //
+    // Hallazgo real del usuario (2026-08-15): cuando el modelo no podía
+    // diagnosticar la foto (borrosa, no parece la planta correcta...), esa
+    // respuesta igual se guardaba como una "Inspección" más en la bitácora
+    // — texto confuso tipo "Imagen no válida para diagnóstico (cultivo
+    // incorrecto)" quedando ahí para siempre, con un "✅ Guardado en el
+    // cuaderno de campo" al lado que no ayudaba a entender qué pasó. Ahora
+    // solo se guarda bitácora + se evalúa alerta cuando imagenValida es
+    // true — un intento fallido no debe ensuciar el historial real del
+    // cultivo, solo mostrarle al productor que intente con otra foto.
+    const registro = resultado.imagenValida
+      ? await db.registroCultivo.create({
+          data: {
+            cultivoId: id,
+            tipo: "INSPECCION",
+            descripcion: `🤖 Diagnóstico IA: ${resultado.diagnostico}${descripcion ? ` — ${descripcion}` : ""} (foto no archivada)`,
+            imagenes: [],
+            datos: { diagnosticoIA: resultado } as unknown as Prisma.InputJsonValue,
+          },
+        })
+      : null;
 
     // Genera una alerta (además de la bitácora) cuando el diagnóstico
     // encuentra un problema real con confianza suficiente — "sin evidencia
     // de daño" o confianza baja no generan alerta, para no meter ruido.
     const sinDano = /sin evidencia de daño/i.test(resultado.diagnostico);
     let alertaCreada = null;
-    if (!sinDano && (resultado.confianza === "alta" || resultado.confianza === "media")) {
+    if (registro && !sinDano && (resultado.confianza === "alta" || resultado.confianza === "media")) {
       alertaCreada = await db.alertaClimatica.create({
         data: {
           tipo: "PLAGA",

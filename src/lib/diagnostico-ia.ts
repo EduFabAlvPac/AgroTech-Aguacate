@@ -35,6 +35,14 @@ export interface DiagnosticoResultado {
    * respuesta final vía `reasoning_format: "parsed"` (ver diagnosticarImagen).
    * Opcional: informativo para el productor, no crítico para el flujo. */
   razonamiento?: string;
+  /** false cuando el modelo no pudo diagnosticar la foto en absoluto (no
+   * parece una planta, muy borrosa, no coincide con el cultivo seleccionado,
+   * etc.) — antes esto se colaba como un "diagnóstico" más de texto libre
+   * ("Imagen no válida para diagnóstico (cultivo incorrecto)"), confuso para
+   * el usuario, y se guardaba igual en la bitácora como si fuera una
+   * inspección real. Ver hallazgo del usuario, 2026-08-15. Default `true`
+   * si el modelo no lo incluye (compatibilidad con respuestas viejas). */
+  imagenValida: boolean;
 }
 
 export class DiagnosticoError extends Error {
@@ -59,7 +67,8 @@ Antes de responder, considera y descarta activamente los diagnósticos diferenci
 
 Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, con exactamente esta forma:
 {
-  "diagnostico": "nombre concreto y único de la plaga/enfermedad/deficiencia detectada, o 'Sin evidencia de daño visible' si la planta se ve sana",
+  "imagenValida": true o false — false si la imagen NO permite diagnosticar nada en absoluto (no muestra una planta reconocible, está demasiado borrosa/oscura, o no se alcanza a ver hoja/fruto/tallo con detalle suficiente),
+  "diagnostico": "nombre concreto y único de la plaga/enfermedad/deficiencia detectada, o 'Sin evidencia de daño visible' si la planta se ve sana — o, si imagenValida es false, una frase corta y amable pidiendo una foto nueva (ver abajo)",
   "confianza": "alta" | "media" | "baja",
   "sintomasObservados": "descripción breve y concreta de lo que ves en la imagen (color, patrón, ubicación en la planta)",
   "recomendacion": "manejo recomendado en español colombiano campesino — SIEMPRE incluye: 1) producto/ingrediente activo concreto y dosis, 2) frecuencia de aplicación, 3) una medida cultural/preventiva adicional (poda, drenaje, distanciamiento, etc.)",
@@ -69,7 +78,9 @@ Responde ÚNICAMENTE con un objeto JSON válido, sin texto antes ni después, co
 Catálogo de plagas/enfermedades conocidas para ${especie} ${variedad}:
 ${listaCatalogo}
 
-Si lo que ves coincide con algo del catálogo, usa exactamente ese nombre en "diagnostico", basa "recomendacion" en su manejo recomendado (amplíalo con dosis/frecuencia concretas aunque el catálogo no las tenga), y pon coincideCatalogo=true. Si no coincide con el catálogo pero lo reconoces por tu conocimiento general, responde igual pero con coincideCatalogo=false. Si la imagen no permite diagnosticar (no es una planta, está borrosa, muy poca evidencia visible, etc.), dilo claramente en "diagnostico" con confianza "baja" y en "recomendacion" pide una foto más clara o de otro ángulo en vez de inventar un tratamiento.`;
+Si lo que ves coincide con algo del catálogo, usa exactamente ese nombre en "diagnostico", basa "recomendacion" en su manejo recomendado (amplíalo con dosis/frecuencia concretas aunque el catálogo no las tenga), y pon coincideCatalogo=true. Si no coincide con el catálogo pero lo reconoces por tu conocimiento general, responde igual pero con coincideCatalogo=false.
+
+Si la imagen no permite diagnosticar (no es una planta, está borrosa, muy poca evidencia visible, no parece ser ${especie}, etc.): pon "imagenValida": false, "confianza": "baja", deja "recomendacion" vacío o con una sugerencia de encuadre, y en "diagnostico" escribe SIEMPRE una frase corta, amable y accionable que empiece con "No pude ver bien la foto" — por ejemplo "No pude ver bien la foto — acércate más a la hoja o el fruto, con buena luz, y toma otra." Nunca respondas algo como "cultivo incorrecto" o "imagen no válida" a secas: el productor tiene que entender qué hacer, no sentir que algo se rompió.`;
 }
 
 /**
@@ -155,6 +166,9 @@ function parsearRespuesta(textoOriginal: string): DiagnosticoResultado {
           sintomasObservados: parsed.sintomasObservados ?? "",
           recomendacion: parsed.recomendacion ?? "Consulta con un agrónomo local para confirmar el manejo.",
           coincideCatalogo: !!parsed.coincideCatalogo,
+          // default true — un modelo/respuesta vieja sin este campo no debe
+          // tratarse como "rechazada" de golpe.
+          imagenValida: typeof parsed.imagenValida === "boolean" ? parsed.imagenValida : true,
         };
       }
     } catch {
@@ -163,12 +177,15 @@ function parsearRespuesta(textoOriginal: string): DiagnosticoResultado {
   }
 
   // Fallback: el modelo no devolvió JSON válido — se conserva el texto crudo
-  // como diagnóstico en vez de fallar toda la operación.
+  // como diagnóstico en vez de fallar toda la operación. Se trata igual que
+  // "imagenValida: false" — tampoco aquí hay un diagnóstico real que valga
+  // la pena guardar en la bitácora del cultivo.
   return {
-    diagnostico: texto.trim() || "No se pudo interpretar la respuesta del modelo",
+    diagnostico: "No pude ver bien la foto — inténtalo de nuevo con otra imagen, con buena luz y enfocando la hoja o el fruto.",
     confianza: "baja",
     sintomasObservados: "",
-    recomendacion: "La respuesta del modelo no tuvo el formato esperado — verifica manualmente o intenta de nuevo con otra foto.",
+    recomendacion: "",
     coincideCatalogo: false,
+    imagenValida: false,
   };
 }

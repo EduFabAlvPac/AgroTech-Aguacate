@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useId } from "react";
 import { useSession } from "next-auth/react";
-import { Send, RotateCcw, Mic, Image as ImageIcon, X, Eye, Pill } from "lucide-react";
+import { Send, RotateCcw, Mic, Image as ImageIcon, X, Eye, Pill, Camera } from "lucide-react";
 import { Button, Select } from "@/components/ui";
 import { VoiceRecorder } from "@/components/ui/VoiceRecorder";
 import { compressImage } from "@/components/ui/PhotoCapture";
@@ -21,6 +21,9 @@ interface DiagnosticoResultado {
   sintomasObservados: string;
   recomendacion: string;
   coincideCatalogo: boolean;
+  /** false = la IA no pudo diagnosticar la foto — no se guardó en la
+   * bitácora (ver api/cultivos/[id]/diagnostico/route.ts). */
+  imagenValida?: boolean;
 }
 
 interface CultivoOption {
@@ -393,25 +396,34 @@ export function ChatInterface({ historial, initialQuery }: ChatInterfaceProps) {
                 )}
 
                 {msg.diagnostico ? (
-                  <div className="space-y-2 min-w-[220px]">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-[13px] font-semibold text-[var(--text-primary)]">{msg.diagnostico.diagnostico}</span>
-                      <span className={`badge text-[10px] ${CONFIANZA_BADGE[msg.diagnostico.confianza]}`}>
-                        Confianza {msg.diagnostico.confianza}
-                      </span>
-                    </div>
-                    {msg.diagnostico.sintomasObservados && (
+                  msg.diagnostico.imagenValida === false ? (
+                    // La IA no pudo diagnosticar esta foto — no se guardó en
+                    // la bitácora, así que tampoco se dice "guardado". Ver
+                    // el mismo fix en AsistenteIASimpleClient.tsx.
+                    <p className="text-[13px] text-[var(--text-primary)] flex items-start gap-1.5 min-w-[220px]">
+                      <Camera size={14} className="mt-0.5 flex-shrink-0 text-harvest-400" /> {msg.diagnostico.diagnostico}
+                    </p>
+                  ) : (
+                    <div className="space-y-2 min-w-[220px]">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-[13px] font-semibold text-[var(--text-primary)]">{msg.diagnostico.diagnostico}</span>
+                        <span className={`badge text-[10px] ${CONFIANZA_BADGE[msg.diagnostico.confianza]}`}>
+                          Confianza {msg.diagnostico.confianza}
+                        </span>
+                      </div>
+                      {msg.diagnostico.sintomasObservados && (
+                        <p className="text-[12px] text-[var(--text-secondary)] flex items-start gap-1.5">
+                          <Eye size={13} className="mt-0.5 flex-shrink-0 text-[var(--text-muted)]" /> {msg.diagnostico.sintomasObservados}
+                        </p>
+                      )}
                       <p className="text-[12px] text-[var(--text-secondary)] flex items-start gap-1.5">
-                        <Eye size={13} className="mt-0.5 flex-shrink-0 text-[var(--text-muted)]" /> {msg.diagnostico.sintomasObservados}
+                        <Pill size={13} className="mt-0.5 flex-shrink-0 text-[var(--text-muted)]" /> {msg.diagnostico.recomendacion}
                       </p>
-                    )}
-                    <p className="text-[12px] text-[var(--text-secondary)] flex items-start gap-1.5">
-                      <Pill size={13} className="mt-0.5 flex-shrink-0 text-[var(--text-muted)]" /> {msg.diagnostico.recomendacion}
-                    </p>
-                    <p className="text-[11px] text-agro-600 bg-agro-50 px-2 py-1 rounded">
-                      ✅ Guardado en el cuaderno de campo{msg.alertaCreada && " · ⚠️ Alerta generada"}
-                    </p>
-                  </div>
+                      <p className="text-[11px] text-agro-600 bg-agro-50 px-2 py-1 rounded">
+                        ✅ Guardado en el cuaderno de campo{msg.alertaCreada && " · ⚠️ Alerta generada"}
+                      </p>
+                    </div>
+                  )
                 ) : (
                   <div className="whitespace-pre-wrap">{msg.content}</div>
                 )}
