@@ -8,9 +8,13 @@ import toast from "react-hot-toast";
 import type { VistaPreferida } from "@prisma/client";
 import { actualizarPerfil, type ConfigActionState } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
 import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
+import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 
 interface PerfilSimpleClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
+  /** Fase 5 de ADR-006 — qué salidas a modo completo mostrar. Mismos guards
+   * que ya usan las páginas reales de cada sección (ver configuracion/page.tsx). */
+  accesos?: { esOwner: boolean; esSuperAdmin: boolean; verCompradores: boolean };
 }
 
 const initialState: ConfigActionState = {};
@@ -29,7 +33,7 @@ function SubmitButton() {
   );
 }
 
-export function PerfilSimpleClient({ user }: PerfilSimpleClientProps) {
+export function PerfilSimpleClient({ user, accesos }: PerfilSimpleClientProps) {
   const [name, setName] = useState(user?.name ?? "");
   const [telefono, setTelefono] = useState(user?.telefono ?? "");
   const [state, formAction] = useActionState(actualizarPerfil, initialState);
@@ -116,6 +120,36 @@ export function PerfilSimpleClient({ user }: PerfilSimpleClientProps) {
           </p>
         </div>
         <VistaPreferidaSwitch vistaActual={user.vistaPreferida} />
+      </div>
+
+      {/* ── Más funciones (modo completo) — Fase 5, ADR-006 ──
+          Exclusiones ya decididas en Fase 2 (Alertas configurables,
+          exportar/eliminar cuenta) + Compradores/Equipo/Fichas técnicas
+          (siempre fuera de modo simple). Un único componente reutilizado
+          (SalidaModoCompleto) — visita puntual, no cambia vistaPreferida. */}
+      <div className="space-y-2">
+        <div className="text-[12px] font-semibold px-1" style={{ color: "var(--text-muted)" }}>
+          Más funciones (modo completo)
+        </div>
+        <SalidaModoCompleto
+          href="/dashboard/configuracion?tab=alertas"
+          titulo="Configurar umbrales de alerta"
+          descripcion="Temperatura, lluvia, viento y sequía"
+        />
+        <SalidaModoCompleto
+          href="/dashboard/configuracion?tab=privacidad"
+          titulo="Exportar mis datos o eliminar mi cuenta"
+          descripcion="Derechos Ley 1581 de 2012"
+        />
+        {accesos?.verCompradores && (
+          <SalidaModoCompleto href="/dashboard/compradores" titulo="Compradores" descripcion="Gestiona cooperativas y exportadores" />
+        )}
+        {accesos?.esOwner && (
+          <SalidaModoCompleto href="/dashboard/equipo" titulo="Equipo" descripcion="Invita colaboradores y administra roles" />
+        )}
+        {accesos?.esSuperAdmin && (
+          <SalidaModoCompleto href="/dashboard/admin/fichas-tecnicas" titulo="Fichas técnicas" descripcion="Catálogo de cultivos y variedades" />
+        )}
       </div>
 
       <button

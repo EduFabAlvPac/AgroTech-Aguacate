@@ -6,6 +6,7 @@ import { X, AlertTriangle, Info, Check } from "lucide-react";
 import toast from "react-hot-toast";
 import type { AlertaClimatica } from "@prisma/client";
 import { marcarLeida } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
+import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 
 interface AlertasPanelProps {
   alertas: AlertaClimatica[];
@@ -92,6 +93,17 @@ export function AlertasPanel({ alertas, onClose }: AlertasPanelProps) {
             })}
           </div>
         )}
+
+        {/* Fase 5, ADR-006 — este panel es un vistazo (marcar leída nada
+            más); descartar, marcar vencida, generar manualmente y el
+            historial completo siguen siendo exclusión de modo simple,
+            con salida directa aquí. */}
+        <SalidaModoCompleto
+          href="/dashboard/alertas"
+          titulo="Ver todas las alertas"
+          descripcion="Historial completo, descartar, generar"
+          variante="inline"
+        />
       </div>
     </div>
   );

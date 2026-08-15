@@ -9,6 +9,7 @@ import { CATEGORIA_LABELS } from "@/types";
 import { formatCOPFull, formatDate } from "@/lib/utils";
 import { crearGasto, eliminarGasto, type GastoActionState } from "@/app/(dashboard)/dashboard/finanzas/gasto-actions";
 import { crearIngreso, eliminarIngreso, type IngresoActionState } from "@/app/(dashboard)/dashboard/finanzas/ingreso-actions";
+import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 import type { CategoriaGasto, Comprador, Cultivo, Gasto, Lote } from "@prisma/client";
 import type { IngresoWithRelations } from "@/types";
 
@@ -108,6 +109,25 @@ export function FinanzasSimpleClient({ gastos, ingresos, cultivos, compradores }
             <div className="text-[14px] font-bold text-white">{formatCOPFull(totalGastos)}</div>
           </div>
         </div>
+      </div>
+
+      {/* ── Salidas a modo completo (Fase 5, ADR-006) — editar un
+          movimiento existente, jornales de mano de obra y presupuesto son
+          tareas de gestión más ocasionales, no el día a día de campo; se
+          formalizan como exclusión en vez de construir sus propios
+          formularios en modo simple. ?tab= (aditivo en FinanzasClient.tsx)
+          aterriza en la sección exacta, no en "Resumen". ── */}
+      <div className="space-y-2">
+        <SalidaModoCompleto
+          href="/dashboard/finanzas?tab=registros"
+          titulo="Jornales y editar movimientos"
+          descripcion="Mano de obra, y editar un gasto o ingreso existente"
+        />
+        <SalidaModoCompleto
+          href="/dashboard/finanzas?tab=presupuesto"
+          titulo="Presupuesto"
+          descripcion="Define tu presupuesto anual"
+        />
       </div>
 
       {/* ── Filtro ── */}

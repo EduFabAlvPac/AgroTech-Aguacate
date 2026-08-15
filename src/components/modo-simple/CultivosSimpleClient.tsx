@@ -20,6 +20,7 @@ import {
   type CambiarEtapaState,
 } from "@/app/(dashboard)/dashboard/cultivos/etapa-actions";
 import { ConfirmSheet } from "@/components/modo-simple/ConfirmSheet";
+import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 
 export interface CultivoSimpleItem {
   id: string;
@@ -123,13 +124,25 @@ export function CultivosSimpleClient({ fincas, fincaSeleccionada, items, lotesDi
         </button>
       </div>
 
+      {/* ── Salida: sin lotes, no hay dónde crear un cultivo (Fase 5,
+          ADR-006) — antes solo decía "registra un lote en Mis fincas" sin
+          decir cómo, porque Mis fincas tampoco puede crear lotes (ver esa
+          pantalla). Ahora la salida real es directa a Mapa. */}
+      {lotesDisponibles.length === 0 && (
+        <SalidaModoCompleto
+          href="/dashboard/mapa"
+          titulo="Crea un lote primero"
+          descripcion="Necesitas al menos un lote para registrar un cultivo — dibújalo en el mapa completo"
+        />
+      )}
+
       {/* ── Lista / vacío ── */}
       {items.length === 0 ? (
         <div className="rounded-2xl px-4 py-10 text-center" style={{ background: "var(--surface-page)" }}>
           <Sprout size={28} className="mx-auto mb-2" style={{ color: "var(--text-muted)" }} />
           <p className="text-[13px] font-medium" style={{ color: "var(--text-primary)" }}>Sin cultivos todavía</p>
           <p className="text-[12px] mt-1" style={{ color: "var(--text-muted)" }}>
-            {lotesDisponibles.length === 0 ? "Registra un lote en Mis fincas antes de crear un cultivo." : "Toca \"+ Nuevo\" para registrar el primero."}
+            {lotesDisponibles.length === 0 ? "Crea un lote (arriba) antes de registrar un cultivo." : "Toca \"+ Nuevo\" para registrar el primero."}
           </p>
         </div>
       ) : (
@@ -206,7 +219,13 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
   };
 
   return (
-    <div className="rounded-2xl p-4 relative" style={{ border: "1px solid var(--border-subtle)" }}>
+    <div
+      className="rounded-2xl p-4 relative cursor-pointer"
+      style={{ border: "1px solid var(--border-subtle)" }}
+      onClick={() => router.push(`/dashboard/cultivos/${item.id}` as any)}
+      role="link"
+      tabIndex={0}
+    >
       <div className="flex items-start justify-between mb-1">
         <div className="flex items-center gap-2.5">
           <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: "var(--color-brand-bg)" }}>
@@ -217,7 +236,7 @@ function CultivoCard({ item, onEditar }: { item: CultivoSimpleItem; onEditar: ()
             <div className="text-[12px]" style={{ color: "var(--text-muted)" }}>{ETAPA_LABELS[item.etapa]}</div>
           </div>
         </div>
-        <div className="flex items-center gap-1 flex-shrink-0">
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
           <button onClick={onEditar} disabled={eliminando} aria-label="Editar cultivo" className="p-1.5">
             <Pencil size={15} style={{ color: "var(--text-muted)" }} />
           </button>

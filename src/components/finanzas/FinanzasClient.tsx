@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useTransition } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Legend,
@@ -79,7 +80,13 @@ export function FinanzasClient({
   presupuestos: initialPresupuestos,
   nombreFinca = "Mi Finca",
 }: FinanzasClientProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("resumen");
+  // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
+  // pueda aterrizar en la sección exacta en vez de siempre "resumen".
+  // Sin el parámetro (el 100% de la navegación normal hasta hoy), el
+  // comportamiento es idéntico al de antes.
+  const searchParams = useSearchParams();
+  const tabInicial = TABS.find((t) => t.id === searchParams.get("tab"))?.id ?? "resumen";
+  const [activeTab, setActiveTab] = useState<TabId>(tabInicial);
 
   // ── Gastos state ──────────────────────────────────────────────────────────
   const [gastos, setGastos] = useState(initialGastos);

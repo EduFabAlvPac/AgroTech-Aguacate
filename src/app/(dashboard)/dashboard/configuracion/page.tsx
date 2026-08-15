@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { resolverModoApp } from "@/lib/modo-app";
 import { getConfiguracionResumen } from "@/lib/data/configuracion";
+import { tieneModulo } from "@/lib/modulos";
 import { PerfilSimpleClient } from "@/components/modo-simple/PerfilSimpleClient";
 
 export const metadata = { title: "Configuración" };
@@ -27,7 +28,16 @@ export default async function ConfiguracionPage() {
   const modo = await resolverModoApp(session.user.id);
 
   if (modo === "simple") {
-    return <PerfilSimpleClient user={user} />;
+    // Fase 5 de ADR-006 — qué salidas a modo completo mostrar en "Más
+    // funciones" depende de a qué tiene acceso esta persona, no es fijo
+    // para todos: mismos guards que ya usan las páginas reales de Equipo
+    // (esOwner), Fichas técnicas (esSuperAdmin) y Compradores (tieneModulo).
+    const accesos = {
+      esOwner: !!session.user.esOwner,
+      esSuperAdmin: !!session.user.esSuperAdmin,
+      verCompradores: tieneModulo(session.user.modulosPermitidos, "compradores"),
+    };
+    return <PerfilSimpleClient user={user} accesos={accesos} />;
   }
 
   return (
