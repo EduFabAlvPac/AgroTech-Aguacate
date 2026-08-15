@@ -10,11 +10,22 @@ interface SidebarContextValue {
   toggleSidebar: () => void;
   collapsed: boolean;
   toggleCollapsed: () => void;
+  /** false durante una "visita puntual" a modo completo en celular (ver
+   * (dashboard)/layout.tsx) — no hay <Sidebar> montado para abrir, así que
+   * Header.tsx oculta la hamburguesa en vez de dejar un botón que no hace
+   * nada. Default true — no cambia el comportamiento en ningún otro caso. */
+  sidebarDisponible: boolean;
 }
 
 const SidebarContext = createContext<SidebarContextValue | null>(null);
 
-export function SidebarProvider({ children }: { children: React.ReactNode }) {
+export function SidebarProvider({
+  children,
+  sidebarDisponible = true,
+}: {
+  children: React.ReactNode;
+  sidebarDisponible?: boolean;
+}) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
 
@@ -46,7 +57,7 @@ export function SidebarProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <SidebarContext.Provider
-      value={{ sidebarOpen, setSidebarOpen, toggleSidebar, collapsed, toggleCollapsed }}
+      value={{ sidebarOpen, setSidebarOpen, toggleSidebar, collapsed, toggleCollapsed, sidebarDisponible }}
     >
       {children}
     </SidebarContext.Provider>

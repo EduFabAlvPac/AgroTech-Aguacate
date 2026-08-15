@@ -15,7 +15,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const { data: session } = useSession();
-  const { toggleSidebar } = useSidebar();
+  const { toggleSidebar, sidebarDisponible } = useSidebar();
   const today = format(new Date(), "EEEE d 'de' MMMM yyyy", { locale: es });
 
   // Punto rojo de la campana: antes se mostraba siempre, sin importar si
@@ -36,14 +36,18 @@ export function Header({ title, subtitle }: HeaderProps) {
     <header className="header-bar h-16 px-6 border-b border-[var(--sidebar-border)] bg-white flex items-center justify-between flex-shrink-0">
       {/* Left: hamburger (mobile only) + Title */}
       <div className="flex items-center gap-3">
-        {/* Hamburger — only visible on mobile */}
-        <button
-          onClick={toggleSidebar}
-          className="md:hidden w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--border-subtle)] hover:bg-[var(--surface-page)] transition-colors"
-          aria-label="Abrir menú"
-        >
-          <Menu size={18} className="text-[var(--text-secondary)]" />
-        </button>
+        {/* Hamburger — solo en móvil, y solo si hay <Sidebar> montado para
+            abrir (no durante una visita puntual en celular, ver
+            (dashboard)/layout.tsx — ahí no existe qué abrir). */}
+        {sidebarDisponible && (
+          <button
+            onClick={toggleSidebar}
+            className="md:hidden w-9 h-9 flex items-center justify-center rounded-[var(--radius-md)] border border-[var(--border-subtle)] hover:bg-[var(--surface-page)] transition-colors"
+            aria-label="Abrir menú"
+          >
+            <Menu size={18} className="text-[var(--text-secondary)]" />
+          </button>
+        )}
 
         <div>
           <h1 className="text-[15px] font-semibold text-[var(--text-primary)] leading-tight capitalize">
@@ -87,7 +91,7 @@ export function Header({ title, subtitle }: HeaderProps) {
             ?.split(" ")
             .map((n) => n[0])
             .slice(0, 2)
-            .join("") ?? "AT"}
+            .join("") ?? "GI"}
         </div>
       </div>
     </header>

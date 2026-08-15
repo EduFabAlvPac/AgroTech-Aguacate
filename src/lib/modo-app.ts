@@ -58,6 +58,24 @@ export async function estaEnVisitaCompletaPuntual(): Promise<boolean> {
 }
 
 /**
+ * Solo la cookie de ancho (sin consultar `User`) — usada por
+ * (dashboard)/layout.tsx junto con estaEnVisitaCompletaPuntual() para saber
+ * si debe montar el <Sidebar> de escritorio completo o un envoltorio
+ * mínimo (banner + contenido, sin sidebar) durante una visita puntual en
+ * celular. Bug real reportado por el usuario (2026-08-15): el <Sidebar>
+ * completo, como drawer superpuesto sobre un viewport de teléfono, quedaba
+ * "atascado" — solo se cerraba tocando fuera de un gesto que un usuario
+ * nuevo no tiene por qué conocer. Fuera de esta visita puntual (preferencia
+ * COMPLETA explícita, o AUTO resolviendo a completa) el Sidebar se sigue
+ * viendo igual que siempre, incluso en celular — es la elección informada
+ * de alguien que sí quiere el modo denso.
+ */
+export async function anchoEsMovil(): Promise<boolean> {
+  const cookieStore = await cookies();
+  return parsearAnchoCookie(cookieStore.get(ANCHO_PANTALLA_COOKIE)?.value) === "movil";
+}
+
+/**
  * Default de "Automático" por rol (Fase 4, ADR-006) — auditado contra el
  * RBAC real, no el diseño objetivo de ADR-004 (ver checkpoint de Fase 4):
  *
