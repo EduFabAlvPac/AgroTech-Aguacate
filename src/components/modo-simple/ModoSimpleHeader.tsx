@@ -55,12 +55,14 @@ export function ModoSimpleHeader({ nombre, inicial }: ModoSimpleHeaderProps) {
         </div>
       </div>
 
-      <div
+      <Link
+        href={"/modo-simple/perfil" as any}
+        aria-label="Ver perfil"
         className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-[14px]"
         style={{ background: "var(--color-brand-bg)", color: "var(--color-brand-dark)" }}
       >
         {inicial}
-      </div>
+      </Link>
     </header>
   );
 }
