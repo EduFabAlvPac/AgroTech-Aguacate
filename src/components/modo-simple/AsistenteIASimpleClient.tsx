@@ -140,6 +140,7 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
   const { data: session } = useSession();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const adjuntarMenuRef = useRef<HTMLDivElement>(null);
   const camaraInputId = useId();
   const galeriaInputId = useId();
 
@@ -151,7 +152,14 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
   const [cultivoSeleccionado, setCultivoSeleccionado] = useState("");
   const [imagenAdjunta, setImagenAdjunta] = useState<string | null>(null);
   const [comprimiendoImagen, setComprimiendoImagen] = useState(false);
+  // Dos triggers independientes al mismo par de <input type="file"> ocultos:
+  // el ícono junto al micrófono en la barra de entrada (siempre visible,
+  // popover ancla arriba del ícono — pedido explícito del usuario, no
+  // quitarlo) y el banner "Asistente de cultivos" (solo en el estado de
+  // bienvenida, menú en línea debajo del banner). Estados separados para
+  // que no se pisen si ambos existen en pantalla a la vez.
   const [mostrarMenuImagen, setMostrarMenuImagen] = useState(false);
+  const [mostrarMenuBanner, setMostrarMenuBanner] = useState(false);
   const [mostrarGrabadora, setMostrarGrabadora] = useState(false);
   const [cargandoCultivos, setCargandoCultivos] = useState(true);
   const [errorCultivos, setErrorCultivos] = useState(false);
@@ -179,6 +187,19 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Cerrar el popover del ícono de la barra de entrada al tocar afuera —
+  // mismo patrón que ya tenía ChatInterface.tsx en modo completo.
+  useEffect(() => {
+    if (!mostrarMenuImagen) return;
+    const onClickOutside = (e: MouseEvent) => {
+      if (adjuntarMenuRef.current && !adjuntarMenuRef.current.contains(e.target as Node)) {
+        setMostrarMenuImagen(false);
+      }
+    };
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
+  }, [mostrarMenuImagen]);
 
   const submitMessage = async (text: string) => {
     if (!text.trim() || isLoading) return;
@@ -285,6 +306,7 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
 
   const handleAdjuntarImagen = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setMostrarMenuImagen(false);
+    setMostrarMenuBanner(false);
     const file = e.target.files?.[0];
     if (!file) return;
     if (cultivos.length === 0) {
@@ -331,7 +353,7 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
             {/* ── Banner: diagnóstico por foto (RF15) — única entrada a
                 adjuntar imagen en esta pantalla, por fidelidad al mockup ── */}
             <button
-              onClick={() => setMostrarMenuImagen((v) => !v)}
+              onClick={() => setMostrarMenuBanner((v) => !v)}
               disabled={comprimiendoImagen}
               className="w-full text-left p-4 rounded-2xl"
               style={{ background: "linear-gradient(135deg, var(--color-amber), #E0A94E)" }}
@@ -344,7 +366,7 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
               </p>
             </button>
 
-            {mostrarMenuImagen && (
+            {mostrarMenuBanner && (
               <div className="flex gap-2.5 -mt-2">
                 <label
                   htmlFor={camaraInputId}
@@ -598,6 +620,45 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
           >
             <Mic size={17} />
           </button>
+
+          {/* Ícono de adjuntar foto junto al micrófono — el usuario pidió
+              explícitamente no quitarlo al agregar el banner "Asistente de
+              cultivos"; ambos disparan el mismo par de <input type="file">
+              ocultos, con su propio estado de popover (mostrarMenuImagen)
+              para no interferir con el menú en línea del banner. */}
+          <div className="relative flex-shrink-0" ref={adjuntarMenuRef}>
+            <button
+              type="button"
+              onClick={() => setMostrarMenuImagen((v) => !v)}
+              disabled={isLoading || comprimiendoImagen}
+              aria-label="Adjuntar foto para diagnóstico"
+              className="h-11 w-11 rounded-full flex items-center justify-center"
+              style={mostrarMenuImagen ? { background: "var(--color-brand-bg)", color: "var(--color-brand-dark)" } : { background: "var(--surface-page)", color: "var(--text-muted)" }}
+            >
+              <ImageIcon size={17} />
+            </button>
+
+            {mostrarMenuImagen && (
+              <div className="absolute bottom-full left-0 mb-2 w-44 rounded-xl shadow-lg py-1 z-10" style={{ background: "white", border: "1px solid var(--border-default)" }}>
+                <label
+                  htmlFor={camaraInputId}
+                  className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => setMostrarMenuImagen(false)}
+                >
+                  <Camera size={15} /> Tomar foto
+                </label>
+                <label
+                  htmlFor={galeriaInputId}
+                  className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
+                  style={{ color: "var(--text-primary)" }}
+                  onClick={() => setMostrarMenuImagen(false)}
+                >
+                  <ImageIcon size={15} /> Galería
+                </label>
+              </div>
+            )}
+          </div>
 
           <input
             ref={inputRef}
