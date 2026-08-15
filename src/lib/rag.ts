@@ -123,7 +123,7 @@ export function formatContextForPrompt(chunks: KnowledgeChunk[]): string {
     `### ${c.title}\n${c.content}`
   );
 
-  return `\n\n---\nCONTEXTO TÉCNICO RELEVANTE (base de conocimiento AgroTech):\n\n${sections.join("\n\n")}\n---`;
+  return `\n\n---\nCONTEXTO TÉCNICO RELEVANTE (base de conocimiento GermIA):\n\n${sections.join("\n\n")}\n---`;
 }
 
 // ── Farm context builder ───────────────────────────────────────────────────────

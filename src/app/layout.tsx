@@ -12,13 +12,13 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: "AgroTech — Gestión inteligente de cultivos",
-    template: "%s | AgroTech",
+    default: "GermIA — Gestión inteligente de cultivos",
+    template: "%s | GermIA",
   },
   description:
     "Plataforma integral de gestión agrícola especializada en aguacate Hass. Dashboard, finanzas, mapa de lotes y asistente IA.",
   keywords: ["aguacate", "hass", "cultivo", "agricultura", "gestión agrícola", "Colombia"],
-  authors: [{ name: "AgroTech" }],
+  authors: [{ name: "GermIA" }],
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -39,7 +39,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    title: "AgroTech",
+    title: "GermIA",
     statusBarStyle: "default",
   },
   other: {

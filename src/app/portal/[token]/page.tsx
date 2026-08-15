@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Leaf, MapPin, Sprout, Calendar, Scale, MessageSquare } from "lucide-react";
+import { MapPin, Sprout, Calendar, Scale, MessageSquare } from "lucide-react";
 import { getPortalData } from "@/lib/portal";
 import { ETAPA_LABELS } from "@/types";
 import { formatCOP } from "@/lib/utils";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Enlace público no listado — no debe indexarse en buscadores (cualquiera
 // con el link puede verlo, pero no debe aparecer en resultados de Google).
 export const metadata: Metadata = {
-  title: "Estado del cultivo — AgroTech",
+  title: "Estado del cultivo — GermIA",
   robots: { index: false, follow: false },
 };
 
@@ -43,11 +43,14 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
     <div className="portal-shell">
       {/* Header */}
       <div className="portal-header">
-        <div className="portal-logo">
-          <Leaf size={16} color="white" />
-        </div>
+        <img
+          src="/icons/icon-96.png"
+          alt="GermIA"
+          className="portal-logo"
+          style={{ objectFit: "cover", background: "none" }}
+        />
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-brand)" }}>AgroTech</div>
+          <div style={{ fontSize: 12, fontWeight: 600, color: "var(--color-brand)" }}>GermIA</div>
           <div style={{ fontSize: 10, color: "var(--color-text-soft)" }}>Estado del cultivo · enlace compartido</div>
         </div>
       </div>
@@ -153,7 +156,7 @@ export default async function PortalPage({ params }: { params: Promise<{ token: 
       )}
 
       <p className="portal-footer">
-        Generado con AgroTech — plataforma de gestión agrícola para productores colombianos.
+        Generado con GermIA — plataforma de gestión agrícola para productores colombianos.
       </p>
     </div>
   );

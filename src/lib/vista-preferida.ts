@@ -54,7 +54,7 @@ export type RolAutoDefault = "simple" | "completa" | null;
  *
  * Sin cookie todavía Y sin rol con default claro (primera visita real de
  * un dispositivo, rol sin default): sesgo hacia "movil" — el público
- * objetivo de AgroTech es predominantemente móvil (ver CLAUDE.md), minimiza
+ * objetivo de GermIA es predominantemente móvil (ver CLAUDE.md), minimiza
  * la probabilidad de necesitar la corrección de AnchoPantallaSync.
  */
 export function resolverVistaAuto(rolDefault: RolAutoDefault, anchoConocido: AnchoBucket | null): "simple" | "completa" {

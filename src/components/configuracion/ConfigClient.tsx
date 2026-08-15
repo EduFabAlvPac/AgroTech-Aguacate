@@ -538,7 +538,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
               Tus datos
             </h2>
             <p className="text-[12px] text-[var(--text-muted)]">
-              Puedes descargar una copia de todo lo que has registrado en AgroTech (finca, cultivos, bitácora,
+              Puedes descargar una copia de todo lo que has registrado en GermIA (finca, cultivos, bitácora,
               gastos, ingresos, compradores) en cualquier momento.
             </p>
             <Button variant="secondary" onClick={handleExportar} loading={exportando} className="w-full">
@@ -552,7 +552,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
               Eliminar mi cuenta
             </h2>
             <p className="text-[12px] text-[var(--text-muted)]">
-              Elimina tu cuenta y tus datos de AgroTech de forma permanente. Si tu finca tiene colaboradores o
+              Elimina tu cuenta y tus datos de GermIA de forma permanente. Si tu finca tiene colaboradores o
               inversionistas activos, primero registramos tu solicitud para coordinar la transferencia antes de
               borrar nada — no perderán acceso sin avisarles.
             </p>
@@ -568,7 +568,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
         <div className="space-y-4">
           <p className="text-[13px] text-[var(--text-secondary)]">
             Esta acción no se puede deshacer. Ingresa tu contraseña para confirmar que quieres eliminar tu cuenta
-            de AgroTech.
+            de GermIA.
           </p>
           <Input
             label="Contraseña"

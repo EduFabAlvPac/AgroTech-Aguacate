@@ -20,7 +20,7 @@ const RUTA_PERFIL = "/dashboard/configuracion";
 
 /**
  * Header compartido de modo simple — igual en las 6 pantallas del mockup:
- * logo + "AgroTech" + "Hola, {nombre}" a la izquierda, avatar con inicial a
+ * logo + "GermIA" + "Hola, {nombre}" a la izquierda, avatar con inicial a
  * la derecha. En Inicio el logo se muestra tal cual; en el resto de
  * pantallas (llegadas desde Inicio vía la nav inferior) se reemplaza por
  * una flecha "volver" — mismo patrón visual que las 6 capturas de
@@ -53,7 +53,7 @@ export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas, onAlertasCl
         )}
         <div className="min-w-0">
           <div className="text-[15px] font-bold leading-tight truncate" style={{ color: "var(--text-primary)" }}>
-            AgroTech
+            GermIA
           </div>
           <div className="text-[12px] leading-tight truncate" style={{ color: "var(--text-muted)" }}>
             Hola, {nombre}

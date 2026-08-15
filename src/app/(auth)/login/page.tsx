@@ -27,7 +27,7 @@ export default function LoginPage() {
     if (res?.error) {
       toast.error("Credenciales incorrectas. Verifica tu email y contraseña.");
     } else {
-      toast.success("¡Bienvenido a AgroTech!");
+      toast.success("¡Bienvenido a GermIA!");
       router.push("/dashboard");
       router.refresh();
     }
@@ -124,7 +124,7 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-[12px] text-[var(--text-muted)] mt-6">
-          AgroTech MVP · Finca Álvarez Pacheco · Norte de Santander
+          GermIA MVP · Finca Álvarez Pacheco · Norte de Santander
         </p>
       </div>
     </div>

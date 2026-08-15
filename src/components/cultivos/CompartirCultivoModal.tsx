@@ -115,7 +115,7 @@ export function CompartirCultivoModal({ isOpen, onClose, cultivoId, cultivoLabel
 
   const compartirWhatsApp = (token: string, nombreComprador?: string | null) => {
     const saludo = nombreComprador ? `Hola ${nombreComprador}, ` : "Hola, ";
-    const texto = `${saludo}te comparto el estado de mi cultivo (${cultivoLabel}) en AgroTech: ${urlPublica(token)}`;
+    const texto = `${saludo}te comparto el estado de mi cultivo (${cultivoLabel}) en GermIA: ${urlPublica(token)}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank");
   };
 
