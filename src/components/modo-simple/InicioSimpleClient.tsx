@@ -27,16 +27,17 @@ interface WeatherCurrent {
 
 // Cartas de referencia — contenido informativo estático (no viene de datos
 // del usuario ni de ningún lib/data; son solo tarjetas ilustrativas del
-// mockup). Fotos reales (Wikimedia Commons, CC0/dominio público/CC BY-SA —
-// ver public/images/cultivos/CREDITOS.md), autoalojadas en /public — sin
-// llamadas a servicios externos en producción. Reemplaza el degradado+emoji
-// que tenía la primera versión, por pedido explícito del usuario.
+// mockup). Fotos generadas por IA por encargo del usuario (ver
+// public/images/cultivos/CREDITOS.md) — no requieren atribución, a
+// diferencia del set anterior de Wikimedia Commons que sí la necesitaba
+// para cacao/banano. Autoalojadas en /public — sin llamadas a servicios
+// externos en producción.
 const CULTIVOS_REFERENCIA = [
-  { nombre: "Café", hint: "Sombra · 1000–2000 m", foto: "/images/cultivos/cafe.jpg", creditoVisible: false },
-  { nombre: "Cacao", hint: "Agroforestal · sombra", foto: "/images/cultivos/cacao.jpg", creditoVisible: true },
-  { nombre: "Aguacate", hint: "1500–2200 msnm", foto: "/images/cultivos/aguacate.jpg", creditoVisible: false },
-  { nombre: "Limón", hint: "Cítrico · clima cálido", foto: "/images/cultivos/limon.jpg", creditoVisible: false },
-  { nombre: "Banano", hint: "Tropical · húmedo", foto: "/images/cultivos/banano.jpg", creditoVisible: true },
+  { nombre: "Café", hint: "Sombra · 1000–2000 m", foto: "/images/cultivos/cafe.jpg" },
+  { nombre: "Cacao", hint: "Agroforestal · sombra", foto: "/images/cultivos/cacao.jpg" },
+  { nombre: "Aguacate", hint: "1500–2200 msnm", foto: "/images/cultivos/aguacate.jpg" },
+  { nombre: "Limón", hint: "Cítrico · clima cálido", foto: "/images/cultivos/limon.jpg" },
+  { nombre: "Banano", hint: "Tropical · húmedo", foto: "/images/cultivos/banano.jpg" },
 ];
 
 const SEVERIDAD_ICON: Record<string, { icon: typeof AlertTriangle; bg: string; color: string }> = {
@@ -186,14 +187,6 @@ export function InicioSimpleClient({
             </div>
           ))}
         </div>
-        {/* Crédito visible — Cacao y Banano son CC BY-SA (Wikimedia Commons),
-            requieren atribución (ver public/images/cultivos/CREDITOS.md).
-            Café/Aguacate/Limón son CC0/dominio público, no la necesitan. */}
-        {CULTIVOS_REFERENCIA.some((c) => c.creditoVisible) && (
-          <p className="text-[10px] mt-1.5" style={{ color: "var(--text-muted)" }}>
-            Fotos: Wikimedia Commons — cacao (ChiK, CC BY-SA 4.0), banano (Evan-Amos, CC BY-SA 3.0)
-          </p>
-        )}
       </div>
 
       {/* ── Alertas ── */}
