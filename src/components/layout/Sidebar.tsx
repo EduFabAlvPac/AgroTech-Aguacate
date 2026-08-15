@@ -11,7 +11,6 @@ import {
   CloudLightning,
   Users,
   Settings,
-  Leaf,
   LogOut,
   PanelLeftClose,
   PanelLeftOpen,
@@ -113,9 +112,11 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
         "flex items-center gap-2.5 border-b border-[var(--sidebar-border)]",
         collapsed ? "px-3 py-5 justify-center" : "px-5 py-5"
       )}>
-        <div className="w-8 h-8 rounded-lg bg-agro-400 flex items-center justify-center flex-shrink-0">
-          <Leaf size={16} className="text-white" />
-        </div>
+        <img
+          src="/icons/icon-96.png"
+          alt="GermIA"
+          className="w-8 h-8 rounded-lg flex-shrink-0 object-cover"
+        />
         {!collapsed && (
           <div>
             <div className="text-[15px] font-semibold text-agro-600 leading-tight">

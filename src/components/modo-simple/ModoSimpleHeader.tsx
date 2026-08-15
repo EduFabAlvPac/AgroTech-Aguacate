@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, ChevronLeft, Bell } from "lucide-react";
+import { ChevronLeft, Bell } from "lucide-react";
 
 interface ModoSimpleHeaderProps {
   nombre: string;
@@ -37,12 +37,11 @@ export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas, onAlertasCl
     >
       <div className="flex items-center gap-2.5 min-w-0">
         {esInicio ? (
-          <div
-            className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "var(--color-brand)" }}
-          >
-            <Leaf size={16} color="white" />
-          </div>
+          <img
+            src="/icons/icon-96.png"
+            alt="GermIA"
+            className="w-8 h-8 rounded-full flex-shrink-0 object-cover"
+          />
         ) : (
           <Link
             href={RUTA_INICIO as any}
