@@ -93,8 +93,13 @@ export default async function DashboardLayout({
         <SidebarProvider sidebarDisponible={false}>
           <div className="flex flex-col h-screen">
             <VolverModoSimple />
+            {/* Sin <MobileFAB /> acá a propósito (hallazgo del usuario,
+                2026-08-15): sus atajos ("AgroIA", "Gasto", "Riego") son del
+                dashboard general — flotan sobre Mapa (u otra pantalla
+                puntual) sin relación con lo que el usuario vino a hacer, y
+                encima Mapa ya tiene sus propios controles flotantes
+                (Leaflet.draw) en la misma esquina. */}
             <div className="flex-1 min-h-0 overflow-y-auto">{children}</div>
-            <MobileFAB />
           </div>
         </SidebarProvider>
       </SessionProvider>
