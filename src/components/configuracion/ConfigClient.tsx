@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2 } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
 import toast from "react-hot-toast";
+import type { VistaPreferida } from "@prisma/client";
 import { generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
 import {
   actualizarPerfil,
@@ -13,9 +14,10 @@ import {
   exportarMisDatos,
   eliminarCuenta,
 } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
+import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
 
 interface ConfigClientProps {
-  user: { name: string | null; email: string; telefono: string | null };
+  user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida };
   prefs: {
     tempMinAlert: number; tempMaxAlert: number;
     rainAlertMm: number; windAlertKmh: number;
@@ -290,6 +292,25 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
             <Save size={15} />
             Guardar perfil
           </Button>
+        </div>
+      )}
+
+      {/* ── Vista de la aplicación (Fase 3, ADR-006) ───────────────────────
+          Mismo componente que Perfil (modo simple) — ver VistaPreferidaSwitch.tsx.
+          No es una pestaña propia, vive dentro de "Perfil" porque es una
+          preferencia de la persona, no de la finca ni de las alertas. */}
+      {tab === "profile" && (
+        <div className="card p-6 space-y-3">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">
+              Vista de la aplicación
+            </h2>
+            <p className="text-[12px] text-[var(--text-muted)]">
+              Simple: pantallas móviles simplificadas. Completa: el panel de escritorio
+              actual. Automático: elige según el tamaño de tu pantalla.
+            </p>
+          </div>
+          <VistaPreferidaSwitch vistaActual={user?.vistaPreferida ?? "AUTO"} />
         </div>
       )}
 

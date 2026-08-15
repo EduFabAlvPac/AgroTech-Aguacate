@@ -5,10 +5,12 @@ import { useFormStatus } from "react-dom";
 import { signOut } from "next-auth/react";
 import { LogOut, AlertTriangle } from "lucide-react";
 import toast from "react-hot-toast";
+import type { VistaPreferida } from "@prisma/client";
 import { actualizarPerfil, type ConfigActionState } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
+import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
 
 interface PerfilSimpleClientProps {
-  user: { name: string | null; email: string; telefono: string | null } | null;
+  user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
 }
 
 const initialState: ConfigActionState = {};
@@ -103,6 +105,18 @@ export function PerfilSimpleClient({ user }: PerfilSimpleClientProps) {
         </div>
         <SubmitButton />
       </form>
+
+      {/* ── Vista de la aplicación (Fase 3, ADR-006) — mismo componente que
+          Configuración (modo completo), ver VistaPreferidaSwitch.tsx ── */}
+      <div className="rounded-2xl p-4 space-y-2.5" style={{ border: "1px solid var(--border-subtle)" }}>
+        <div>
+          <div className="text-[13px] font-semibold" style={{ color: "var(--text-primary)" }}>Vista de la aplicación</div>
+          <p className="text-[11px] mt-0.5" style={{ color: "var(--text-muted)" }}>
+            Automático elige según el tamaño de tu pantalla.
+          </p>
+        </div>
+        <VistaPreferidaSwitch vistaActual={user.vistaPreferida} />
+      </div>
 
       <button
         onClick={() => {
