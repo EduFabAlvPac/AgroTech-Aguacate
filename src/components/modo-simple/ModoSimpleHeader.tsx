@@ -8,6 +8,7 @@ interface ModoSimpleHeaderProps {
   nombre: string;
   inicial: string;
   alertasNoLeidas: number;
+  onAlertasClick: () => void;
 }
 
 const RUTA_INICIO = "/modo-simple/inicio";
@@ -20,7 +21,7 @@ const RUTA_INICIO = "/modo-simple/inicio";
  * una flecha "volver" — mismo patrón visual que las 6 capturas de
  * referencia (todas menos Inicio muestran "<").
  */
-export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas }: ModoSimpleHeaderProps) {
+export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas, onAlertasClick }: ModoSimpleHeaderProps) {
   const pathname = usePathname();
   const esInicio = pathname === RUTA_INICIO;
 
@@ -58,12 +59,13 @@ export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas }: ModoSimpl
 
       <div className="flex items-center gap-2 flex-shrink-0">
         {/* Campana de alertas — visible en las 6 pantallas de modo simple
-            (ajuste pedido tras el checkpoint). Sin pantalla de Alertas en
-            modo simple todavía (pregunta abierta #1, sin resolver), así que
-            enlaza a la vista de modo completo en vez de a un destino que no
-            existe — decisión de navegación, no un dato nuevo. */}
-        <Link
-          href={"/dashboard/alertas" as any}
+            (ajuste pedido tras el checkpoint). Abre AlertasPanel (bottom-
+            sheet dentro de modo simple) en vez de navegar a
+            /dashboard/alertas — esa ruta es la interfaz de escritorio, el
+            usuario la probó y no encajaba dentro del flujo móvil. */}
+        <button
+          type="button"
+          onClick={onAlertasClick}
           aria-label={alertasNoLeidas > 0 ? `Alertas (${alertasNoLeidas} sin leer)` : "Alertas"}
           className="relative w-9 h-9 rounded-full flex items-center justify-center hover:bg-[var(--surface-page)] transition-colors"
         >
@@ -76,7 +78,7 @@ export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas }: ModoSimpl
               {alertasNoLeidas > 9 ? "9+" : alertasNoLeidas}
             </span>
           )}
-        </Link>
+        </button>
 
         <Link
           href={"/modo-simple/perfil" as any}

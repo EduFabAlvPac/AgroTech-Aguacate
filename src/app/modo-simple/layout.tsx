@@ -30,11 +30,10 @@ export default async function ModoSimpleLayout({ children }: { children: React.R
   // completo).
   const { fincaActivaId } = await resolverFincaActiva(session);
   const alertas = await getAlertas(fincaActivaId, SIN_FINCA_SENTINEL);
-  const alertasNoLeidas = alertas.filter((a) => a.activa && !a.leida).length;
 
   return (
     <SessionProvider session={session}>
-      <ModoSimpleShell nombre={nombre} inicial={inicial} alertasNoLeidas={alertasNoLeidas}>
+      <ModoSimpleShell nombre={nombre} inicial={inicial} alertas={alertas}>
         {children}
       </ModoSimpleShell>
     </SessionProvider>
