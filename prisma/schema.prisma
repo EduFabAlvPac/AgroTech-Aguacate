@@ -9,6 +9,18 @@ datasource db {
 
 // ─── USERS ────────────────────────────────────────────────────────────────────
 
+// Fase 3 de ADR-006 — qué conjunto de componentes renderizan las rutas
+// reales: los de modo completo (Fase 1) o los de modo simple (Fase 2).
+// AUTO se resuelve solo por ancho de pantalla por ahora (cookie, ver
+// src/lib/vista-preferida.ts) — el criterio de rol (Fase 4) depende del
+// RBAC real, todavía no está listo; agregarlo será un cambio dentro de esa
+// función de resolución, no de este enum ni del switch.
+enum VistaPreferida {
+  SIMPLE
+  COMPLETA
+  AUTO
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -17,6 +29,12 @@ model User {
   role         UserRole @default(PRODUCER)
   avatarUrl    String?
   telefono     String?
+  // Opcional con default a nivel de base de datos — Fase 3 de ADR-006.
+  // Nunca NOT NULL sin default: alterar una tabla con filas existentes en
+  // Neon sin default fuerza un --force-reset (ver CLAUDE.md/lecciones de
+  // Fase 1). Postgres rellena AUTO en todas las filas existentes al aplicar
+  // el push, verificado antes de dar por segura la migración.
+  vistaPreferida VistaPreferida @default(AUTO)
   // Flag de plataforma, transversal a cualquier Organizacion — ver CLAUDE.md §2.3
   // y docs/REQUERIMIENTOS.md ADR-004. No se modela como rol dentro de una org.
   esSuperAdmin Boolean  @default(false)

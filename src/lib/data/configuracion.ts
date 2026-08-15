@@ -3,9 +3,10 @@
  * queries que vivían inline en configuracion/page.tsx.
  */
 import { db } from "@/lib/db";
+import type { VistaPreferida } from "@prisma/client";
 
 export interface ConfiguracionResumen {
-  user: { name: string | null; email: string; telefono: string | null } | null;
+  user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
   prefs: {
     tempMinAlert: number; tempMaxAlert: number;
     rainAlertMm: number; windAlertKmh: number;
@@ -21,7 +22,7 @@ export async function getConfiguracionResumen(userId: string, fincaActivaId: str
   const [user, prefs, finca] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, telefono: true },
+      select: { name: true, email: true, telefono: true, vistaPreferida: true },
     }),
     db.userPreferences.findUnique({ where: { userId } }),
     fincaActivaId

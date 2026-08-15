@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import { Toaster } from "react-hot-toast";
+import { AnchoPantallaSync } from "@/components/shared/AnchoPantallaSync";
 import "./globals.css";
 
 const inter = Inter({
@@ -73,6 +74,7 @@ export default function RootLayout({
         <meta name="theme-color" content="#3E8F6C" />
       </head>
       <body suppressHydrationWarning>
+        <AnchoPantallaSync />
         {children}
         <Toaster
           position="top-right"
