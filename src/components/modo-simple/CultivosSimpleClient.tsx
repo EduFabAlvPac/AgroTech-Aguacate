@@ -73,7 +73,7 @@ export function CultivosSimpleClient({ fincas, fincaSeleccionada, items, lotesDi
 
   const cambiarFiltro = (fincaId: string) => {
     const qs = fincaId === "todas" ? "" : `?finca=${fincaId}`;
-    router.push(`/modo-simple/cultivos${qs}` as any);
+    router.push(`/dashboard/cultivos${qs}` as any);
   };
 
   return (

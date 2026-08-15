@@ -11,7 +11,12 @@ interface ModoSimpleHeaderProps {
   onAlertasClick: () => void;
 }
 
-const RUTA_INICIO = "/modo-simple/inicio";
+// Fase 3 de ADR-006 — rutas reales (antes /modo-simple/*, ruta temporal ya
+// retirada). Perfil ahora es lo que bifurca /dashboard/configuracion
+// cuando la preferencia resuelve a "simple" — no existe /dashboard/perfil
+// como ruta propia.
+const RUTA_INICIO = "/dashboard";
+const RUTA_PERFIL = "/dashboard/configuracion";
 
 /**
  * Header compartido de modo simple — igual en las 6 pantallas del mockup:
@@ -81,7 +86,7 @@ export function ModoSimpleHeader({ nombre, inicial, alertasNoLeidas, onAlertasCl
         </button>
 
         <Link
-          href={"/modo-simple/perfil" as any}
+          href={RUTA_PERFIL as any}
           aria-label="Ver perfil"
           className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 font-semibold text-[14px]"
           style={{ background: "var(--color-brand-bg)", color: "var(--color-brand-dark)" }}

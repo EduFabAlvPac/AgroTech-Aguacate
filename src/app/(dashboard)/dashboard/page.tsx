@@ -10,13 +10,17 @@ import { BuyersPreview } from "@/components/dashboard/BuyersPreview";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { resolverFincaActiva } from "@/lib/finca-activa";
+import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
+import { resolverModoApp } from "@/lib/modo-app";
+import { getFincas } from "@/lib/data/fincas";
+import { getAlertas } from "@/lib/data/alertas";
 import {
   getDashboardFinca,
   getDashboardKpis,
   getDashboardFinancialChart,
   computeCropTimeline,
 } from "@/lib/data/dashboard";
+import { InicioSimpleClient } from "@/components/modo-simple/InicioSimpleClient";
 
 export const dynamic = "force-dynamic";
 
@@ -39,6 +43,33 @@ export default async function DashboardPage() {
   // Todas las páginas se scopean a UNA finca activa (funcionalidad de fincas)
   // en vez de "la primera finca accesible" arbitraria.
   const { fincaActivaId } = await resolverFincaActiva(session);
+
+  // Fase 3 de ADR-006 — bifurcación real: mismo mecanismo en las 6 rutas
+  // (ver checkpoint). Ninguno de los dos conjuntos de componentes de abajo
+  // se modifica, solo se decide cuál se monta.
+  const modo = await resolverModoApp(session.user.id);
+
+  if (modo === "simple") {
+    const [fincas, finca, kpis, alertas] = await Promise.all([
+      getFincas(session),
+      getDashboardFinca(fincaActivaId),
+      getDashboardKpis(fincaActivaId),
+      getAlertas(fincaActivaId, SIN_FINCA_SENTINEL),
+    ]);
+    const totalCultivos = finca?.lotes.flatMap((l) => l.cultivos).length ?? 0;
+
+    return (
+      <InicioSimpleClient
+        fincas={fincas}
+        fincaActivaId={fincaActivaId}
+        fincaSinUbicacion={!!fincaActivaId && !finca?.lat}
+        totalCultivos={totalCultivos}
+        kpis={kpis}
+        alertas={alertas}
+      />
+    );
+  }
+
   const finca = await getDashboardFinca(fincaActivaId);
   const cropTimelineData = computeCropTimeline(finca);
 
