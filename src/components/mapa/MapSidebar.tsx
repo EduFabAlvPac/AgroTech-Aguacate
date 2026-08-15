@@ -34,7 +34,14 @@ export function MapSidebar({
   onRecomendar,
 }: MapSidebarProps) {
   return (
-    <aside className="w-72 bg-white border-r border-[var(--border-subtle)] overflow-y-auto flex-shrink-0 p-4">
+    // Responsive real (hallazgo del usuario, 2026-08-15): ancho fijo w-72
+    // dentro de un <div className="flex"> en fila dejaba ~100px para el
+    // mapa en un teléfono de 390px — nunca se pensó para pantallas
+    // angostas. Bajo md: se apila arriba del mapa (alto acotado a 42vh,
+    // scroll propio) en vez de angostarlo a una tira inutilizable; en
+    // md+ (el <div> padre en MapaContainer.tsx vuelve a fila) se ve
+    // exactamente igual que antes.
+    <aside className="w-full md:w-72 h-[42vh] md:h-auto bg-white border-b md:border-b-0 md:border-r border-[var(--border-subtle)] overflow-y-auto md:flex-shrink-0 p-4">
       {/* Finca header */}
       <div className="mb-4">
         <h2 className="text-[14px] font-semibold text-[var(--text-primary)]">

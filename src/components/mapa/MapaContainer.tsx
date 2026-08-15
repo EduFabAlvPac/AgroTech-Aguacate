@@ -229,7 +229,7 @@ function MapaContainerInner({ finca }: MapaContainerProps) {
   const effectiveMapMode: MapMode = loteValidation.valid ? mapMode : "view";
 
   return (
-    <div className="flex h-full" style={{ height: "calc(100vh - 64px)" }}>
+    <div className="flex flex-col md:flex-row h-full" style={{ height: "calc(100vh - 64px)" }}>
       {/* Sidebar */}
       <MapSidebar
         finca={finca}
