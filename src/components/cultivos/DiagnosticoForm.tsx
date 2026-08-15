@@ -15,6 +15,9 @@ interface DiagnosticoResultado {
   recomendacion: string;
   coincideCatalogo: boolean;
   razonamiento?: string;
+  /** false = la IA no pudo diagnosticar la foto — no se guardó en la
+   * bitácora (ver api/cultivos/[id]/diagnostico/route.ts). */
+  imagenValida?: boolean;
 }
 
 interface DiagnosticoFormProps {
@@ -50,7 +53,14 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
       if (!res.ok) throw new Error(json.error || "Error al analizar la imagen");
       setResultado(json.data.diagnostico);
       setAlertaCreada(!!json.data.alerta);
-      toast.success("Diagnóstico agregado a la bitácora");
+      // Hallazgo real del usuario (2026-08-15): cuando la IA no podía
+      // diagnosticar la foto, este toast decía igual "agregado a la
+      // bitácora" — falso, y confuso (no pasó nada, no se guardó nada).
+      if (json.data.diagnostico.imagenValida === false) {
+        toast(json.data.diagnostico.diagnostico, { icon: "📷" });
+      } else {
+        toast.success("Diagnóstico agregado a la bitácora");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Error al analizar la imagen");
     } finally {
@@ -64,6 +74,29 @@ export function DiagnosticoForm({ cultivoId, onSuccess, onCancel }: DiagnosticoF
     setImagen(null);
     setDescripcion("");
   };
+
+  if (resultado?.imagenValida === false) {
+    // La IA no pudo diagnosticar esta foto — no se guardó nada en la
+    // bitácora (ver route.ts), así que la pantalla tampoco lo dice.
+    return (
+      <div className="space-y-4">
+        {imagen && (
+          <img
+            src={imagen}
+            alt="Foto analizada"
+            className="w-full max-h-56 object-contain rounded-[var(--radius-md)] border border-[var(--border-default)] bg-[var(--surface-page)]"
+          />
+        )}
+        <p className="p-3 bg-[var(--surface-page)] rounded-[var(--radius-md)] text-[13px] text-[var(--text-primary)]">
+          {resultado.diagnostico}
+        </p>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onCancel}>Cancelar</Button>
+          <Button onClick={handleNuevo}>Tomar otra foto</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (resultado) {
     return (

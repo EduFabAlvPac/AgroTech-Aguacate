@@ -35,6 +35,10 @@ interface DiagnosticoResultado {
   sintomasObservados: string;
   recomendacion: string;
   coincideCatalogo: boolean;
+  /** false = la IA no pudo diagnosticar la foto — no se guardó en la
+   * bitácora (ver route.ts). Optional para no romper si algún día vuelve
+   * un resultado viejo sin este campo (se trata como diagnóstico real). */
+  imagenValida?: boolean;
 }
 
 interface CultivoOption {
@@ -454,28 +458,41 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
                 )}
 
                 {msg.diagnostico ? (
-                  <div className="space-y-1.5 min-w-[200px]">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>{msg.diagnostico.diagnostico}</span>
-                      <span
-                        className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                        style={CONFIANZA_STYLE[msg.diagnostico.confianza]}
-                      >
-                        Confianza {msg.diagnostico.confianza}
-                      </span>
-                    </div>
-                    {msg.diagnostico.sintomasObservados && (
-                      <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--text-secondary)" }}>
-                        <Eye size={13} className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} /> {msg.diagnostico.sintomasObservados}
+                  msg.diagnostico.imagenValida === false ? (
+                    // La IA no pudo diagnosticar esta foto — no se guardó
+                    // en la bitácora (ver route.ts), así que tampoco se le
+                    // dice al usuario que se guardó nada. Hallazgo real del
+                    // usuario, 2026-08-15: antes esto se veía igual que un
+                    // diagnóstico exitoso, con un "✅ Guardado" confuso.
+                    <div className="space-y-1.5 min-w-[200px]">
+                      <p className="text-[13px] flex items-start gap-1.5" style={{ color: "var(--text-primary)" }}>
+                        <Camera size={14} className="mt-0.5 flex-shrink-0" style={{ color: "var(--color-amber)" }} /> {msg.diagnostico.diagnostico}
                       </p>
-                    )}
-                    <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--text-secondary)" }}>
-                      <Pill size={13} className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} /> {msg.diagnostico.recomendacion}
-                    </p>
-                    <p className="text-[11px] px-2 py-1 rounded-lg" style={{ color: "var(--color-brand-dark)", background: "var(--color-brand-bg)" }}>
-                      ✅ Guardado en el cuaderno de campo{msg.alertaCreada && " · ⚠️ Alerta generada"}
-                    </p>
-                  </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 min-w-[200px]">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[13px] font-bold" style={{ color: "var(--text-primary)" }}>{msg.diagnostico.diagnostico}</span>
+                        <span
+                          className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
+                          style={CONFIANZA_STYLE[msg.diagnostico.confianza]}
+                        >
+                          Confianza {msg.diagnostico.confianza}
+                        </span>
+                      </div>
+                      {msg.diagnostico.sintomasObservados && (
+                        <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--text-secondary)" }}>
+                          <Eye size={13} className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} /> {msg.diagnostico.sintomasObservados}
+                        </p>
+                      )}
+                      <p className="text-[12px] flex items-start gap-1.5" style={{ color: "var(--text-secondary)" }}>
+                        <Pill size={13} className="mt-0.5 flex-shrink-0" style={{ color: "var(--text-muted)" }} /> {msg.diagnostico.recomendacion}
+                      </p>
+                      <p className="text-[11px] px-2 py-1 rounded-lg" style={{ color: "var(--color-brand-dark)", background: "var(--color-brand-bg)" }}>
+                        ✅ Guardado en el cuaderno de campo{msg.alertaCreada && " · ⚠️ Alerta generada"}
+                      </p>
+                    </div>
+                  )
                 ) : msg.recomendacion ? (
                   <div className="space-y-2 min-w-[220px]">
                     {msg.recomendacion.recomendaciones === null ? (
