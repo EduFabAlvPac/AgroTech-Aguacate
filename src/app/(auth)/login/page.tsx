@@ -37,14 +37,15 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[var(--surface-page)] flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
 
-        {/* Logo */}
+        {/* Logo — lockup completo (ícono + wordmark), no ícono + texto por separado:
+            la imagen ya trae "GermIA" escrito, un <h1> aparte repitiendo el nombre
+            quedaría redundante/inconsistente con ella. */}
         <div className="text-center mb-8">
           <img
-            src="/icons/icon-192.png"
+            src="/images/logos/germia-lockup-login.png"
             alt="GermIA"
-            className="w-16 h-16 rounded-2xl mx-auto mb-4 shadow-md object-cover"
+            className="w-64 mx-auto mb-2"
           />
-          <h1 className="text-2xl font-bold text-[var(--text-primary)]">AgroTech</h1>
           <p className="text-[14px] text-[var(--text-secondary)] mt-1">
             Gestión inteligente de tu cultivo
           </p>
