@@ -11,7 +11,7 @@ import { CATEGORIA_LABELS } from "@/types";
 import { formatCOPFull } from "@/lib/utils";
 import type { CategoriaGasto } from "@prisma/client";
 
-// ── Colores de marca AgroTech ─────────────────────────────────────────────────
+// ── Colores de marca GermIA ─────────────────────────────────────────────────
 const COLOR_PRIMARY: [number, number, number] = [62, 143, 108];   // brand      #3E8F6C
 const COLOR_DARK: [number, number, number] = [47, 110, 82];       // brand-dark #2F6E52
 const COLOR_LIGHT_BG: [number, number, number] = [233, 247, 240]; // brand-bg   #E9F7F0
@@ -59,7 +59,7 @@ function formatDateShort(date: Date | string): string {
 }
 
 function drawLogoPlaceholder(doc: jsPDF, x: number, y: number, size: number): void {
-  // Hoja estilizada como logo AgroTech
+  // Hoja estilizada como logo GermIA
   doc.setFillColor(...COLOR_PRIMARY);
   doc.roundedRect(x, y, size, size, 3, 3, "F");
 
@@ -106,14 +106,14 @@ export function exportFinanciasPDF(data: ExportFinanzasData): void {
   doc.setFillColor(...COLOR_PRIMARY);
   doc.rect(0, 0, pageW, 40, "F");
 
-  // Logo AgroTech
+  // Logo GermIA
   drawLogoPlaceholder(doc, marginX, 8, 24);
 
   // Título de la app
   doc.setTextColor(...COLOR_WHITE);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("AgroTech", marginX + 28, 17);
+  doc.text("GermIA", marginX + 28, 17);
 
   // Subtítulo
   doc.setFont("helvetica", "normal");
@@ -364,7 +364,7 @@ export function exportFinanciasPDF(data: ExportFinanzasData): void {
     doc.setTextColor(...COLOR_MUTED);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    doc.text(`Generado por AgroTech · ${fechaGeneracion}`, marginX, pageH - 7);
+    doc.text(`Generado por GermIA · ${fechaGeneracion}`, marginX, pageH - 7);
 
     // Número de página derecha
     doc.text(`Pág. ${p} / ${totalPages}`, pageW - marginX, pageH - 7, { align: "right" });
@@ -432,7 +432,7 @@ export function exportPyGPDF(data: ExportPyGData): void {
   doc.setTextColor(...COLOR_WHITE);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(18);
-  doc.text("AgroTech", marginX + 28, 17);
+  doc.text("GermIA", marginX + 28, 17);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(9);
   doc.text("Estado de Resultados (PyG)", marginX + 28, 23);
@@ -624,7 +624,7 @@ export function exportPyGPDF(data: ExportPyGData): void {
     doc.setTextColor(...COLOR_MUTED);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
-    doc.text(`Generado por AgroTech · ${fechaGeneracion}`, marginX, pageH - 7);
+    doc.text(`Generado por GermIA · ${fechaGeneracion}`, marginX, pageH - 7);
     doc.text(`Pág. ${p} / ${totalPages}`, pageW - marginX, pageH - 7, { align: "right" });
   }
 

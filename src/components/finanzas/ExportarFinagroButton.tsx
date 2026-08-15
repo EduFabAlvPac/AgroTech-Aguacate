@@ -249,7 +249,7 @@ function generatePDF(data: ReporteFinagroData) {
   doc.setFontSize(8);
   doc.setFont("helvetica", "italic");
   doc.text(
-    `Generado por AgroTech — ${new Date().toLocaleDateString("es-CO")} | Período: ${data.periodo.desde} a ${data.periodo.hasta}`,
+    `Generado por GermIA — ${new Date().toLocaleDateString("es-CO")} | Período: ${data.periodo.desde} a ${data.periodo.hasta}`,
     pageWidth / 2, doc.internal.pageSize.getHeight() - 10,
     { align: "center" }
   );

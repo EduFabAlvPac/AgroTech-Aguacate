@@ -440,7 +440,7 @@ export function EquipoClient({
         <div className="space-y-3">
           <p className="text-[12px] text-[var(--text-muted)] -mt-1">
             No hay envío de correo automático — crea la cuenta aquí y comparte el email/contraseña con la persona por
-            WhatsApp o en persona. Si el email ya tiene cuenta en AgroTech, se agrega directamente sin pedir contraseña.
+            WhatsApp o en persona. Si el email ya tiene cuenta en GermIA, se agrega directamente sin pedir contraseña.
           </p>
           <Input
             label="Nombre"

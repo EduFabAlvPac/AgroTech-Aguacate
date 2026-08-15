@@ -1,4 +1,4 @@
-# 🌿 AgroTech — Plataforma de Gestión Agrícola
+# 🌱 GermIA — Plataforma de Gestión Agrícola
 
 Plataforma integral para la gestión del cultivo de **Aguacate Hass** en Finca Álvarez Pacheco, Norte de Santander, Colombia.
 
@@ -167,4 +167,4 @@ Ver `.kiro/PLAN-MAESTRO-AGRO-TECH.md` para el roadmap completo.
 
 ---
 
-*AgroTech MVP v0.1.0 · Julio 2026 · Norte de Santander, Colombia* 🇨🇴
+*GermIA MVP v0.1.0 · Julio 2026 · Norte de Santander, Colombia* 🇨🇴

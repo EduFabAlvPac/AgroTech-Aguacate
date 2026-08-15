@@ -1,4 +1,4 @@
-// ─── AgroTech · Base de conocimiento técnico ─────────────────────────────────
+// ─── GermIA · Base de conocimiento técnico ─────────────────────────────────
 // Aguacate Hass · Condiciones Andinas Colombianas · 1.500–2.200 msnm
 // Fuentes: ICA, Corpohass, SENA Agro, CENICAFÉ adaptado aguacate
 

@@ -1,6 +1,6 @@
 {
-  "name": "AgroTech — Gestión de Cultivos",
-  "short_name": "AgroTech",
+  "name": "GermIA — Gestión de Cultivos",
+  "short_name": "GermIA",
   "description": "Plataforma integral de gestión agrícola para cultivo de aguacate Hass",
   "start_url": "/dashboard",
   "display": "standalone",

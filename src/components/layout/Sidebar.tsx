@@ -120,7 +120,7 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
         {!collapsed && (
           <div>
             <div className="text-[15px] font-semibold text-agro-600 leading-tight">
-              AgroTech
+              GermIA <span className="text-[11px] font-normal" style={{ color: "var(--text-muted)" }}>PRO</span>
             </div>
             <div className="text-[11px] text-[var(--text-muted)] leading-tight mt-0.5">
               {session?.user?.name?.split(" ")[0] ?? "Productor"}
