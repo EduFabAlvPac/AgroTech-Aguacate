@@ -139,6 +139,7 @@ Documentadas en detalle en `.kiro/steering/tech.md` (stack, paleta de colores, c
 - Formato de moneda/fecha: `src/lib/utils.ts` (`formatCOP`, `formatDate`) — nunca formatear inline.
 - Labels de enums centralizados en `src/types/index.ts` (`ETAPA_LABELS`, `CATEGORIA_LABELS`, etc.) — al añadir un enum nuevo, añadir su tabla de labels ahí.
 - **No romper el patrón de sincronización bidireccional Cultivos↔Finanzas** (`src/app/api/cultivos/[id]/registros/route.ts` ↔ `src/app/api/gastos/route.ts`/`ingresos/route.ts`) al tocar esos módulos — es un diferenciador de producto ya funcionando en producción.
+- **Paridad modo simple/modo completo**: toda función nueva agregada a modo completo debe clasificarse en [`docs/paridad-modo-simple.md`](docs/paridad-modo-simple.md) — paridad completa, exclusión con salida (reutilizando `SalidaModoCompleto`, ver `src/components/shared/SalidaModoCompleto.tsx`), o pendiente de decidir — antes de darse por terminada. No dejar una función nueva sin clasificar en esa tabla.
 
 ---
 
