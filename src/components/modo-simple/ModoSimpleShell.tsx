@@ -6,6 +6,7 @@ import { ModoSimpleBottomNav } from "@/components/modo-simple/ModoSimpleBottomNa
 interface ModoSimpleShellProps {
   nombre: string;
   inicial: string;
+  alertasNoLeidas: number;
   children: React.ReactNode;
 }
 
@@ -16,14 +17,14 @@ interface ModoSimpleShellProps {
  * grandes queda centrado con fondo gris alrededor, no estirado a todo el
  * ancho.
  */
-export function ModoSimpleShell({ nombre, inicial, children }: ModoSimpleShellProps) {
+export function ModoSimpleShell({ nombre, inicial, alertasNoLeidas, children }: ModoSimpleShellProps) {
   return (
     <div className="min-h-screen flex justify-center" style={{ background: "var(--surface-page)" }}>
       <div
         className="w-full flex flex-col min-h-screen"
         style={{ maxWidth: 540, background: "white", boxShadow: "0 0 0 1px var(--border-subtle)" }}
       >
-        <ModoSimpleHeader nombre={nombre} inicial={inicial} />
+        <ModoSimpleHeader nombre={nombre} inicial={inicial} alertasNoLeidas={alertasNoLeidas} />
         <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 84 }}>
           {children}
         </main>
