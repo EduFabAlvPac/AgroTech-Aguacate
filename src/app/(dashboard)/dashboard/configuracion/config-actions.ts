@@ -11,6 +11,10 @@
  * - actualizarPerfil → revalidatePath("/dashboard/configuracion"), "/dashboard" (nombre en el header)
  * - actualizarFinca → revalidatePath("/dashboard/configuracion"), "/dashboard" (nombre de finca en KPIs/sidebar)
  * - actualizarAlertas → revalidatePath("/dashboard/configuracion")
+ * - actualizarVistaPreferida (Fase 3) → revalidatePath("/dashboard", "layout"),
+ *   no un path puntual — cambia qué conjunto de componentes (completo/simple)
+ *   renderiza CADA ruta bajo (dashboard), no solo la página de configuración
+ *   o perfil donde se tocó el switch.
  * - exportarMisDatos → no revalida (solo lectura)
  * - eliminarCuenta → no revalida (la sesión termina; signOut() del lado
  *   del cliente redirige a /login)
@@ -24,6 +28,7 @@ import { requireAccess, AuthzError } from "@/lib/authz";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { exportarDatosUsuario, puedeEliminarDeInmediato } from "@/lib/cuenta-datos";
 import { registrarAuditoria } from "@/lib/audit";
+import type { VistaPreferida } from "@prisma/client";
 
 export interface ConfigActionState {
   error?: string;
@@ -56,6 +61,39 @@ export async function actualizarPerfil(_prev: ConfigActionState, formData: FormD
   } catch (error) {
     console.error("[actualizarPerfil]", error);
     return { error: "Error al guardar" };
+  }
+}
+
+/**
+ * Fase 3 de ADR-006 — cambia qué conjunto de componentes (Fase 1 modo
+ * completo, o Fase 2 modo simple) renderizan las rutas reales para este
+ * usuario. Separada de actualizarPerfil a propósito, no una extensión de
+ * su FormData: se dispara con un solo click en un switch de 3 posiciones
+ * (Simple/Completa/Automático), no con el submit de un formulario — mismo
+ * criterio ya aplicado en cambiarEtapaCultivo/marcarLeida (llamada directa
+ * dentro de startTransition desde el componente, sin useActionState). Y
+ * necesita una revalidación de alcance distinto (todo el árbol de rutas,
+ * no solo /dashboard/configuracion) — mezclarla con actualizarPerfil
+ * habría forzado esa revalidación amplia en cada guardado de nombre/
+ * teléfono también, sin necesidad.
+ */
+export async function actualizarVistaPreferida(
+  vista: VistaPreferida,
+  _prev: ConfigActionState
+): Promise<ConfigActionState> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "No autorizado" };
+
+  try {
+    await db.user.update({ where: { id: session.user.id }, data: { vistaPreferida: vista } });
+    // "layout" (no el default "page") invalida todo el subárbol de
+    // (dashboard) en una sola llamada — el cambio afecta a todas las rutas
+    // que bifurcan entre modo completo/simple, no a una página puntual.
+    revalidatePath("/dashboard", "layout");
+    return { ok: true };
+  } catch (error) {
+    console.error("[actualizarVistaPreferida]", error);
+    return { error: "Error al guardar la preferencia" };
   }
 }
 

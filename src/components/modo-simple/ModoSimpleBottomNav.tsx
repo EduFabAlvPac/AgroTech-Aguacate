@@ -4,12 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Home, MapPin, Sprout, CreditCard, Sparkles } from "lucide-react";
 
+// Fase 3 de ADR-006 — rutas reales (antes apuntaban a /modo-simple/*, la
+// ruta temporal de solo desarrollo de la Fase 2, ya retirada). "Finca"
+// apunta a /dashboard/fincas, una ruta nueva sin equivalente en modo
+// completo (decisión confirmada con el usuario — ver checkpoint de Fase 3).
 const TABS = [
-  { href: "/modo-simple/inicio", label: "Inicio", icon: Home },
-  { href: "/modo-simple/finca", label: "Finca", icon: MapPin },
-  { href: "/modo-simple/cultivos", label: "Cultivos", icon: Sprout },
-  { href: "/modo-simple/finanzas", label: "Finanzas", icon: CreditCard },
-  { href: "/modo-simple/ia", label: "IA", icon: Sparkles },
+  { href: "/dashboard", label: "Inicio", icon: Home, exact: true },
+  { href: "/dashboard/fincas", label: "Finca", icon: MapPin, exact: false },
+  { href: "/dashboard/cultivos", label: "Cultivos", icon: Sprout, exact: false },
+  { href: "/dashboard/finanzas", label: "Finanzas", icon: CreditCard, exact: false },
+  { href: "/dashboard/asistente", label: "IA", icon: Sparkles, exact: false },
 ] as const;
 
 /** Nav inferior compartida de modo simple — 5 pestañas, igual en las 6
@@ -29,8 +33,8 @@ export function ModoSimpleBottomNav() {
         background: "white",
       }}
     >
-      {TABS.map(({ href, label, icon: Icon }) => {
-        const activo = pathname.startsWith(href);
+      {TABS.map(({ href, label, icon: Icon, exact }) => {
+        const activo = exact ? pathname === href : pathname.startsWith(href);
         return (
           <Link
             key={href}

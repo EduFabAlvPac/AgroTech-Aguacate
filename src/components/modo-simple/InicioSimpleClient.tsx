@@ -104,7 +104,7 @@ export function InicioSimpleClient({
       {/* ── Selector de finca (pills) ── */}
       {fincas.length === 0 ? (
         <Link
-          href={"/modo-simple/finca" as any}
+          href={"/dashboard/fincas" as any}
           className="block px-4 py-3 rounded-full text-center text-[13px] font-semibold"
           style={{ background: "var(--color-brand)", color: "white" }}
         >
@@ -152,7 +152,7 @@ export function InicioSimpleClient({
 
       {/* ── CTA revisar planta ── */}
       <Link
-        href={"/modo-simple/ia" as any}
+        href={"/dashboard/asistente" as any}
         className="flex items-center gap-4 px-4 py-4 rounded-2xl"
         style={{ background: "linear-gradient(135deg, #E0A94E, #D6A159)" }}
       >
@@ -277,14 +277,14 @@ export function InicioSimpleClient({
       {/* ── Accesos rápidos ── */}
       <div className="grid grid-cols-2 gap-3">
         <Link
-          href={"/modo-simple/finca" as any}
+          href={"/dashboard/fincas" as any}
           className="flex items-center justify-center gap-2 py-3 rounded-full text-[13px] font-semibold"
           style={{ background: "var(--color-brand)", color: "white" }}
         >
           Mis fincas
         </Link>
         <Link
-          href={"/modo-simple/cultivos" as any}
+          href={"/dashboard/cultivos" as any}
           className="flex items-center justify-center gap-2 py-3 rounded-full text-[13px] font-semibold"
           style={{ background: "var(--color-brand)", color: "white" }}
         >
