@@ -104,18 +104,23 @@ export function getProximaActividad(etapa: string, diasDesdeSiembra: number): Pr
 }
 
 /**
- * Progreso de ciclo + proyección de cosecha, derivados de la finca ya
- * cargada (no dispara una query nueva) — misma fuente que consumen
- * MapPreview/Header, para no repetir el fetch tres veces en la misma
- * página. Toma el cultivo del primer lote (mismo criterio que ya usaba
- * CropTimeline.tsx antes de este refactor — ver nota en getDashboardKpis
- * sobre por qué NO es el mismo criterio que usan los KPIs).
+ * Progreso de ciclo + proyección de cosecha para UN cultivo puntual — misma
+ * fórmula exacta que ya usaba computeCropTimeline (Fase 1), generalizada en
+ * Fase 2 (ADR-006, "modo simple") para poder llamarse una vez por cultivo
+ * en una lista (pantalla Cultivos simple), no solo una vez por finca. El
+ * parámetro totalPlantas queda explícito porque el Dashboard (ver
+ * computeCropTimeline abajo) proyecta producción con el total de plantas de
+ * TODA la finca, no solo las de este cultivo — comportamiento preexistente
+ * que se preserva tal cual para ese consumidor.
  */
-export function computeCropTimeline(finca: DashboardFinca): CropTimelineData {
-  const firstCultivo = finca?.lotes[0]?.cultivos[0];
-  const currentEtapa = firstCultivo?.etapa ?? "PREPARACION";
-  const fechaSiembra = firstCultivo?.fechaSiembra ? new Date(firstCultivo.fechaSiembra) : null;
-  const cicloMeses = firstCultivo?.especieCultivo?.cicloMesesPrimeraCosecha;
+export function computeCultivoTimeline(
+  cultivo: CultivoConEspecie | undefined,
+  fincaNombre: string | null,
+  totalPlantas: number
+): CropTimelineData {
+  const currentEtapa = cultivo?.etapa ?? "PREPARACION";
+  const fechaSiembra = cultivo?.fechaSiembra ? new Date(cultivo.fechaSiembra) : null;
+  const cicloMeses = cultivo?.especieCultivo?.cicloMesesPrimeraCosecha;
 
   let fechaCosechaEst: Date | null = null;
   let diasTotal = 0;
@@ -128,18 +133,16 @@ export function computeCropTimeline(finca: DashboardFinca): CropTimelineData {
   }
   const progreso = diasTotal > 0 ? Math.min(Math.max((diasTranscurridos / diasTotal) * 100, 0), 100) : 0;
 
-  const especieLabel = firstCultivo
-    ? `${firstCultivo.especie}${firstCultivo.variedad ? ` ${firstCultivo.variedad}` : ""}`
+  const especieLabel = cultivo
+    ? `${cultivo.especie}${cultivo.variedad ? ` ${cultivo.variedad}` : ""}`
     : "Sin cultivo activo";
 
-  const totalPlantas =
-    finca?.lotes.reduce((s, l) => s + l.cultivos.reduce((cs, c) => cs + (c.cantidadPlantas ?? 0), 0), 0) ?? 0;
-  const produccionPorArbol = firstCultivo?.especieCultivo?.produccionKgArbolAnual;
+  const produccionPorArbol = cultivo?.especieCultivo?.produccionKgArbolAnual;
   const produccionEstimadaKg = produccionPorArbol && totalPlantas > 0 ? totalPlantas * produccionPorArbol : null;
 
   return {
     especieLabel,
-    fincaNombre: finca?.nombre ?? null,
+    fincaNombre,
     fechaSiembra,
     fechaCosechaEst,
     currentEtapa,
@@ -147,6 +150,23 @@ export function computeCropTimeline(finca: DashboardFinca): CropTimelineData {
     diasRestantes: fechaCosechaEst ? Math.max(differenceInDays(fechaCosechaEst, new Date()), 0) : null,
     produccionEstimadaKg,
   };
+}
+
+/**
+ * Progreso de ciclo + proyección de cosecha, derivados de la finca ya
+ * cargada (no dispara una query nueva) — misma fuente que consumen
+ * MapPreview/Header, para no repetir el fetch tres veces en la misma
+ * página. Toma el cultivo del primer lote (mismo criterio que ya usaba
+ * CropTimeline.tsx antes de este refactor — ver nota en getDashboardKpis
+ * sobre por qué NO es el mismo criterio que usan los KPIs). Envoltorio
+ * delgado sobre computeCultivoTimeline — mismo resultado exacto de antes,
+ * sin cambio de comportamiento para este consumidor (Dashboard).
+ */
+export function computeCropTimeline(finca: DashboardFinca): CropTimelineData {
+  const firstCultivo = finca?.lotes[0]?.cultivos[0];
+  const totalPlantas =
+    finca?.lotes.reduce((s, l) => s + l.cultivos.reduce((cs, c) => cs + (c.cantidadPlantas ?? 0), 0), 0) ?? 0;
+  return computeCultivoTimeline(firstCultivo, finca?.nombre ?? null, totalPlantas);
 }
 
 // ── Funciones de datos (Server-only — usan Prisma directo) ──────────────────
