@@ -656,12 +656,26 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
             </button>
 
             {mostrarMenuImagen && (
+              // Bug real encontrado en producción (2026-08-15, hallazgo del
+              // usuario: "en modo móvil no hace nada al tomar foto/galería,
+              // en escritorio sí funciona"): estas dos <label> tenían un
+              // onClick que cerraba el popover (setMostrarMenuImagen(false))
+              // en el mismo tap que debía abrir el selector nativo de
+              // archivos. Al desmontarse el <label> por el re-render de
+              // React ANTES de que el navegador completara su acción por
+              // default (reenviar el click al <input> asociado vía
+              // htmlFor), esa acción por default nunca terminaba — el
+              // selector nativo nunca se abría. Confirmado con un tap real
+              // vía Playwright: el evento "filechooser" nunca se disparaba.
+              // ChatInterface.tsx (escritorio, sin este bug) nunca tuvo ese
+              // onClick — el popover ya se cierra solo, sin él, en cuanto
+              // el usuario elige o cancela una foto (ver
+              // handleAdjuntarImagen, primera línea). No agregar de vuelta.
               <div className="absolute bottom-full left-0 mb-2 w-44 rounded-xl shadow-lg py-1 z-10" style={{ background: "white", border: "1px solid var(--border-default)" }}>
                 <label
                   htmlFor={camaraInputId}
                   className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
                   style={{ color: "var(--text-primary)" }}
-                  onClick={() => setMostrarMenuImagen(false)}
                 >
                   <Camera size={15} /> Tomar foto
                 </label>
@@ -669,7 +683,6 @@ export function AsistenteIASimpleClient({ lotesDisponibles }: AsistenteIASimpleC
                   htmlFor={galeriaInputId}
                   className="flex items-center gap-2 px-3 py-2.5 text-[13px] cursor-pointer"
                   style={{ color: "var(--text-primary)" }}
-                  onClick={() => setMostrarMenuImagen(false)}
                 >
                   <ImageIcon size={15} /> Galería
                 </label>
