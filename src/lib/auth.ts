@@ -4,6 +4,20 @@ import bcrypt from "bcryptjs";
 import { db } from "./db";
 import { modulosPorDefecto } from "./modulos";
 import { registrarAuditoria } from "./audit";
+import { verificarLimite } from "./rate-limit";
+
+/** IP real del cliente detrás del proxy de Vercel — `x-forwarded-for` trae
+ * una lista separada por comas (cliente, luego proxies intermedios); el
+ * primer valor es el del cliente. Sin ese header (dev local sin proxy),
+ * cae a un valor fijo — el rate limit sigue funcionando, solo agrupa a
+ * todo el tráfico local bajo la misma clave, que es aceptable en dev. */
+function obtenerIp(headers: Record<string, string> | Headers | undefined): string {
+  const valor =
+    headers instanceof Headers
+      ? headers.get("x-forwarded-for")
+      : headers?.["x-forwarded-for"];
+  return valor?.split(",")[0]?.trim() || "ip-desconocida";
+}
 
 export const authOptions: NextAuthOptions = {
   session: { strategy: "jwt" },
@@ -15,8 +29,14 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "email" },
         password: { label: "Contraseña", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
+
+        // Complementa (no reemplaza) el lockout por cuenta de abajo: ese
+        // frena a alguien insistiendo contra UN email; esto frena a alguien
+        // probando MUCHOS emails distintos desde la misma IP (relleno de
+        // credenciales/enumeración), que el lockout por cuenta no cubre.
+        await verificarLimite("loginPassword", `${obtenerIp(req?.headers)}:${credentials.email}`);
 
         const user = await db.user.findUnique({
           where: { email: credentials.email },

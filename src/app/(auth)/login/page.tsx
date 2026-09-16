@@ -5,6 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
+import { MENSAJE_RATE_LIMIT } from "@/lib/rate-limit-shared";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,7 +26,7 @@ export default function LoginPage() {
     setLoading(false);
 
     if (res?.error) {
-      toast.error("Credenciales incorrectas. Verifica tu email y contraseña.");
+      toast.error(res.error === MENSAJE_RATE_LIMIT ? MENSAJE_RATE_LIMIT : "Credenciales incorrectas. Verifica tu email y contraseña.");
     } else {
       toast.success("¡Bienvenido a GermIA!");
       router.push("/dashboard");

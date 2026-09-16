@@ -7,8 +7,10 @@ const pwaConfig = withPWA({
 });
 
 const nextConfig: NextConfig = {
+  // typedRoutes se movió de experimental a top-level en Next 15.5 (ver aviso
+  // de deprecación al arrancar `next dev` tras el bump de esta sesión).
+  typedRoutes: true,
   experimental: {
-    typedRoutes: true,
     staleTimes: {
       dynamic: 0,  // Don't cache dynamic pages in client-side router cache
     },

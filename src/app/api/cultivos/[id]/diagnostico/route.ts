@@ -6,6 +6,7 @@ import { db } from "@/lib/db";
 import { diagnosticarImagen, DiagnosticoError } from "@/lib/diagnostico-ia";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { consumirCuotaIA, CuotaExcedidaError } from "@/lib/ia-cuota";
+import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
 export const maxDuration = 45;
 
@@ -55,6 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // "editar cultivo" (así lo puede usar un COLABORADOR de campo, no solo
     // ADMIN_FINCA).
     await requireAccess(session, "registroCultivo", "create", { fincaId: cultivo.lote.fincaId });
+    await verificarLimite("ia", session.user.id);
     await consumirCuotaIA(session.user.id, "IMAGEN");
 
     const especie = cultivo.fichaTecnica?.variedad.especie.nombre ?? cultivo.especie;
@@ -125,7 +127,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
-    if (error instanceof CuotaExcedidaError) {
+    if (error instanceof CuotaExcedidaError || error instanceof RateLimitError) {
       return NextResponse.json({ error: error.message }, { status: error.status });
     }
     console.error("[POST /api/cultivos/[id]/diagnostico]", error);
