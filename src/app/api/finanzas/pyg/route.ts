@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverFincaActiva } from "@/lib/finca-activa";
+import { requireAccess, AuthzError } from "@/lib/authz";
 import { CATEGORIA_LABELS } from "@/types";
 import type { CategoriaGasto } from "@prisma/client";
 
@@ -42,6 +43,9 @@ export async function GET(req: Request) {
     if (!finca) {
       return NextResponse.json({ error: "No se encontró finca" }, { status: 404 });
     }
+    // Capa adicional sobre resolverFincaActiva (que ya solo devuelve fincas
+    // accesibles) — defensa en profundidad, no reemplaza ese filtro.
+    await requireAccess(session, "finca", "read", { fincaId: finca.id });
 
     // ── Datos base del período ────────────────────────────────────────────────
 
@@ -192,6 +196,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/finanzas/pyg]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

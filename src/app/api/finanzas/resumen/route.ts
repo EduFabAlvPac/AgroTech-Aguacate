@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverFincaActiva } from "@/lib/finca-activa";
+import { requireAccess, AuthzError } from "@/lib/authz";
 
 // GET /api/finanzas/resumen — KPIs financieros calculados (finca activa)
 export async function GET(req: Request) {
@@ -30,6 +31,9 @@ export async function GET(req: Request) {
     if (!finca) {
       return NextResponse.json({ data: null, error: "No se encontró finca" }, { status: 404 });
     }
+    // Capa adicional sobre resolverFincaActiva (que ya solo devuelve fincas
+    // accesibles) — defensa en profundidad, no reemplaza ese filtro.
+    await requireAccess(session, "finca", "read", { fincaId: finca.id });
 
     const fechaInicio = new Date(anio, 0, 1);
     const fechaFin = new Date(anio, 11, 31, 23, 59, 59);
@@ -176,6 +180,7 @@ export async function GET(req: Request) {
       },
     });
   } catch (error) {
+    if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error("[GET /api/finanzas/resumen]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

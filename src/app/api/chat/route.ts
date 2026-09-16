@@ -8,6 +8,7 @@ export const maxDuration = 30;
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { consumirCuotaIA, CuotaExcedidaError } from "@/lib/ia-cuota";
+import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
 const BASE_SYSTEM_PROMPT = `Eres AgroIA, asistente integral para productores agrícolas colombianos. Combinas conocimiento agronómico técnico con asesoría financiera agropecuaria.
 
@@ -46,6 +47,7 @@ export async function POST(req: Request) {
         { status: 401, headers: { "Content-Type": "application/json" } }
       );
     }
+    await verificarLimite("ia", session.user.id);
     await consumirCuotaIA(session.user.id, "CHAT");
 
     const { messages, farmContext } = await req.json();
@@ -97,7 +99,7 @@ export async function POST(req: Request) {
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error: any) {
-    if (error instanceof CuotaExcedidaError) {
+    if (error instanceof CuotaExcedidaError || error instanceof RateLimitError) {
       return new Response(
         JSON.stringify({ error: error.message }),
         { status: error.status, headers: { "Content-Type": "application/json" } }
