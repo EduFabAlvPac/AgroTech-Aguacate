@@ -21,28 +21,71 @@ enum VistaPreferida {
   AUTO
 }
 
+// Perfil de experiencia — ortogonal a VistaPreferida (que es una preferencia
+// de UI que el propio usuario cambia libremente) y a UserRole/Membresia (rol
+// de negocio). CAMPESINO es una asignación de administrador/asesor al crear
+// la cuenta, no algo que el usuario elija ni pueda cambiar desde su perfil —
+// ver docs/paridad-modo-simple.md y CLAUDE.md §5 (Campesino, ADR-006 fase
+// posterior). resolverModoApp()/resolverModoRuta() no se tocan: un usuario
+// CAMPESINO se desvía a /campesino ANTES de llegar a esa resolución (ver
+// src/lib/experiencia.ts).
+enum ExperienciaApp {
+  ESTANDAR
+  CAMPESINO
+}
+
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  password     String?
-  role         UserRole @default(PRODUCER)
-  avatarUrl    String?
-  telefono     String?
+  id                      String         @id @default(cuid())
+  email                   String         @unique
+  name                    String?
+  password                String?
+  role                    UserRole       @default(PRODUCER)
+  avatarUrl               String?
+  // @unique agregado para el login "modo Campesino" (solo celular, sin
+  // contraseña) — antes era texto de contacto libre. Verificado sin
+  // duplicados en dev antes de aplicar; revisar Neon prod de la misma forma
+  // antes de pushear (múltiples NULL sí conviven bajo @unique en Postgres).
+  telefono                String?        @unique
+  // Asignación de administrador/asesor, no preferencia del usuario — ver
+  // ExperienciaApp arriba.
+  experiencia             ExperienciaApp @default(ESTANDAR)
+  // Quién creó esta cuenta Campesino (el OWNER que la dio de alta desde
+  // Equipo) — necesario porque una cuenta Campesino NO tiene Membresia/
+  // Organizacion (decisión de producto, sin Finca/Lote/Cultivo), así que sin
+  // este campo no habría forma de saber a qué OWNER pertenece cada una y
+  // Equipo tendría que listar TODAS las cuentas Campesino de la plataforma
+  // (fuga cross-tenant — ver CLAUDE.md §7). Null para cuentas no-Campesino.
+  creadoPorId             String?
+  // "Mis cultivos" (modo Campesino, /campesino/cultivos) — qué especies dice
+  // manejar, guardado con un toque (sin formulario de Finca/Lote/fecha de
+  // siembra, decisión de producto ya tomada). Valores = slug de
+  // EspecieCampesinoSlug (src/lib/campesino-especies.ts), ej. "cafe-caturra".
+  // String[] simple en vez de tabla aparte: son como máximo 4 valores fijos,
+  // no amerita un modelo relacional propio.
+  cultivosSeleccionados   String[]       @default([])
+  // Geolocalización real del navegador (modo Campesino, /campesino/clima) —
+  // reemplaza las coordenadas fijas de Ocaña por defecto (src/lib/weather.ts)
+  // cuando el usuario dio permiso. Se pide una vez por sesión de pestaña
+  // (ver UbicacionCampesinoClient.tsx), no en cada carga de página — la
+  // ubicación de una finca no cambia día a día. Null = todavía sin permiso
+  // o lo negó, cae al valor por defecto sin romper nada.
+  ubicacionLat            Float?
+  ubicacionLng            Float?
+  ubicacionActualizadaEn  DateTime?
   // Opcional con default a nivel de base de datos — Fase 3 de ADR-006.
   // Nunca NOT NULL sin default: alterar una tabla con filas existentes en
   // Neon sin default fuerza un --force-reset (ver CLAUDE.md/lecciones de
   // Fase 1). Postgres rellena AUTO en todas las filas existentes al aplicar
   // el push, verificado antes de dar por segura la migración.
-  vistaPreferida VistaPreferida @default(AUTO)
+  vistaPreferida          VistaPreferida @default(AUTO)
   // Flag de plataforma, transversal a cualquier Organizacion — ver CLAUDE.md §2.3
   // y docs/REQUERIMIENTOS.md ADR-004. No se modela como rol dentro de una org.
-  esSuperAdmin Boolean  @default(false)
+  esSuperAdmin            Boolean        @default(false)
   // Fuerza bruta de login (OWASP A07) — antes authorize() no llevaba ningún
   // contador, así que un ataque de diccionario contra /api/auth podía
   // reintentar sin límite. Se resetea a 0 en un login exitoso.
-  failedLoginAttempts Int       @default(0)
-  lockedUntil         DateTime?
+  failedLoginAttempts     Int            @default(0)
+  lockedUntil             DateTime?
   // Ley 1581 de 2012 (Colombia) — derecho de supresión. Se llena cuando el
   // usuario pide eliminar su cuenta pero el borrado inmediato no es seguro
   // (es OWNER de una organización con otros miembros activos que dependen
@@ -50,20 +93,27 @@ model User {
   // pendiente de revisión manual en vez de arriesgar un cascade que borre
   // datos de terceros sin su consentimiento.
   eliminacionSolicitadaEn DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt               DateTime       @default(now())
+  updatedAt               DateTime       @updatedAt
 
-  fincas         Finca[]
-  compradores    Comprador[]
-  chatMessages   ChatMessage[]
-  usoIaDiario    UsoIaDiario[]
-  preferences    UserPreferences?
-  gastos         Gasto[]
-  presupuestos   Presupuesto[]
-  membresias     Membresia[]
-  fincaAccesos   FincaAcceso[]
-  inversionistas Inversionista[]
-  enlacesCreados EnlaceCompartido[]
+  fincas                 Finca[]
+  compradores            Comprador[]
+  chatMessages           ChatMessage[]
+  usoIaDiario            UsoIaDiario[]
+  preferences            UserPreferences?
+  gastos                 Gasto[]
+  presupuestos           Presupuesto[]
+  membresias             Membresia[]
+  fincaAccesos           FincaAcceso[]
+  inversionistas         Inversionista[]
+  enlacesCreados         EnlaceCompartido[]
+  preciosMercadoCreados  PrecioMercado[]
+  // Self-relation: qué OWNER creó esta cuenta Campesino / qué cuentas
+  // Campesino creó este OWNER — ver comentario de creadoPorId arriba.
+  creadoPor              User?                          @relation("CampesinoCreador", fields: [creadoPorId], references: [id], onDelete: SetNull)
+  campesinosCreados      User[]                         @relation("CampesinoCreador")
+  productosTiendaCreados ProductoTienda[]
+  consultasDiagnostico   ConsultaDiagnosticoCampesino[]
 
   @@map("users")
 }
@@ -91,9 +141,9 @@ model Organizacion {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  fincas             Finca[]
-  membresias         Membresia[]
-  plantillasModulos  RolModulosDefault[]
+  fincas            Finca[]
+  membresias        Membresia[]
+  plantillasModulos RolModulosDefault[]
 
   @@map("organizaciones")
 }
@@ -248,9 +298,9 @@ model Lote {
 // src/lib/agronomia/suelo-referencia.ts — son generales (no por cultivo/ficha
 // técnica todavía, ver CLAUDE.md §2.2/§4), se lo advierte explícitamente en la UI.
 model AnalisisSuelo {
-  id              String         @id @default(cuid())
+  id              String        @id @default(cuid())
   loteId          String
-  lote            Lote           @relation(fields: [loteId], references: [id], onDelete: Cascade)
+  lote            Lote          @relation(fields: [loteId], references: [id], onDelete: Cascade)
   fechaMuestreo   DateTime
   ph              Float?
   materiaOrganica Float? // % MO
@@ -261,8 +311,8 @@ model AnalisisSuelo {
   conductividad   Float? // dS/m — salinidad (CE)
   laboratorio     String?
   notas           String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@map("analisis_suelo")
 }
@@ -722,35 +772,35 @@ model Ingreso {
 // ─── BUYERS / COMPRADORES ─────────────────────────────────────────────────────
 
 model Comprador {
-  id           String        @id @default(cuid())
-  userId       String
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   // Nullable durante la migración (mismo patrón que Finca.organizacionId en
   // Fase 0) — se backfillea con prisma/backfill-compradores-finca.ts a la
   // finca del userId creador. Habilita RBAC real (ADMIN_FINCA/COLABORADOR)
   // sobre "comprador", ya contemplado en la matriz de authz.ts pero bloqueado
   // hasta ahora porque el modelo solo tenía userId (deuda técnica, Fase 2).
-  fincaId      String?
-  finca        Finca?        @relation(fields: [fincaId], references: [id], onDelete: Cascade)
-  nombre       String
-  tipo         TipoComprador
-  ciudad       String
-  departamento String?
-  contacto     String?
-  email        String?
-  telefono     String?
-  capacidadTon Float?
-  precioKg     Float?
-  notas        String?
-  estado       String        @default("ACTIVO")
+  fincaId         String?
+  finca           Finca?        @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  nombre          String
+  tipo            TipoComprador
+  ciudad          String
+  departamento    String?
+  contacto        String?
+  email           String?
+  telefono        String?
+  capacidadTon    Float?
+  precioKg        Float?
+  notas           String?
+  estado          String        @default("ACTIVO")
   // Cultivos que compra (valores libres, mismo patrón que Cultivo.especie —
   // "Aguacate"/"Café"/"Cacao"... — no un enum, para no bloquear cultivos
   // nuevos antes de que exista el motor de fichas técnicas completo, ver
   // CLAUDE.md §2.2 y §4). Vacío = comprador sin especie declarada aún
   // (compradores existentes antes de esta migración).
-  especiesInteres String[]   @default([])
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @updatedAt
+  especiesInteres String[]      @default([])
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   ingresos Ingreso[]
   enlaces  EnlaceCompartido[]
@@ -937,12 +987,12 @@ model AuditLog {
 // ver CLAUDE.md §3) — barato de mantener, correcto entre instancias
 // serverless (a diferencia de un contador en memoria).
 model UsoIaDiario {
-  id       String       @id @default(cuid())
+  id       String    @id @default(cuid())
   userId   String
-  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   tipo     TipoUsoIa
-  fecha    DateTime     @db.Date
-  contador Int          @default(0)
+  fecha    DateTime  @db.Date
+  contador Int       @default(0)
 
   @@unique([userId, tipo, fecha])
   @@map("uso_ia_diario")
@@ -989,14 +1039,14 @@ model UserPreferences {
 // generado con crypto.randomBytes — no usar `id` en la URL pública).
 
 model EnlaceCompartido {
-  id          String  @id @default(cuid())
-  token       String  @unique
+  id          String     @id @default(cuid())
+  token       String     @unique
   cultivoId   String
-  cultivo     Cultivo @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+  cultivo     Cultivo    @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
   compradorId String?
   comprador   Comprador? @relation(fields: [compradorId], references: [id], onDelete: SetNull)
   creadoPorId String
-  creadoPor   User    @relation(fields: [creadoPorId], references: [id])
+  creadoPor   User       @relation(fields: [creadoPorId], references: [id])
 
   nota     String? // mensaje opcional del productor, visible en el portal público
   expiraEn DateTime?
@@ -1008,4 +1058,107 @@ model EnlaceCompartido {
   createdAt DateTime @default(now())
 
   @@map("enlaces_compartidos")
+}
+
+// ─── EXPERIENCIA CAMPESINO (ADR-006, fase posterior) ───────────────────────────
+// Tercera experiencia, solo móvil, perfil de baja alfabetización digital.
+// Vive en su propio árbol de rutas (src/app/(campesino)/campesino/*), no en
+// /dashboard/*. Por decisión explícita de producto, el Campesino usa estas
+// funciones SIN que se le cree Finca/Lote/Cultivo — ver ConsultaDiagnostico-
+// Campesino más abajo (reemplaza a RegistroCultivo solo para este flujo).
+
+enum CommodityMercado {
+  CAFE
+  CACAO
+  AGUACATE
+  CITRICOS
+}
+
+enum TendenciaPrecio {
+  SUBIO
+  BAJO
+  IGUAL
+}
+
+// Precio de mercado (comercialización) — deliberadamente NO es una FK a
+// EspecieCultivo: esa jerarquía modela agronomía de producción versionada,
+// un dominio distinto con un ciclo de vida propio. Cargado a mano por un
+// Super Admin (ver src/app/(dashboard)/dashboard/admin/precios-mercado/).
+model PrecioMercado {
+  id        String           @id @default(cuid())
+  commodity CommodityMercado
+  precioKg  Float
+  unidad    String           @default("kg")
+  fecha     DateTime         @default(now())
+  // Calculada y CONGELADA en el momento de creación (comparando contra el
+  // registro anterior más reciente del mismo commodity) — no se recalcula en
+  // cada lectura, así el historial no cambia retroactivamente si se edita o
+  // borra un registro viejo.
+  tendencia TendenciaPrecio
+  activo    Boolean          @default(true)
+
+  creadoPorId String
+  creadoPor   User     @relation(fields: [creadoPorId], references: [id])
+  createdAt   DateTime @default(now())
+
+  @@index([commodity, fecha])
+  @@map("precios_mercado")
+}
+
+// Calcada de la clasificación real del portal web (CrecIAgro) — hallazgo
+// del usuario, 2026-08-29: "la clasificación debe ser igual a la que
+// tenemos en el portal web". Reemplaza la anterior (Fertilizantes/Semillas/
+// Protección/Equipos/Herramientas/Maquinaria), que era una lista genérica
+// inventada antes de tener la real.
+enum CategoriaProducto {
+  FERTILIZANTES
+  SEMILLAS
+  BIOINSUMOS
+  AGROQUIMICOS
+  NUTRICION_VEGETAL
+  RIEGO_MAQUINARIA
+}
+
+// Catálogo informativo de insumos — sin carrito ni pedidos (decisión
+// explícita de producto). Tocar un producto en la UI redirige a urlExterna
+// (portal CrecIAgro, hoy sin API — placeholder mientras no esté en línea).
+model ProductoTienda {
+  id           String            @id @default(cuid())
+  categoria    CategoriaProducto
+  nombre       String
+  descripcion  String?
+  precio       Float?
+  unidadPrecio String?
+  imagenUrl    String?
+  urlExterna   String
+  destacado    Boolean           @default(false)
+  activo       Boolean           @default(true)
+  orden        Int               @default(0)
+
+  creadoPorId String
+  creadoPor   User     @relation(fields: [creadoPorId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([categoria, activo])
+  @@map("productos_tienda")
+}
+
+// Historial de diagnósticos del flujo Campesino — reemplaza a RegistroCultivo
+// para este flujo porque, por decisión de producto, el Campesino no tiene
+// Finca/Lote/Cultivo. Alimenta "Mis consultas" en /campesino/perfil.
+model ConsultaDiagnosticoCampesino {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  especieSlug   String // "cafe-caturra" | "cacao-ccu51" | "aguacate-hass" | "citricos-generico"
+  especieNombre String // label mostrado: "Café" | "Cacao" | "Aguacate" | "Cítricos"
+  imagenValida  Boolean
+  diagnostico   String
+  confianza     String? // "alta" | "media" | "baja"
+  recomendacion String?
+  createdAt     DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("consultas_diagnostico_campesino")
 }

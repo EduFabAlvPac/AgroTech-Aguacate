@@ -23,6 +23,9 @@ import type {
   EstadoFicha,
   TipoPlagaEnfermedad,
   TexturaSuelo,
+  CommodityMercado,
+  TendenciaPrecio,
+  CategoriaProducto,
 } from "@prisma/client";
 
 export type {
@@ -31,6 +34,7 @@ export type {
   EtapaCultivo, EstadoCultivo, TipoRegistro, CategoriaGasto, TipoGasto,
   TipoComprador, TipoAlerta, Severidad, UserRole, ChatRole,
   EstadoFicha, TipoPlagaEnfermedad,
+  CommodityMercado, TendenciaPrecio, CategoriaProducto,
 };
 
 // ── Extended types with relations ────────────────────────────────────────────
@@ -228,4 +232,28 @@ export const TIPO_PLAGA_LABELS: Record<TipoPlagaEnfermedad, string> = {
   PLAGA: "Plaga",
   ENFERMEDAD: "Enfermedad",
   DEFICIENCIA_NUTRICIONAL: "Deficiencia nutricional",
+};
+
+// ── Modo Campesino (experiencia separada, /campesino/*) ─────────────────────
+
+export const COMMODITY_MERCADO_LABELS: Record<CommodityMercado, string> = {
+  CAFE: "Café",
+  CACAO: "Cacao",
+  AGUACATE: "Aguacate",
+  CITRICOS: "Cítricos",
+};
+
+export const TENDENCIA_PRECIO_LABELS: Record<TendenciaPrecio, string> = {
+  SUBIO: "Subió",
+  BAJO: "Bajó",
+  IGUAL: "Se mantiene",
+};
+
+export const CATEGORIA_PRODUCTO_LABELS: Record<CategoriaProducto, string> = {
+  FERTILIZANTES: "Fertilizantes",
+  SEMILLAS: "Semillas",
+  BIOINSUMOS: "Bioinsumos",
+  AGROQUIMICOS: "Agroquímicos",
+  NUTRICION_VEGETAL: "Nutrición Vegetal",
+  RIEGO_MAQUINARIA: "Riego & Maquinaria",
 };

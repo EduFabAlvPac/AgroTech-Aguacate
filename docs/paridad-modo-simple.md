@@ -87,3 +87,25 @@ Un solo componente, [`SalidaModoCompleto`](../src/components/shared/SalidaModoCo
 4. "Volver a modo simple" borra la cookie y regresa a `/dashboard` — la preferencia guardada nunca se tocó.
 
 **Nota técnica** encontrada durante la verificación E2E de esta fase: una navegación con `<Link>` normal no fuerza que Next.js vuelva a evaluar el layout compartido tras escribir la cookie (los layouts se reutilizan entre navegaciones cliente-a-cliente dentro del mismo árbol) — `SalidaModoCompleto` usa `router.push()` + `router.refresh()` en vez de un `<Link>` plano para garantizar que el layout se re-evalúe con la cookie ya escrita.
+
+---
+
+## Experiencia Campesino (árbol de rutas separado)
+
+A partir de ADR-006 (fase posterior a las 5 anteriores) existe una **tercera experiencia**, `src/app/(campesino)/campesino/*` — no es una tercera bifurcación de `/dashboard/*` como Simple/Completa (esas conviven en las mismas rutas, ver arriba), sino un árbol de rutas propio, hermano de `(dashboard)`, con su propio login (celular sin contraseña) y su propio shell (`ModoCampesinoShell`). La única intersección con lo de arriba es una guarda de una línea en `(dashboard)/layout.tsx` que redirige a `/campesino` si `User.experiencia === "CAMPESINO"`.
+
+Por eso no encaja en la tabla de paridad de arriba (no hay "versión completa" de la que sea exclusión), pero por la misma regla del proyecto (toda función nueva se documenta) va aquí un resumen de qué reutiliza tal cual y qué es 100% nuevo:
+
+**Reutilizado sin modificar:**
+- `diagnosticarImagen()` (`src/lib/diagnostico-ia.ts`) — mismo motor de diagnóstico por imagen que `/api/cultivos/[id]/diagnostico`, pero servido por un endpoint nuevo y desacoplado de `Cultivo` (`/api/campesino/diagnostico`), porque el Campesino no tiene Finca/Lote/Cultivo (decisión de producto).
+- `getCurrentWeather()` (`src/lib/weather.ts`) — mismos datos de OpenWeatherMap que el dashboard.
+- El pipeline `MediaRecorder → /api/transcribir` (Whisper/Groq) — mismo STT que ya usaba el cuaderno de campo por voz (RF14), reutilizado para "Hablar con GermIAmigo".
+- `PhotoCapture`/`compressImage` (`src/components/ui/PhotoCapture.tsx`), patrones de UI kit (`Button`, `Input`, `Select`, `Modal`).
+
+**100% nuevo:**
+- Login sin contraseña (provider `telefono-campesino` en `src/lib/auth.ts`) y login con Google (`Otro rol`).
+- `ExperienciaApp` (campo de perfil de experiencia, ortogonal a `vistaPreferida`).
+- Tienda (`ProductoTienda`), Precios de mercado (`PrecioMercado`), fase lunar (`src/lib/fase-lunar.ts`) y consejo del día (`src/lib/consejo-del-dia.ts`) — nada de esto existía antes.
+- Texto-a-voz (`speechSynthesis`) — primer uso en el repo.
+- "Hablar con GermIAmigo" (`/api/campesino/hablar`) — prompt y persona propios, no reutiliza `/api/chat`.
+- `ConsultaDiagnosticoCampesino` — reemplaza a `RegistroCultivo` solo para este flujo (sin Finca/Lote/Cultivo de por medio).

@@ -18,6 +18,8 @@ import {
   Wallet,
   UserPlus,
   History,
+  LineChart,
+  ShoppingBag,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
@@ -88,6 +90,10 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
     items = [
       ...items,
       { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" },
+      // Contenido del modo Campesino (experiencia separada, /campesino/*) —
+      // mismo criterio de acceso que Fichas técnicas.
+      { href: "/dashboard/admin/precios-mercado", icon: LineChart, label: "Precios de mercado" },
+      { href: "/dashboard/admin/productos-tienda", icon: ShoppingBag, label: "Tienda (insumos)" },
       { href: "/dashboard/admin/auditoria", icon: History, label: "Auditoría" },
     ];
   }

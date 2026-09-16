@@ -11,6 +11,7 @@ import { OfflineBanner } from "@/components/ui/OfflineBanner";
 import { MobileFAB } from "@/components/ui/MobileFAB";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 import { resolverModoApp, estaEnVisitaCompletaPuntual, anchoEsMovil } from "@/lib/modo-app";
+import { obtenerExperienciaUsuario } from "@/lib/experiencia";
 import { getAlertas } from "@/lib/data/alertas";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
 import { VolverModoSimple } from "@/components/shared/VolverModoSimple";
@@ -22,6 +23,14 @@ export default async function DashboardLayout({
 }) {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
+
+  // Guarda de salida hacia la experiencia Campesino (árbol de rutas propio,
+  // ver src/app/(campesino)/campesino/*) — cubre bookmarks/back-button de
+  // una cuenta Campesino que llega aquí por error. Una sola línea, antes de
+  // cualquier otra lógica de este layout (finca activa, modo simple/completo)
+  // para no interferir con nada de lo que ya funciona para el resto de
+  // usuarios.
+  if ((await obtenerExperienciaUsuario(session.user.id)) === "CAMPESINO") redirect("/campesino");
 
   const { fincaIds, fincaActivaId } = await resolverFincaActiva(session);
 
