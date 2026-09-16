@@ -42,7 +42,7 @@ async function main() {
   const url = args.url || "http://localhost:3000";
   const email = args.email || "info@fincaalvarezpacheco.co";
   const password = args.password || "agro2026";
-  const route = args.route || "/dashboard";
+  const route = args.route || (args.telefono ? "/campesino" : "/dashboard");
   const deviceName = args.device === "desktop" ? null : "iPhone 13";
 
   const browser = await chromium.launch();
@@ -55,11 +55,28 @@ async function main() {
   page.on("pageerror", (e) => consoleErrors.push(e.message));
 
   // --- login ---
+  // Desde el selector de rol en /login (2026-08-26, ADR-006 fase Campesino):
+  // el formulario de correo/contraseña ya no está visible de entrada, hay
+  // que elegir "Otro rol" primero para que aparezca. El login por celular
+  // (modo Campesino, sin contraseña) tiene su propio flag --telefono más
+  // abajo — este bloque sigue siendo el de correo/contraseña.
   await page.goto(`${url}/login`);
-  await page.fill('input[type="email"]', email);
-  await page.fill('input[type="password"]', password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL("**/dashboard", { timeout: 45000 });
+  if (!args.telefono) {
+    await page.getByRole("button", { name: "Otro rol" }).click();
+    await page.fill('input[type="email"]', email);
+    await page.fill('input[type="password"]', password);
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/dashboard", { timeout: 45000 });
+  } else {
+    // --telefono=<numero> — login modo Campesino (solo celular, sin
+    // contraseña). La ruta post-login es /campesino/bienvenida (splash),
+    // no /dashboard — "**/campesino**" matchea esa y también /campesino a
+    // secas, por si el splash se retira más adelante.
+    await page.getByRole("button", { name: "Campesino" }).click();
+    await page.fill('input[type="tel"]', String(args.telefono));
+    await page.click('button[type="submit"]');
+    await page.waitForURL("**/campesino**", { timeout: 45000 });
+  }
   await page.waitForTimeout(800);
 
   // --- forzar vista preferida (opcional) ---

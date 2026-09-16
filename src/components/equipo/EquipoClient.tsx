@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
@@ -13,6 +13,7 @@ import {
   eliminarMiembro,
   guardarPlantillaRol,
 } from "@/app/(dashboard)/dashboard/equipo/equipo-actions";
+import { crearCuentaCampesino, eliminarCuentaCampesino } from "@/app/(dashboard)/dashboard/equipo/campesino-actions";
 
 type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
@@ -35,6 +36,13 @@ interface MiembroData {
   rol: RolOrganizacion;
   activa: boolean;
   fincas: FincaAccesoData[];
+}
+
+interface CuentaCampesinoData {
+  id: string;
+  nombre: string | null;
+  telefono: string | null;
+  createdAt: Date;
 }
 
 // El rol que de verdad importa para "qué puede hacer/ver" es el de finca
@@ -79,13 +87,17 @@ export function EquipoClient({
   miembros: initial,
   fincas,
   plantillasIniciales,
+  cuentasCampesinoIniciales,
 }: {
   miembros: MiembroData[];
   fincas: FincaOption[];
   plantillasIniciales: PlantillasModulos;
+  cuentasCampesinoIniciales: CuentaCampesinoData[];
 }) {
   const [tab, setTab] = useState<"miembros" | "roles">("miembros");
   const [miembros, setMiembros] = useState(initial);
+  const [cuentasCampesino, setCuentasCampesino] = useState(cuentasCampesinoIniciales);
+  const [eliminandoCampesinoId, setEliminandoCampesinoId] = useState<string | null>(null);
   const [plantillas, setPlantillas] = useState(plantillasIniciales);
   const [showModal, setShowModal] = useState(false);
   const [form, setForm] = useState(() => ({
@@ -105,6 +117,58 @@ export function EquipoClient({
 
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [guardandoRol, setGuardandoRol] = useState<RolFinca | null>(null);
+
+  // Alta de cuenta "modo Campesino" (experiencia separada, sin Finca/Membresia
+  // — ver campesino-actions.ts) — modal independiente, más simple que el de
+  // arriba porque no pide finca/rol/módulos.
+  const [showCampesinoModal, setShowCampesinoModal] = useState(false);
+  const [campesinoForm, setCampesinoForm] = useState({ nombre: "", telefono: "" });
+  const [campesinoLoading, setCampesinoLoading] = useState(false);
+
+  const handleAgregarCampesino = () => {
+    if (!campesinoForm.nombre.trim()) return toast.error("El nombre es requerido");
+    if (campesinoForm.telefono.trim().length < 7) return toast.error("Ingresa un número de celular válido");
+    setCampesinoLoading(true);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("nombre", campesinoForm.nombre);
+        fd.set("telefono", campesinoForm.telefono);
+
+        const result = await crearCuentaCampesino({}, fd);
+        if (result.error || !result.cuenta) {
+          toast.error(result.error || "Error al crear la cuenta");
+          return;
+        }
+        toast.success(`Cuenta creada — ${result.cuenta.nombre} ya puede entrar con su celular (${result.cuenta.telefono}).`);
+        setCuentasCampesino((prev) => [
+          { id: result.cuenta!.id, nombre: result.cuenta!.nombre, telefono: result.cuenta!.telefono, createdAt: new Date() },
+          ...prev,
+        ]);
+        setShowCampesinoModal(false);
+        setCampesinoForm({ nombre: "", telefono: "" });
+      } finally {
+        setCampesinoLoading(false);
+      }
+    });
+  };
+
+  const handleEliminarCampesino = (id: string) => {
+    setEliminandoCampesinoId(id);
+    startTransition(async () => {
+      try {
+        const result = await eliminarCuentaCampesino({}, id);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setCuentasCampesino((prev) => prev.filter((c) => c.id !== id));
+        toast.success("Cuenta Campesino eliminada");
+      } finally {
+        setEliminandoCampesinoId(null);
+      }
+    });
+  };
 
   function toggleModulo<T>(list: T[], key: T): T[] {
     return list.includes(key) ? list.filter((m) => m !== key) : [...list, key];
@@ -291,9 +355,14 @@ export function EquipoClient({
           ))}
         </div>
         {tab === "miembros" && (
-          <Button onClick={() => setShowModal(true)}>
-            <Plus size={16} /> Agregar colaborador
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setShowCampesinoModal(true)}>
+              <Smartphone size={16} /> Agregar Campesino
+            </Button>
+            <Button onClick={() => setShowModal(true)}>
+              <Plus size={16} /> Agregar colaborador
+            </Button>
+          </div>
         )}
       </div>
 
@@ -346,6 +415,38 @@ export function EquipoClient({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {tab === "miembros" && cuentasCampesino.length > 0 && (
+        <div className="space-y-2 mb-5">
+          <p className="text-[12px] font-semibold text-[var(--text-secondary)] flex items-center gap-1.5">
+            <Smartphone size={13} /> Cuentas Campesino ({cuentasCampesino.length})
+          </p>
+          {cuentasCampesino.map((c) => (
+            <div key={c.id} className="card p-4 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-[var(--radius-md)] bg-agro-50 flex items-center justify-center flex-shrink-0">
+                  <Smartphone size={18} className="text-agro-400" />
+                </div>
+                <div>
+                  <span className="text-[13px] font-medium text-[var(--text-primary)]">{c.nombre ?? "Sin nombre"}</span>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    Entra con su celular: {c.telefono} · sin acceso a tus fincas ni datos
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => handleEliminarCampesino(c.id)}
+                disabled={eliminandoCampesinoId === c.id}
+                className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors flex-shrink-0 disabled:opacity-50"
+                aria-label="Eliminar cuenta Campesino"
+                title="Eliminar"
+              >
+                <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
+              </button>
+            </div>
+          ))}
         </div>
       )}
 
@@ -504,6 +605,33 @@ export function EquipoClient({
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
             <Button loading={loading} onClick={handleAgregar}>Agregar</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal: agregar cuenta Campesino */}
+      <Modal isOpen={showCampesinoModal} onClose={() => setShowCampesinoModal(false)} title="Agregar Campesino" size="sm">
+        <div className="space-y-3">
+          <p className="text-[12px] text-[var(--text-muted)] -mt-1">
+            Cuenta de la experiencia simplificada (modo Campesino): entra solo con su número de celular, sin
+            contraseña. No tiene acceso a esta finca ni a tus datos — solo a diagnóstico, tienda, precios y clima.
+          </p>
+          <Input
+            label="Nombre *"
+            value={campesinoForm.nombre}
+            onChange={(e) => setCampesinoForm({ ...campesinoForm, nombre: e.target.value })}
+            placeholder="Ej: José Ramírez"
+          />
+          <Input
+            label="Número de celular *"
+            type="tel"
+            value={campesinoForm.telefono}
+            onChange={(e) => setCampesinoForm({ ...campesinoForm, telefono: e.target.value })}
+            placeholder="300 123 4567"
+          />
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="secondary" onClick={() => setShowCampesinoModal(false)}>Cancelar</Button>
+            <Button loading={campesinoLoading} onClick={handleAgregarCampesino}>Agregar</Button>
           </div>
         </div>
       </Modal>

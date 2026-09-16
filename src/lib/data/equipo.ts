@@ -29,14 +29,22 @@ export interface MiembroData {
   fincas: FincaAccesoData[];
 }
 
+export interface CuentaCampesinoData {
+  id: string;
+  nombre: string | null;
+  telefono: string | null;
+  createdAt: Date;
+}
+
 export interface EquipoResumen {
   miembros: MiembroData[];
   fincas: FincaOption[];
   plantillas: PlantillasModulos;
+  cuentasCampesino: CuentaCampesinoData[];
 }
 
-export async function getEquipoResumen(organizacionId: string): Promise<EquipoResumen> {
-  const [miembros, fincas, plantillas] = await Promise.all([
+export async function getEquipoResumen(organizacionId: string, ownerId: string): Promise<EquipoResumen> {
+  const [miembros, fincas, plantillas, cuentasCampesino] = await Promise.all([
     db.membresia.findMany({
       where: { organizacionId, rol: { not: "OWNER" } },
       include: { user: { select: { id: true, name: true, email: true } } },
@@ -44,6 +52,14 @@ export async function getEquipoResumen(organizacionId: string): Promise<EquipoRe
     }),
     db.finca.findMany({ where: { organizacionId }, select: { id: true, nombre: true } }),
     obtenerPlantillaModulos(organizacionId),
+    // Sin Membresia (decisión de producto, ver campesino-actions.ts) — se
+    // scopea por creadoPorId (el OWNER que las dio de alta) en vez de
+    // organizacionId, para no listar cuentas Campesino de otros tenants.
+    db.user.findMany({
+      where: { experiencia: "CAMPESINO", creadoPorId: ownerId },
+      select: { id: true, name: true, telefono: true, createdAt: true },
+      orderBy: { createdAt: "desc" },
+    }).then((rows) => rows.map((r) => ({ id: r.id, nombre: r.name, telefono: r.telefono, createdAt: r.createdAt }))),
   ]);
 
   const accesos = await db.fincaAcceso.findMany({
@@ -62,5 +78,5 @@ export async function getEquipoResumen(organizacionId: string): Promise<EquipoRe
       .map((a) => ({ fincaId: a.fincaId, nombre: fincas.find((f) => f.id === a.fincaId)?.nombre ?? "?", rol: a.rol, modulos: a.modulos })),
   }));
 
-  return { miembros: miembrosConAcceso, fincas, plantillas };
+  return { miembros: miembrosConAcceso, fincas, plantillas, cuentasCampesino };
 }

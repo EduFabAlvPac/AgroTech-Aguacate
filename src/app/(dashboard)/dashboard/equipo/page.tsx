@@ -21,7 +21,7 @@ export default async function EquipoPage() {
   });
   if (!propia) redirect("/dashboard");
 
-  const { miembros, fincas, plantillas } = await getEquipoResumen(propia.organizacionId);
+  const { miembros, fincas, plantillas, cuentasCampesino } = await getEquipoResumen(propia.organizacionId, session.user.id);
 
   return (
     <>
@@ -30,7 +30,12 @@ export default async function EquipoPage() {
         subtitle="Colaboradores y administradores con acceso a tus fincas"
       />
       <main className="page-scroll">
-        <EquipoClient miembros={miembros} fincas={fincas} plantillasIniciales={plantillas} />
+        <EquipoClient
+          miembros={miembros}
+          fincas={fincas}
+          plantillasIniciales={plantillas}
+          cuentasCampesinoIniciales={cuentasCampesino}
+        />
       </main>
     </>
   );
