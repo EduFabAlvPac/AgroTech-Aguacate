@@ -3,25 +3,33 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
-import { MENSAJE_RATE_LIMIT } from "@/lib/rate-limit-shared";
+import { MENSAJE_RATE_LIMIT, MENSAJE_EMAIL_NO_VERIFICADO } from "@/lib/auth-shared";
 
 /**
  * Login estándar (correo+contraseña) — extraído literal de la página de
  * login original al introducir el selector de rol (RoleSelector); misma
  * lógica exacta que antes, solo se le suma el botón de Google (exclusivo de
  * este perfil, el modo Campesino no lo ve).
+ *
+ * Fase 1 SaaS, Tanda 2: suma enlaces a /registro y /recuperar, y un botón de
+ * reenvío cuando el error es específicamente "correo sin verificar" (para no
+ * dejar a nadie varado si el primer correo no le llegó o lo perdió).
  */
 export function LoginEstandarForm() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [form, setForm] = useState({ email: "", password: "" });
+  const [mostrarReenviar, setMostrarReenviar] = useState(false);
+  const [reenviando, setReenviando] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setMostrarReenviar(false);
 
     const res = await signIn("credentials", {
       email: form.email,
@@ -32,11 +40,44 @@ export function LoginEstandarForm() {
     setLoading(false);
 
     if (res?.error) {
-      toast.error(res.error === MENSAJE_RATE_LIMIT ? MENSAJE_RATE_LIMIT : "Credenciales incorrectas. Verifica tu email y contraseña.");
+      if (res.error === MENSAJE_RATE_LIMIT) {
+        toast.error(MENSAJE_RATE_LIMIT);
+      } else if (res.error === MENSAJE_EMAIL_NO_VERIFICADO) {
+        toast.error(MENSAJE_EMAIL_NO_VERIFICADO);
+        setMostrarReenviar(true);
+      } else {
+        toast.error("Credenciales incorrectas. Verifica tu email y contraseña.");
+      }
     } else {
       toast.success("¡Bienvenido a GermIA!");
       router.push("/dashboard");
       router.refresh();
+    }
+  };
+
+  const reenviarVerificacion = async () => {
+    if (!form.email) {
+      toast.error("Escribe tu correo arriba primero");
+      return;
+    }
+    setReenviando(true);
+    try {
+      const res = await fetch("/api/auth/reenviar-verificacion", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || "No se pudo reenviar el correo");
+      } else {
+        toast.success("Te reenviamos el correo de verificación — revisa tu bandeja");
+        setMostrarReenviar(false);
+      }
+    } catch {
+      toast.error("No se pudo reenviar el correo");
+    } finally {
+      setReenviando(false);
     }
   };
 
@@ -83,9 +124,12 @@ export function LoginEstandarForm() {
 
         {/* Password */}
         <div>
-          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
-            Contraseña
-          </label>
+          <div className="flex items-center justify-between mb-1.5">
+            <label className="text-[13px] font-medium text-[var(--text-secondary)]">Contraseña</label>
+            <Link href="/recuperar" className="text-[12px] font-medium text-agro-600 hover:text-agro-800">
+              ¿Olvidaste tu contraseña?
+            </Link>
+          </div>
           <div className="relative">
             <Lock size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
@@ -106,6 +150,17 @@ export function LoginEstandarForm() {
           </div>
         </div>
 
+        {mostrarReenviar && (
+          <button
+            type="button"
+            onClick={reenviarVerificacion}
+            disabled={reenviando}
+            className="w-full text-[12px] font-medium text-agro-600 hover:text-agro-800 disabled:opacity-60 py-1"
+          >
+            {reenviando ? "Reenviando..." : "Reenviar correo de verificación"}
+          </button>
+        )}
+
         {/* Submit */}
         <button
           type="submit"
@@ -115,6 +170,13 @@ export function LoginEstandarForm() {
           {loading ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
+
+      <p className="text-center text-[12px] text-[var(--text-muted)] mt-5">
+        ¿No tienes cuenta?{" "}
+        <Link href="/registro" className="font-semibold text-agro-600 hover:text-agro-800">
+          Regístrate
+        </Link>
+      </p>
     </>
   );
 }

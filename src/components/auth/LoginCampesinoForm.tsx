@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Phone } from "lucide-react";
 import toast from "react-hot-toast";
-import { MENSAJE_RATE_LIMIT } from "@/lib/rate-limit-shared";
+import { MENSAJE_RATE_LIMIT } from "@/lib/auth-shared";
 
 /**
  * Login "modo Campesino" — solo número de celular, sin contraseña, sin OTP

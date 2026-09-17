@@ -202,3 +202,33 @@ export const analisisSueloFormSchema = z.object({
 });
 
 export type AnalisisSueloFormData = z.infer<typeof analisisSueloFormSchema>;
+
+// ── Autenticación — self-signup / recuperar contraseña (Fase 1 SaaS) ────────
+
+const passwordSchema = z
+  .string()
+  .min(8, "La contraseña debe tener al menos 8 caracteres")
+  .max(72, "Máximo 72 caracteres"); // bcrypt ignora todo lo que pase de 72 bytes
+
+export const registroSchema = z.object({
+  nombre: z.string().min(1, "Tu nombre es requerido").max(100, "Máximo 100 caracteres"),
+  nombreOrganizacion: z.string().min(1, "El nombre de tu finca/negocio es requerido").max(100, "Máximo 100 caracteres"),
+  email: z.string().email("Correo inválido"),
+  password: passwordSchema,
+  // literal(true) en vez de boolean(): rechaza explícitamente `false` Y
+  // `undefined` con el mismo mensaje — un checkbox sin marcar no debe pasar
+  // por accidente de tipos.
+  aceptaTerminos: z.literal(true, {
+    errorMap: () => ({ message: "Debes aceptar los Términos de Servicio y la Política de Tratamiento de Datos" }),
+  }),
+});
+export type RegistroFormDataInput = z.infer<typeof registroSchema>;
+
+export const recuperarSchema = z.object({
+  email: z.string().email("Correo inválido"),
+});
+
+export const restablecerSchema = z.object({
+  token: z.string().min(1, "Token requerido"),
+  password: passwordSchema,
+});

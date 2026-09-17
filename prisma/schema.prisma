@@ -35,66 +35,79 @@ enum ExperienciaApp {
 }
 
 model User {
-  id                      String         @id @default(cuid())
-  email                   String         @unique
-  name                    String?
-  password                String?
-  role                    UserRole       @default(PRODUCER)
-  avatarUrl               String?
+  id                       String         @id @default(cuid())
+  email                    String         @unique
+  name                     String?
+  password                 String?
+  role                     UserRole       @default(PRODUCER)
+  avatarUrl                String?
   // @unique agregado para el login "modo Campesino" (solo celular, sin
   // contraseña) — antes era texto de contacto libre. Verificado sin
   // duplicados en dev antes de aplicar; revisar Neon prod de la misma forma
   // antes de pushear (múltiples NULL sí conviven bajo @unique en Postgres).
-  telefono                String?        @unique
+  telefono                 String?        @unique
   // Asignación de administrador/asesor, no preferencia del usuario — ver
   // ExperienciaApp arriba.
-  experiencia             ExperienciaApp @default(ESTANDAR)
+  experiencia              ExperienciaApp @default(ESTANDAR)
   // Quién creó esta cuenta Campesino (el OWNER que la dio de alta desde
   // Equipo) — necesario porque una cuenta Campesino NO tiene Membresia/
   // Organizacion (decisión de producto, sin Finca/Lote/Cultivo), así que sin
   // este campo no habría forma de saber a qué OWNER pertenece cada una y
   // Equipo tendría que listar TODAS las cuentas Campesino de la plataforma
   // (fuga cross-tenant — ver CLAUDE.md §7). Null para cuentas no-Campesino.
-  creadoPorId             String?
+  creadoPorId              String?
   // "Mis cultivos" (modo Campesino, /campesino/cultivos) — qué especies dice
   // manejar, guardado con un toque (sin formulario de Finca/Lote/fecha de
   // siembra, decisión de producto ya tomada). Valores = slug de
   // EspecieCampesinoSlug (src/lib/campesino-especies.ts), ej. "cafe-caturra".
   // String[] simple en vez de tabla aparte: son como máximo 4 valores fijos,
   // no amerita un modelo relacional propio.
-  cultivosSeleccionados   String[]       @default([])
+  cultivosSeleccionados    String[]       @default([])
   // Geolocalización real del navegador (modo Campesino, /campesino/clima) —
   // reemplaza las coordenadas fijas de Ocaña por defecto (src/lib/weather.ts)
   // cuando el usuario dio permiso. Se pide una vez por sesión de pestaña
   // (ver UbicacionCampesinoClient.tsx), no en cada carga de página — la
   // ubicación de una finca no cambia día a día. Null = todavía sin permiso
   // o lo negó, cae al valor por defecto sin romper nada.
-  ubicacionLat            Float?
-  ubicacionLng            Float?
-  ubicacionActualizadaEn  DateTime?
+  ubicacionLat             Float?
+  ubicacionLng             Float?
+  ubicacionActualizadaEn   DateTime?
   // Opcional con default a nivel de base de datos — Fase 3 de ADR-006.
   // Nunca NOT NULL sin default: alterar una tabla con filas existentes en
   // Neon sin default fuerza un --force-reset (ver CLAUDE.md/lecciones de
   // Fase 1). Postgres rellena AUTO en todas las filas existentes al aplicar
   // el push, verificado antes de dar por segura la migración.
-  vistaPreferida          VistaPreferida @default(AUTO)
+  vistaPreferida           VistaPreferida @default(AUTO)
   // Flag de plataforma, transversal a cualquier Organizacion — ver CLAUDE.md §2.3
   // y docs/REQUERIMIENTOS.md ADR-004. No se modela como rol dentro de una org.
-  esSuperAdmin            Boolean        @default(false)
+  esSuperAdmin             Boolean        @default(false)
   // Fuerza bruta de login (OWASP A07) — antes authorize() no llevaba ningún
   // contador, así que un ataque de diccionario contra /api/auth podía
   // reintentar sin límite. Se resetea a 0 en un login exitoso.
-  failedLoginAttempts     Int            @default(0)
-  lockedUntil             DateTime?
+  failedLoginAttempts      Int            @default(0)
+  lockedUntil              DateTime?
   // Ley 1581 de 2012 (Colombia) — derecho de supresión. Se llena cuando el
   // usuario pide eliminar su cuenta pero el borrado inmediato no es seguro
   // (es OWNER de una organización con otros miembros activos que dependen
   // de esos datos — ver src/lib/cuenta-datos.ts). Queda como solicitud
   // pendiente de revisión manual en vez de arriesgar un cascade que borre
   // datos de terceros sin su consentimiento.
-  eliminacionSolicitadaEn DateTime?
-  createdAt               DateTime       @default(now())
-  updatedAt               DateTime       @updatedAt
+  eliminacionSolicitadaEn  DateTime?
+  // Self-signup (Fase 1 SaaS, Tanda 2) — null = correo sin verificar, no
+  // puede loguearse (ver authorize() en auth.ts). Cuentas creadas ANTES de
+  // esta tanda se backfillean a `createdAt` en el propio db push (ver
+  // migración manual documentada), nunca se bloquean retroactivamente.
+  emailVerificado          DateTime?
+  tokenVerificacion        String?        @unique
+  tokenVerificacionExpira  DateTime?
+  tokenResetPassword       String?        @unique
+  tokenResetPasswordExpira DateTime?
+  // Ley 1581 — consentimiento informado, timestamp de cuándo aceptó
+  // Términos/Privacidad en el registro. Null en cuentas creadas por un
+  // admin (Equipo/Campesino), que no pasan por ese formulario.
+  terminosAceptadosEn      DateTime?
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
 
   fincas                 Finca[]
   compradores            Comprador[]
