@@ -1,6 +1,6 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
-import { MENSAJE_RATE_LIMIT } from "./rate-limit-shared";
+import { MENSAJE_RATE_LIMIT } from "./auth-shared";
 
 export { MENSAJE_RATE_LIMIT };
 
@@ -45,6 +45,12 @@ export const CONFIGS_LIMITE = {
   loginPassword: { ventana: "15 m", maximo: 8 },
   loginTelefono: { ventana: "15 m", maximo: 8 },
   ia: { ventana: "1 m", maximo: 12 },
+  // Self-signup (Fase 1, Tanda 2) — por IP, evita crear decenas de
+  // organizaciones/cuentas de prueba en ráfaga.
+  registro: { ventana: "1 h", maximo: 5 },
+  // Por IP+email — evita bombardear la casilla de alguien con correos de
+  // "recupera tu contraseña" repetidos (spam, no solo costo).
+  recuperarPassword: { ventana: "15 m", maximo: 5 },
 } as const;
 
 export type CasoLimite = keyof typeof CONFIGS_LIMITE;

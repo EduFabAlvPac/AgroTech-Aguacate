@@ -30,4 +30,9 @@ describe("rate-limit", () => {
     expect(error.status).toBe(429);
     expect(error.message.length).toBeGreaterThan(10);
   });
+
+  it("registro y recuperarPassword (Fase 1, Tanda 2) tienen límites bajos por hora/ventana — evitan spam sin frenar uso legítimo", () => {
+    expect(CONFIGS_LIMITE.registro.maximo).toBeLessThanOrEqual(10);
+    expect(CONFIGS_LIMITE.recuperarPassword.maximo).toBeLessThanOrEqual(10);
+  });
 });

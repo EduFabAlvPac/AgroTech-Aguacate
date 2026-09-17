@@ -8,6 +8,7 @@ import { modulosPorDefecto } from "./modulos";
 import { registrarAuditoria } from "./audit";
 import { normalizarTelefono } from "./telefono";
 import { verificarLimite } from "./rate-limit";
+import { MENSAJE_EMAIL_NO_VERIFICADO } from "./auth-shared";
 
 /**
  * Claims comunes que van al JWT/sesión — extraído del authorize() original
@@ -128,6 +129,17 @@ export const authOptions: NextAuthOptions = {
             where: { id: user.id },
             data: { failedLoginAttempts: 0, lockedUntil: null },
           });
+        }
+
+        // Self-signup (Fase 1 SaaS, Tanda 2) — cuentas creadas por el
+        // formulario de registro público no pueden entrar hasta confirmar
+        // el correo. Cuentas viejas (creadas por Equipo/backfill, antes de
+        // que existiera esta verificación) tienen emailVerificado
+        // backfilleado a su createdAt en el propio db push — nunca se
+        // bloquean retroactivamente por un campo que no existía cuando se
+        // crearon.
+        if (!user.emailVerificado) {
+          throw new Error(MENSAJE_EMAIL_NO_VERIFICADO);
         }
 
         return resolverClaimsSesion(user);
