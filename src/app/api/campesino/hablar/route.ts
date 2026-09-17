@@ -51,7 +51,10 @@ export async function POST(req: Request) {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
-        model: "llama-3.1-8b-instant",
+        // llama-3.1-8b-instant fue retirado por Groq el 16 de agosto de 2026
+        // para cuentas gratis/developer (ver console.groq.com/docs/deprecations)
+        // — openai/gpt-oss-20b es el reemplazo oficial que ellos recomiendan.
+        model: "openai/gpt-oss-20b",
         messages: [
           { role: "system", content: SYSTEM_PROMPT },
           ...mensajesPrevios,
