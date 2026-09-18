@@ -8,17 +8,16 @@ import { Resend } from "resend";
  * (o incluso en producción antes de configurar la key) leyendo el log, sin
  * depender de que la cuenta de Resend ya exista.
  *
- * LIMITACIÓN CONOCIDA Y ACEPTADA (decisión del usuario, Fase 1 Tanda 2):
- * mientras no se verifique un dominio propio en Resend, el remitente es el
- * dominio sandbox (`onboarding@resend.dev`), que SOLO entrega a la casilla
- * con la que se creó la cuenta de Resend — el self-signup queda
- * funcionalmente probado con esa cuenta, pero no le llega correo a un
- * usuario nuevo real todavía. No hay forma de detectar esto en código (la
- * API de Resend no distingue "no válido para este destinatario" de forma
- * programática antes de intentarlo) — queda documentado aquí y en el plan.
+ * Dominio propio `creciagro.com` verificado en Resend (2026-09-17) — el
+ * remitente ya no es el sandbox (`onboarding@resend.dev`, que solo entrega
+ * a la casilla de la propia cuenta de Resend); ahora entrega a cualquier
+ * destinatario real. Si en el futuro `creciagro.com` pierde su
+ * verificación en Resend (DNS movido de proveedor, etc.), los envíos
+ * volverían a fallar en silencio — revisar Resend → Domains si un usuario
+ * reporta que nunca le llegó nada.
  */
 
-const FROM = "GermIA <onboarding@resend.dev>";
+const FROM = "GermIA <notificaciones@creciagro.com>";
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
