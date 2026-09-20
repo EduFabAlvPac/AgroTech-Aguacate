@@ -73,6 +73,8 @@ Cinco roles: **Productor/Dueño (OWNER)**, **Administrador de finca (ADMIN_FINCA
 
 **Objetivo**: helper centralizado `src/lib/authz.ts` con `requireAccess(session, recurso, accion, ctx)` invocado al inicio de cada route handler, **más** el `where` de scoping como defensa en profundidad (uno decide *si puede*, el otro filtra *qué ve* — protege incluso si alguno de los dos se olvida). Ver ADR-004.
 
+**Evolución en curso — ADR-011 (PROPUESTO, 2026-09-19)**: el modelo migra a un IAM de 5 capas con 9 roles (`SUPER_ADMIN`, `PLATFORM_SUPPORT`, `ORG_OWNER`, `ORG_ADMIN`, `FARM_OWNER`, `FARM_ADMIN`, `FARM_COLLABORATOR`, `INVESTOR`, `BUYER`), que consolida y reemplaza ADR-001/004 — ver `docs/ADR-011-Modelo-Identidad-Roles-Permisos.md`. El schema ya lo incluye de forma aditiva y el catálogo de permisos vive en `src/lib/authz/{permissions,policies}.ts`, **todavía sin enchufar a las rutas**: el RBAC que manda hoy sigue siendo `src/lib/authz.ts`. Estado, desviaciones respecto al ADR y mapa de sprints: `docs/ADR-011-notas-de-implementacion.md`.
+
 ### 2.4 Aislamiento de datos
 
 **Decisión**: no usar RLS nativo de Postgres en esta fase (Neon + Prisma con connection pooling hace frágil `SET LOCAL` por request; alto costo de desarrollo/testing para el tamaño de equipo actual). En su lugar: patrón de **repositorio scoped obligatorio** (`scopedDb(session)` en `src/lib/db/scoped.ts`), regla de CI que impida `prisma.<modelo tenant-scoped>` directo fuera de esa capa, y tests de aislamiento cross-tenant con Vitest. Ver ADR-005 para criterio de revisión futura.

@@ -106,8 +106,40 @@ model User {
   // Términos/Privacidad en el registro. Null en cuentas creadas por un
   // admin (Equipo/Campesino), que no pasan por ese formulario.
   terminosAceptadosEn      DateTime?
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
+
+  // ─── ADR-011 (IAM) — campos aditivos ─────────────────────────────────────────
+  // Equivalencias ADR ↔ campos que YA existen arriba (no se duplican):
+  //   passwordHash→password · nombreCompleto→name · fotoUrl→avatarUrl ·
+  //   celular→telefono · celularVerificadoEn→telefonoVerificadoEn (nuevo) ·
+  //   emailVerificadoEn→emailVerificado · bloqueadoHasta→lockedUntil ·
+  //   intentosFallidos→failedLoginAttempts · consentimientoDatosEn→terminosAceptadosEn ·
+  //   perfilUI→experiencia + vistaPreferida (juntos cubren las 3 experiencias:
+  //   Completa / Simple / Campesino; un `perfilUI` de 3 valores perdería "Simple").
+  // Ver docs/ADR-011-notas-de-implementacion.md. Ninguno de estos campos lo lee
+  // todavía el código: se activan en los Sprints 1-6 del ADR.
+  //
+  // Método con el que el usuario normalmente entra. Un Campesino hoy entra solo
+  // con celular; el Sprint 4 lo pasa a WHATSAPP_MAGIC_LINK. El backfill de los
+  // Campesino existentes (metodoAuthPreferido) llega en el Sprint 1.
+  metodoAuthPreferido   MetodoAuth @default(EMAIL_PASSWORD)
+  telefonoVerificadoEn  DateTime?
+  // Cifrado a nivel de aplicación (la gestión de llaves está por definir, Sprint 6).
+  documentoIdentidad    String?
+  // MFA TOTP — obligatorio para SUPER_ADMIN, ORG_OWNER e INVESTOR (ADR-011 §3).
+  mfaHabilitado         Boolean    @default(false)
+  mfaSecret             String?
+  mfaBackupCodes        String[]   @default([])
+  ultimoAccesoEn        DateTime?
+  ultimaIpAcceso        String?
+  // Versión del aviso de privacidad aceptado (Ley 1581): al cambiar el aviso se
+  // pide re-aceptación. Convive con `terminosAceptadosEn` (cuándo aceptó).
+  consentimientoVersion String?
+  // Soft delete (derecho al olvido, Ley 1581). Distinto de
+  // `eliminacionSolicitadaEn` (solicitud pendiente de revisión manual): éste es
+  // la baja ya efectuada, que un job purga físicamente a los 30 días.
+  eliminadoEn           DateTime?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
 
   fincas                 Finca[]
   compradores            Comprador[]
@@ -118,8 +150,18 @@ model User {
   presupuestos           Presupuesto[]
   membresias             Membresia[]
   fincaAccesos           FincaAcceso[]
-  inversionistas         Inversionista[]
+  // Inversionistas que ESTE usuario registró como contacto (dueño de la finca).
+  // Relación nombrada porque ADR-011 agrega una segunda hacia Inversionista
+  // (`Inversionista.usuarioId`: el inversionista como usuario con login).
+  inversionistas         Inversionista[]                @relation("InversionistaDueno")
+  inversionistaDe        Inversionista[]                @relation("InversionistaUsuario")
   enlacesCreados         EnlaceCompartido[]
+  // ADR-011 (IAM)
+  sesiones               Sesion[]
+  tokensAuth             TokenAuth[]
+  invitacionesEnviadas   Invitacion[]                   @relation("InvitacionesEnviadas")
+  impersonacionesSoporte Impersonacion[]                @relation("ImpersonacionSoporte")
+  impersonacionesTarget  Impersonacion[]                @relation("ImpersonacionTarget")
   preciosMercadoCreados  PrecioMercado[]
   // Self-relation: qué OWNER creó esta cuenta Campesino / qué cuentas
   // Campesino creó este OWNER — ver comentario de creadoPorId arriba.
@@ -154,10 +196,46 @@ model Organizacion {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
+  // ─── ADR-011 (IAM) — capa 2 "Tenant" (aditivo) ──────────────────────────────
+  // `Organizacion` ES la `Organization` del ADR (se conserva el nombre en
+  // español, igual que Finca/Lote/Cultivo). Las orgs existentes son 1:1 con un
+  // productor (backfill de Fase 0), de ahí los defaults INDIVIDUAL / ACTIVA.
+  tipo                TipoOrg          @default(INDIVIDUAL)
+  nit                 String?          @unique
+  paisIso             String           @default("CO")
+  ciudad              String?
+  departamento        String?
+  emailContacto       String?
+  celularContacto     String?
+  // Estado del plan. `activa` (arriba) se conserva; el Sprint 3 decide si
+  // pasa a derivarse de `estadoPlan`/`eliminadoEn`. Facturación completa:
+  // ADR-012 (pendiente) — estos campos son la parte "referencial" del ADR-011.
+  estadoPlan          EstadoPlan       @default(ACTIVA)
+  planIniciadoEn      DateTime?
+  planVigenteHasta    DateTime?
+  cicloFacturacion    CicloFacturacion @default(MENSUAL)
+  // null = ilimitado (Empresarial)
+  limiteAsociadosPlan Int?
+  limiteFincasPlan    Int?
+  limiteUsuariosPlan  Int?
+  // Trial del plan Colectivo: 30 días, máx. 5 asociados (ADR-011 §1.1).
+  esTrial             Boolean          @default(false)
+  trialInicioEn       DateTime?
+  trialFinEn          DateTime?
+  trialMaxAsociados   Int?             @default(5)
+  // Marca blanca (Colectivo/Empresarial)
+  logoUrl             String?
+  colorPrimario       String?
+  configuracion       Json             @default("{}")
+  eliminadoEn         DateTime?
+
   fincas            Finca[]
   membresias        Membresia[]
   plantillasModulos RolModulosDefault[]
+  invitaciones      Invitacion[]
+  facturacion       Facturacion[]
 
+  @@index([tipo, estadoPlan])
   @@map("organizaciones")
 }
 
@@ -180,11 +258,25 @@ model RolModulosDefault {
   @@map("rol_modulos_default")
 }
 
+// Es el `PlanTipo` del ADR-011 — un solo enum en vez de dos. Ningún archivo de
+// src/ referencia estos valores todavía (0 usos), pero las filas existentes
+// tienen GRATUITO por default, así que los 4 originales se CONSERVAN (agregar
+// valores a un enum de Postgres es aditivo; quitarlos no). Equivalencias:
+// GRATUITO≈SEMILLA_TRIAL · COOPERATIVA≈COLECTIVO · ENTERPRISE≈EMPRESARIAL.
+// Precios y detalle comercial: ADR-012 (en curso).
 enum PlanOrganizacion {
+  // Originales (Fase 0) — deprecados. PRODUCTOR también es un plan del ADR.
   GRATUITO
   PRODUCTOR
   COOPERATIVA
   ENTERPRISE
+  // ADR-011
+  SEMILLA_TRIAL // trial de 30 días de PRO
+  FINCA_PRO
+  COLECTIVO // desde 50 asociados
+  EMPRESARIAL // cotización
+  GERMIAMIGO_INDIVIDUAL // campesino individual con plan pago
+  GERMIAMIGO_SEMILLA // campesino individual gratuito
 }
 
 // User↔Organizacion: quién pertenece a qué tenant y con qué rol.
@@ -202,10 +294,40 @@ model Membresia {
   activa         Boolean         @default(true)
   createdAt      DateTime        @default(now())
 
+  // ─── ADR-011 (IAM) — capa 3 "Membership" (aditivo) ──────────────────────────
+  // `Membresia` ES la `Membership` del ADR. Mientras el cutover no ocurra
+  // (Sprints 1-3), `rol`/`aceptada`/`activa` siguen siendo la fuente de verdad
+  // y estas columnas quedan como "sombra" que el backfill del Sprint 1 llena:
+  //   estado    ← aceptada/activa  (activa=false → SUSPENDIDA, aceptada=false → PENDIENTE)
+  //   rolIam    ← rol, por src/lib/authz/policies.ts::rolLegacyARolIam()
+  //   esRolPrimario ← la membresía más antigua de cada usuario
+  fincaId          String?
+  estado           EstadoMembresia @default(ACTIVA)
+  esRolPrimario    Boolean         @default(false)
+  rolIam           Rol?
+  aceptadoEn       DateTime?
+  revocadoEn       DateTime?
+  revocadoPorId    String?
+  motivoRevocacion String?
+
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   organizacion Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  // Scope de finca para roles FARM_* (null en roles de organización).
+  finca        Finca?       @relation(fields: [fincaId], references: [id], onDelete: Cascade)
 
+  // DIFERIDO A SPRINT 3 (a propósito): el ADR pide
+  // @@unique([userId, organizacionId, rol, farmId]) para permitir varias
+  // membresías de un mismo usuario en una organización. Aquí se conserva el
+  // unique actual porque el código lo usa como llave compuesta
+  // `userId_organizacionId` (authz.ts y ~12 archivos más); cambiarlo obliga a
+  // tocar el login/RBAC. Al hacerlo: con farmId NULL ese unique NO evita
+  // duplicados (en Postgres NULL ≠ NULL) → usar una columna centinela
+  // (`fincaKey String @default("")`) en vez de un índice parcial con SQL
+  // crudo, que `prisma db push` podría eliminar.
   @@unique([userId, organizacionId])
+  @@index([organizacionId, rol, estado])
+  @@index([userId, estado])
+  @@index([fincaId])
   @@map("membresias")
 }
 
@@ -273,6 +395,10 @@ model Finca {
   accesos      FincaAcceso[]
   alertas      AlertaClimatica[]
   compradores  Comprador[]
+  // ADR-011: membresías con scope de esta finca (roles FARM_*) e invitaciones
+  // pendientes a ella. `accesos` (FincaAcceso) sigue vigente hasta el Sprint 3.
+  membresias   Membresia[]
+  invitaciones Invitacion[]
 
   @@map("fincas")
 }
@@ -841,18 +967,26 @@ enum TipoComprador {
 // Comprador.userId en el gap analysis, sin romper este modelo.
 
 model Inversionista {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  nombre    String
-  email     String?
-  telefono  String?
-  notas     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation("InversionistaDueno", fields: [userId], references: [id], onDelete: Cascade)
+  nombre       String
+  email        String?
+  telefono     String?
+  notas        String?
+  // ADR-011 (Fase 3): el `cuentaUserId` previsto arriba. Cuando el inversionista
+  // tiene login propio (rol INVESTOR), apunta a SU User — `userId` sigue siendo
+  // el dueño que lo registró. El scope de cultivos financiados NO se duplica en
+  // `Membresia` (el ADR proponía `cultivosScope String[]`): se deriva de
+  // `InversionCultivo`, que ya es la fuente de verdad y evita que diverjan.
+  cuentaUserId String?
+  cuenta       User?    @relation("InversionistaUsuario", fields: [cuentaUserId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   inversiones InversionCultivo[]
 
+  @@index([cuentaUserId])
   @@map("inversionistas")
 }
 
@@ -977,6 +1111,11 @@ enum ChatRole {
 // más importante es justo "cuenta.eliminar" — si tuviera onDelete: Cascade,
 // el log desaparecería justo en el momento que más importa). Se guarda un
 // snapshot del email en vez de solo el id, por la misma razón.
+//
+// ADR-011 (ISO 27001 A.8.15) — campos aditivos, todos opcionales para que los
+// 29 call sites actuales de registrarAuditoria() (src/lib/audit.ts) sigan
+// funcionando sin cambios. Equivalencias con el `AuditLog` del ADR:
+// userId→actorId · metadata→detalle · ipAddress/userAgent (nuevos).
 model AuditLog {
   id         String   @id @default(cuid())
   actorId    String?
@@ -985,10 +1124,41 @@ model AuditLog {
   detalle    Json?
   createdAt  DateTime @default(now())
 
+  organizacionId  String?
+  // Ej.: "Finca", "Membresia", "Organizacion" (+ recursoId).
+  recurso         String?
+  recursoId       String?
+  resultado       ResultadoAudit @default(EXITO)
+  ipAddress       String?
+  userAgent       String?
+  // Encadenamiento SHA-256 (inmutabilidad). Nulos en los registros previos al
+  // Sprint 5. Ojo al implementarlo: con escrituras concurrentes (serverless)
+  // una cadena GLOBAL se rompe → una cadena por organizacionId + transacción
+  // serializable.
+  hashPrevio      String?
+  hashActual      String?
+  // Impersonación de soporte (ADR-011 §6.5): cada acción hecha "como" otro
+  // usuario queda con quién la ejecutó realmente y a quién representaba. El
+  // ADR lo exige pero su schema no traía estas columnas.
+  soporteUserId   String?
+  targetUserId    String?
+  esImpersonacion Boolean        @default(false)
+
+  // Se conserva el índice original [actorId] (reemplazarlo por el compuesto
+  // [actorId, createdAt] del ADR generaría un DROP INDEX; lo evaluamos en el
+  // Sprint 5, cuando haya volumen real que justifique el cambio).
   @@index([actorId])
   @@index([accion])
   @@index([createdAt])
+  @@index([organizacionId, createdAt])
+  @@index([recurso, recursoId])
   @@map("audit_log")
+}
+
+enum ResultadoAudit {
+  EXITO
+  FALLIDO
+  DENEGADO
 }
 
 // Cuota diaria de uso de IA (chat/voz/imagen) — todas pegan a Groq, que cobra
@@ -1174,4 +1344,227 @@ model ConsultaDiagnosticoCampesino {
 
   @@index([userId, createdAt])
   @@map("consultas_diagnostico_campesino")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// IAM — ADR-011 "Modelo de Identidad, Roles y Permisos"
+// ═══════════════════════════════════════════════════════════════════════════════
+// Estado del ADR: PROPUESTO (docs/ADR-011-Modelo-Identidad-Roles-Permisos.md).
+// Este bloque es la fusión de `schema-iam.prisma` (original archivado en
+// docs/anexos/) con el schema previo: los modelos que ya existían (User,
+// Organizacion, Membresia, AuditLog, Inversionista) se EXTENDIERON arriba,
+// en su lugar, con campos aditivos; aquí viven las piezas que no existían.
+// Mapeo completo y decisiones: docs/ADR-011-notas-de-implementacion.md.
+//
+// Capas 4-5 (Rol → Permiso): los permisos NO viven en la base de datos sino en
+// código TypeScript (src/lib/authz/permissions.ts y policies.ts) — decisión del
+// ADR por type-safety y menor superficie de ataque.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// Los 9 roles del ADR (§2.2). `Membresia.rol` (RolOrganizacion) sigue mandando
+// hasta el cutover; `Membresia.rolIam` guarda el equivalente en este enum.
+enum Rol {
+  // Plataforma (CrecIAgro S.A.S.) — Membresía en la org CRECIAGRO_INTERNAL
+  SUPER_ADMIN // máx. 5 personas
+  PLATFORM_SUPPORT
+  // Organización
+  ORG_OWNER
+  ORG_ADMIN
+  // Finca (con scope: Membresia.fincaId)
+  FARM_OWNER
+  FARM_ADMIN
+  FARM_COLLABORATOR
+  // Funcionales
+  INVESTOR // cultivos financiados (Fase 3)
+  BUYER // enlaces compartidos (Fase 4)
+}
+
+enum EstadoMembresia {
+  ACTIVA
+  PENDIENTE_INVITACION
+  SUSPENDIDA
+  REVOCADA
+}
+
+// Sin BUYER_TOKEN (el ADR lo listaba): un comprador NO tiene User — entra por
+// EnlaceCompartido (/portal/[token]), que ya resuelve ese caso. Con GOOGLE (el
+// ADR no lo contemplaba): el login "Otro rol" con Google ya existe.
+enum MetodoAuth {
+  EMAIL_PASSWORD
+  GOOGLE
+  WHATSAPP_MAGIC_LINK // Campesino — único canal, sin fallback SMS (decisión del fundador, sujeta a firma)
+  SAML_SSO
+}
+
+enum TipoOrg {
+  INDIVIDUAL
+  COOPERATIVA
+  GREMIO
+  ASOCIACION_CAMPESINA
+  FUNDACION
+  GOBIERNO
+  UNIVERSIDAD
+  ONG
+  EMPRESA_PRIVADA
+  CRECIAGRO_INTERNAL // tenant único de CrecIAgro S.A.S.
+}
+
+enum EstadoPlan {
+  EN_TRIAL
+  ACTIVA
+  SUSPENDIDA_PAGO
+  CANCELADA
+  MOROSA
+}
+
+enum CicloFacturacion {
+  MENSUAL
+  ANUAL // 20 % de descuento
+}
+
+// Sesión revocable. OJO (hallazgo de la revisión del ADR): NextAuth v4 con el
+// provider Credentials SIEMPRE emite JWT — no admite la estrategia "database"
+// (ver next-auth/core/routes/callback.js: UnsupportedStrategy). Por eso esta
+// tabla NO sustituye al JWT: funciona como LISTA DE REVOCACIÓN. El JWT lleva un
+// `sesionId`; `tokenHash` es su SHA-256; en cada request se valida que la fila
+// exista, no esté revocada ni vencida. Se implementa en el Sprint 1.
+model Sesion {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  dispositivo String?
+  userAgent   String?
+  ipAddress   String?
+  ubicacion   String? // geolocalización por IP (opcional)
+  expiraEn    DateTime
+  revocadaEn  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, revocadaEn])
+  @@index([expiraEn])
+  @@map("sesiones")
+}
+
+enum TipoToken {
+  MAGIC_LINK_WHATSAPP
+  RESET_PASSWORD
+  VERIFY_EMAIL
+  MFA_BACKUP_CODE
+}
+
+// Tokens de un solo uso, guardados como HASH (SHA-256) — el token en claro solo
+// viaja por el canal (correo/WhatsApp). Hoy `User.tokenVerificacion` y
+// `User.tokenResetPassword` (Tanda 2) están en texto plano; el Sprint 1 los
+// migra aquí. `tokenHash` es @unique (el ADR traía solo @@index) porque la
+// consulta natural es por hash. Sin BUYER_SHARE_LINK: ver MetodoAuth.
+model TokenAuth {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tipo         TipoToken
+  tokenHash    String    @unique
+  metadata     Json? // ej. canal WhatsApp usado, IP de la solicitud
+  expiraEn     DateTime
+  usadoEn      DateTime?
+  invalidadoEn DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([userId, tipo])
+  @@index([expiraEn])
+  @@map("tokens_auth")
+}
+
+enum CanalInvitacion {
+  EMAIL
+  WHATSAPP
+}
+
+// Invitación pendiente (por correo o WhatsApp). El "propietarioTemp" que
+// menciona ADR-011 §6.2 no hace falta: se crea la Finca y la invitación la
+// referencia con `fincaId`. `invitadaPor` con Cascade (el ADR no lo definía):
+// sin él, borrar a un usuario que alguna vez invitó a alguien —incluido el
+// derecho al olvido de la Ley 1581— quedaría bloqueado por la FK.
+model Invitacion {
+  id              String          @id @default(cuid())
+  organizacionId  String
+  organizacion    Organizacion    @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  emailOCelular   String // correo, o celular en E.164
+  canalEnvio      CanalInvitacion
+  rol             Rol
+  fincaId         String?
+  finca           Finca?          @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  tokenHash       String          @unique
+  expiraEn        DateTime
+  aceptadaEn      DateTime?
+  invitadaPorId   String
+  invitadaPor     User            @relation("InvitacionesEnviadas", fields: [invitadaPorId], references: [id], onDelete: Cascade)
+  mensajePersonal String?
+  createdAt       DateTime        @default(now())
+
+  @@index([organizacionId, aceptadaEn])
+  @@index([emailOCelular])
+  @@index([expiraEn])
+  @@map("invitaciones")
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADA
+  VENCIDA
+  ANULADA
+}
+
+// Referencial (ADR-011): el modelo de facturación completo es ADR-012 (en
+// curso). Monto en Decimal — el resto del schema usa Float para dinero, pero
+// aquí es una tabla nueva y Decimal es lo correcto para cifras de cobro.
+model Facturacion {
+  id             String       @id @default(cuid())
+  organizacionId String
+  organizacion   Organizacion @relation(fields: [organizacionId], references: [id], onDelete: Cascade)
+  periodo        String // YYYY-MM
+  montoCop       Decimal      @db.Decimal(12, 2)
+  estado         EstadoPago   @default(PENDIENTE)
+  pagadaEn       DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@unique([organizacionId, periodo])
+  @@map("facturacion")
+}
+
+enum EstadoImpersonacion {
+  PENDIENTE_CONSENTIMIENTO
+  ACTIVA
+  FINALIZADA
+  DENEGADA
+  EXPIRADA
+}
+
+// PLATFORM_SUPPORT actúa como otro usuario SOLO con consentimiento explícito
+// del usuario objetivo y por máx. 2 h. ⚠️ Una de las 3 decisiones del ADR que
+// requieren firma de los cofundadores antes de implementarse (Sprint 7): esta
+// tabla queda creada pero SIN uso. Las FK a User son Cascade (no Restrict) para
+// no bloquear la baja de una cuenta por derecho al olvido; el rastro de lo que
+// se hizo vive en AuditLog (sin FK, sobrevive).
+model Impersonacion {
+  id                   String              @id @default(cuid())
+  soporteUserId        String
+  soporte              User                @relation("ImpersonacionSoporte", fields: [soporteUserId], references: [id], onDelete: Cascade)
+  targetUserId         String
+  target               User                @relation("ImpersonacionTarget", fields: [targetUserId], references: [id], onDelete: Cascade)
+  organizacionId       String?
+  // Hash del token enviado al usuario objetivo
+  tokenConsentimiento  String              @unique
+  consentimientoDadoEn DateTime?
+  canalConsentimiento  CanalInvitacion?
+  motivo               String
+  iniciadaEn           DateTime?
+  finalizadaEn         DateTime?
+  expiraEn             DateTime // 2 h por defecto
+  estado               EstadoImpersonacion @default(PENDIENTE_CONSENTIMIENTO)
+  createdAt            DateTime            @default(now())
+
+  @@index([targetUserId, estado])
+  @@index([soporteUserId, estado])
+  @@map("impersonaciones")
 }

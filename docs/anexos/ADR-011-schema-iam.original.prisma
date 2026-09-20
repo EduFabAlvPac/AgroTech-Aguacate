@@ -1,0 +1,439 @@
+// ============================================================================
+// ADR-011 · Modelo de Identidad, Roles y Permisos — Schema Prisma
+// Proyecto: CrecIAgro (GermIA PRO + GermIA Móvil / GermIAmigo)
+// Versión: 1.0 · Fecha: 2026-09-19
+// Autor: Eduard Fabian Álvarez Pacheco · CrecIAgro S.A.S.
+// ============================================================================
+// Este archivo NO reemplaza el schema.prisma actual — es el módulo IAM
+// que se integra con los modelos existentes (Farm, Lote, Cultivo, etc.).
+// Los modelos existentes deben añadir el campo organizationId como FK
+// para habilitar el multi-tenancy (ver sección Migración del ADR-011).
+// ============================================================================
+
+// ============================================================================
+// CAPA 1 · IDENTITY — ¿Quién eres?
+// ============================================================================
+
+model User {
+  id                    String     @id @default(cuid())
+
+  // Identificadores de autenticación (al menos uno obligatorio)
+  email                 String?    @unique
+  celular               String?    @unique  // formato E.164: +573001234567
+  passwordHash          String?    // bcrypt 12 rounds; NULL para usuarios solo-WhatsApp
+
+  // Datos de perfil
+  nombreCompleto        String
+  documentoIdentidad    String?    // cifrado en reposo (application-level)
+  fotoUrl               String?
+
+  // Perfil de UI (ADR-006 aliineado)
+  perfilUI              PerfilUI   @default(AUTO)
+
+  // Verificación de canales
+  emailVerificadoEn     DateTime?
+  celularVerificadoEn   DateTime?
+
+  // MFA (obligatorio para SUPER_ADMIN, ORG_OWNER, INVESTOR)
+  mfaHabilitado         Boolean    @default(false)
+  mfaSecret             String?    // TOTP secret cifrado
+  mfaBackupCodes        String[]   // codigos hasheados
+
+  // Seguridad y rate limiting
+  metodoAuthPreferido   MetodoAuth
+  ultimoAccesoEn        DateTime?
+  ultimaIpAcceso        String?
+  bloqueadoHasta        DateTime?
+  intentosFallidos      Int        @default(0)
+
+  // Consentimientos Ley 1581/2012 Colombia
+  consentimientoDatosEn DateTime?
+  consentimientoVersion String?    // versión del aviso de privacidad aceptado
+
+  // Metadata
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+  eliminadoEn           DateTime?  // soft delete (derecho al olvido)
+
+  // Relaciones
+  memberships           Membership[]
+  sesiones              Sesion[]
+  tokensAuth            TokenAuth[]
+  auditLogs             AuditLog[]
+  invitacionesEnviadas  Invitacion[]  @relation("InvitacionesEnviadas")
+  impersonacionesSoporte Impersonacion[] @relation("SoporteActor")
+  impersonacionesTarget Impersonacion[] @relation("SoporteTarget")
+
+  @@index([celular])
+  @@index([email])
+  @@index([eliminadoEn])
+}
+
+enum PerfilUI {
+  CAMPESINO     // fuerza vista simplificada (GermIA Móvil / GermIAmigo)
+  TECNIFICADO   // fuerza vista completa (GermIA PRO Web)
+  AUTO          // detecta por dispositivo y alfabetización digital declarada
+}
+
+enum MetodoAuth {
+  EMAIL_PASSWORD          // Institucionales y productores tecnificados
+  WHATSAPP_MAGIC_LINK     // Campesinos (default único, sin fallback SMS)
+  SAML_SSO                // Gobierno, universidades grandes
+  BUYER_TOKEN             // Compradores con enlace único (sin cuenta)
+}
+
+// ============================================================================
+// CAPA 2 · TENANT / ORGANIZATION — ¿A qué organización perteneces?
+// ============================================================================
+
+model Organization {
+  id                    String        @id @default(cuid())
+  nombre                String
+  slug                  String        @unique  // para subdominios: coop-elcomun.creciagro.com
+  tipo                  TipoOrg
+  nit                   String?       @unique
+  paisIso               String        @default("CO")
+  ciudad                String?
+  departamento          String?
+
+  // Contacto administrativo
+  emailContacto         String?
+  celularContacto       String?
+
+  // Configuración de plan y facturación
+  planActual            PlanTipo
+  estadoPlan            EstadoPlan    @default(EN_TRIAL)
+  planIniciadoEn        DateTime      @default(now())
+  planVigenteHasta      DateTime
+  ciclosFacturacion     CicloFacturacion @default(MENSUAL)
+  limiteAsociadosPlan   Int?          // NULL = ilimitado (Empresarial)
+  limiteFincasPlan      Int?
+  limiteUsuariosPlan    Int?
+
+  // Trial (aplica a Colectivo: 30 días, máx 5 asociados)
+  esTrial               Boolean       @default(false)
+  trialInicioEn         DateTime?
+  trialFinEn            DateTime?
+  trialMaxAsociados     Int?          @default(5)
+
+  // Branding (para plan Colectivo/Empresarial con marca blanca)
+  logoUrl               String?
+  colorPrimario         String?
+  configuracion         Json          @default("{}")
+
+  // Metadata
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
+  eliminadoEn           DateTime?
+
+  // Relaciones
+  memberships           Membership[]
+  invitaciones          Invitacion[]
+  facturacion           Facturacion[]
+
+  @@index([tipo, estadoPlan])
+  @@index([slug])
+}
+
+enum TipoOrg {
+  INDIVIDUAL              // productor individual (plan Productor/Finca Pro)
+  COOPERATIVA
+  GREMIO
+  ASOCIACION_CAMPESINA
+  FUNDACION
+  GOBIERNO
+  UNIVERSIDAD
+  ONG
+  EMPRESA_PRIVADA
+  CRECIAGRO_INTERNAL      // tenant único de CrecIAgro S.A.S.
+}
+
+enum PlanTipo {
+  SEMILLA_TRIAL           // trial 30 días de PRO
+  PRODUCTOR               // $59.000/mes
+  FINCA_PRO               // $129.000/mes
+  COLECTIVO               // $399.000/mes desde 50 asociados
+  EMPRESARIAL             // Cotización
+  GERMIAMIGO_INDIVIDUAL   // Campesino individual con plan Cosecha ($12.900)
+  GERMIAMIGO_SEMILLA      // Campesino individual gratuito
+}
+
+enum EstadoPlan {
+  EN_TRIAL
+  ACTIVA
+  SUSPENDIDA_PAGO
+  CANCELADA
+  MOROSA
+}
+
+enum CicloFacturacion {
+  MENSUAL
+  ANUAL                   // 20% de descuento
+}
+
+// ============================================================================
+// CAPA 3 · MEMBERSHIP — Vínculo User <-> Organization <-> Rol
+// ============================================================================
+// Un mismo User PUEDE tener varias Memberships activas
+// (ej: FARM_OWNER de finca personal + FARM_COLLABORATOR en cooperativa)
+// ============================================================================
+
+model Membership {
+  id                String            @id @default(cuid())
+  userId            String
+  organizationId    String
+  rol               Rol
+
+  // Scope opcional: NULL si el rol es de organización (ORG_OWNER, ORG_ADMIN)
+  // Requerido si el rol es de finca (FARM_OWNER, FARM_ADMIN, FARM_COLLABORATOR)
+  farmId            String?
+
+  // Scope adicional para INVESTOR: lista de cultivos financiados
+  cultivosScope     String[]          @default([])
+
+  estado            EstadoMembership  @default(PENDIENTE_INVITACION)
+  esRolPrimario     Boolean           @default(false)  // el rol por defecto en login
+  invitadoPorId     String?
+  aceptadoEn        DateTime?
+  revocadoEn        DateTime?
+  revocadoPorId     String?
+  motivoRevocacion  String?
+
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization      Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, organizationId, rol, farmId])
+  @@index([organizationId, rol, estado])
+  @@index([userId, estado])
+  @@index([farmId])
+}
+
+enum Rol {
+  // Roles de plataforma (CrecIAgro S.A.S.)
+  SUPER_ADMIN
+  PLATFORM_SUPPORT
+
+  // Roles de organización (dentro de un tenant)
+  ORG_OWNER
+  ORG_ADMIN
+
+  // Roles de finca (scoped)
+  FARM_OWNER
+  FARM_ADMIN
+  FARM_COLLABORATOR
+
+  // Roles funcionales
+  INVESTOR
+  BUYER
+}
+
+enum EstadoMembership {
+  ACTIVA
+  PENDIENTE_INVITACION
+  SUSPENDIDA
+  REVOCADA
+}
+
+// ============================================================================
+// CAPA 4-5 · PERMISOS
+// Definidos en código TypeScript (src/lib/authz/permissions.ts)
+// Ventajas: type-safety, auditables por diff en Git, sin superficie de ataque SQL
+// ============================================================================
+// Ejemplo de estructura en código:
+//
+// export const PERMISSIONS = {
+//   FARM: { CREATE: 'farm:create', READ: 'farm:read', UPDATE: 'farm:update', DELETE: 'farm:delete' },
+//   CULTIVO: { CREATE: 'cultivo:create', READ: 'cultivo:read', ... },
+//   FINANZA: { READ: 'finanza:read', UPDATE: 'finanza:update' },
+//   ...
+// } as const;
+//
+// export const ROLE_PERMISSIONS: Record<Rol, string[]> = {
+//   SUPER_ADMIN: ['*'],
+//   ORG_OWNER: [PERMISSIONS.FARM.CREATE, ...],
+//   ...
+// };
+// ============================================================================
+
+// ============================================================================
+// SESIONES Y TOKENS
+// ============================================================================
+
+model Sesion {
+  id            String    @id @default(cuid())
+  userId        String
+  tokenHash     String    @unique
+  dispositivo   String?
+  userAgent     String?
+  ipAddress     String?
+  ubicacion     String?   // geolocalización IP (opcional)
+  expiraEn      DateTime
+  revocadaEn    DateTime?
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revocadaEn])
+  @@index([expiraEn])
+}
+
+model TokenAuth {
+  id            String     @id @default(cuid())
+  userId        String
+  tipo          TipoToken
+  tokenHash     String
+  metadata      Json?      // ej: canal WhatsApp usado, IP de solicitud
+  expiraEn      DateTime
+  usadoEn       DateTime?
+  invalidadoEn  DateTime?
+  createdAt     DateTime   @default(now())
+
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, tipo])
+  @@index([tokenHash])
+  @@index([expiraEn])
+}
+
+enum TipoToken {
+  MAGIC_LINK_WHATSAPP     // Campesino: token único enviado por WhatsApp
+  RESET_PASSWORD           // Reset de contraseña por email
+  VERIFY_EMAIL             // Verificación de email
+  BUYER_SHARE_LINK         // Enlace único de compartir a comprador (JWT firmado)
+  MFA_BACKUP_CODE          // Códigos de respaldo TOTP
+}
+
+// ============================================================================
+// INVITACIONES
+// ============================================================================
+
+model Invitacion {
+  id                String       @id @default(cuid())
+  organizationId    String
+  emailOCelular     String       // email o celular E.164 del invitado
+  canalEnvio        CanalInvitacion
+  rol               Rol
+  farmId            String?      // opcional según el rol
+  tokenHash         String       @unique
+  expiraEn          DateTime
+  aceptadaEn        DateTime?
+  invitadaPorId     String
+  mensajePersonal   String?
+
+  createdAt         DateTime     @default(now())
+
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitadaPor       User         @relation("InvitacionesEnviadas", fields: [invitadaPorId], references: [id])
+
+  @@index([organizationId, aceptadaEn])
+  @@index([emailOCelular])
+  @@index([expiraEn])
+}
+
+enum CanalInvitacion {
+  EMAIL
+  WHATSAPP
+}
+
+// ============================================================================
+// FACTURACION (referencial — modelo completo en ADR-012)
+// ============================================================================
+
+model Facturacion {
+  id              String        @id @default(cuid())
+  organizationId  String
+  periodo         String        // YYYY-MM
+  montoCop        Decimal       @db.Decimal(12, 2)
+  estado          EstadoPago    @default(PENDIENTE)
+  pagadaEn        DateTime?
+  createdAt       DateTime      @default(now())
+
+  organization    Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, periodo])
+}
+
+enum EstadoPago {
+  PENDIENTE
+  PAGADA
+  VENCIDA
+  ANULADA
+}
+
+// ============================================================================
+// AUDITORIA (ISO 27001 A.12.4.1)
+// ============================================================================
+
+model AuditLog {
+  id              String    @id @default(cuid())
+  userId          String?
+  organizationId  String?
+  accion          String    // ej: "USER.LOGIN", "FARM.DELETE", "MEMBERSHIP.REVOKE"
+  recurso         String    // ej: "Farm", "Membership", "Organization"
+  recursoId       String?
+  resultado       ResultadoAudit
+  metadata        Json?
+  ipAddress       String?
+  userAgent       String?
+  hashPrevio      String?   // encadenamiento hash para inmutabilidad
+  hashActual      String    // SHA-256 del registro
+  createdAt       DateTime  @default(now())
+
+  user            User?     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([accion, createdAt])
+  @@index([recurso, recursoId])
+}
+
+enum ResultadoAudit {
+  EXITO
+  FALLIDO
+  DENEGADO
+}
+
+// ============================================================================
+// IMPERSONACION DE SOPORTE
+// PLATFORM_SUPPORT puede actuar como otro usuario para diagnostico,
+// PREVIA autorización explícita del usuario objetivo (consentimiento).
+// ============================================================================
+
+model Impersonacion {
+  id                    String    @id @default(cuid())
+  soporteUserId         String    // PLATFORM_SUPPORT que solicita
+  targetUserId          String    // usuario a impersonar
+  organizationId        String?   // scope si aplica
+
+  // Consentimiento del usuario objetivo
+  tokenConsentimiento   String    @unique  // hash del token enviado al target
+  consentimientoDadoEn  DateTime?
+  canalConsentimiento   CanalInvitacion?
+
+  // Ventana de impersonación
+  motivo                String    // razón declarada por soporte
+  iniciadaEn            DateTime?
+  finalizadaEn          DateTime?
+  expiraEn              DateTime  // máximo 2 horas por defecto
+
+  estado                EstadoImpersonacion @default(PENDIENTE_CONSENTIMIENTO)
+
+  createdAt             DateTime  @default(now())
+
+  soporte               User      @relation("SoporteActor", fields: [soporteUserId], references: [id])
+  target                User      @relation("SoporteTarget", fields: [targetUserId], references: [id])
+
+  @@index([targetUserId, estado])
+  @@index([soporteUserId, estado])
+}
+
+enum EstadoImpersonacion {
+  PENDIENTE_CONSENTIMIENTO
+  ACTIVA
+  FINALIZADA
+  DENEGADA
+  EXPIRADA
+}
