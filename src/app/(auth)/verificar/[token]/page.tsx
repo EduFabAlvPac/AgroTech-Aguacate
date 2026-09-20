@@ -3,47 +3,30 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
 import { tokenExpirado } from "@/lib/tokens";
 import { AuthCard } from "@/components/auth/AuthCard";
+import { ConfirmarVerificacion } from "@/components/auth/ConfirmarVerificacion";
 
 /**
- * /verificar/[token] — Server Component: hace la verificación directo
- * contra la BD en el propio render (no llama a /api/auth/verificar/[token]
- * por HTTP — evitaría un round-trip extra sin ganar nada, ya que esta
- * página no necesita reintentar ni mostrar estados de carga). La ruta de
- * API se mantiene para cuando haga falta invocarlo sin renderizar una
- * página completa (ver reenviar-verificacion.ts, que no la usa, pero deja
- * la puerta abierta).
+ * /verificar/[token] — Server Component de SOLO LECTURA: mira el estado del
+ * enlace y, si sigue pendiente, muestra el botón que verifica (POST, ver
+ * ConfirmarVerificacion.tsx). Antes esta página verificaba directamente en el
+ * render y borraba el token, así que cualquier "previsualización" del enlace
+ * (filtros de seguridad de correos de empresa) dejaba a la persona con
+ * "Enlace inválido" pese a tener la cuenta ya verificada.
  */
 export default async function VerificarPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
   const user = await db.user.findUnique({
     where: { tokenVerificacion: token },
-    select: { id: true, tokenVerificacionExpira: true, emailVerificado: true },
+    select: { tokenVerificacionExpira: true, emailVerificado: true },
   });
 
-  let resultado: "ok" | "ya-verificado" | "invalido" | "expirado";
-  if (!user) {
-    resultado = "invalido";
-  } else if (user.emailVerificado) {
-    resultado = "ya-verificado";
-  } else if (tokenExpirado(user.tokenVerificacionExpira)) {
-    resultado = "expirado";
-  } else {
-    await db.user.update({
-      where: { id: user.id },
-      data: { emailVerificado: new Date(), tokenVerificacion: null, tokenVerificacionExpira: null },
-    });
-    resultado = "ok";
-  }
-
-  if (resultado === "ok" || resultado === "ya-verificado") {
+  if (user?.emailVerificado) {
     return (
       <AuthCard titulo="Correo verificado">
         <div className="flex flex-col items-center text-center gap-3 py-2">
           <CheckCircle2 size={40} className="text-agro-600" />
-          <p className="text-[13px] text-[var(--text-secondary)]">
-            {resultado === "ok" ? "Tu cuenta ya está activa." : "Este correo ya estaba verificado."} Ya puedes iniciar sesión.
-          </p>
+          <p className="text-[13px] text-[var(--text-secondary)]">Este correo ya estaba verificado. Ya puedes iniciar sesión.</p>
           <Link
             href="/login"
             className="w-full text-center py-2.5 bg-agro-600 hover:bg-agro-800 text-white text-[14px] font-semibold rounded-[var(--radius-md)] transition-colors"
@@ -55,14 +38,23 @@ export default async function VerificarPage({ params }: { params: Promise<{ toke
     );
   }
 
+  if (user && !tokenExpirado(user.tokenVerificacionExpira)) {
+    return (
+      <AuthCard titulo="Confirma tu correo">
+        <ConfirmarVerificacion token={token} />
+      </AuthCard>
+    );
+  }
+
+  const expirado = !!user;
   return (
-    <AuthCard titulo={resultado === "expirado" ? "El enlace venció" : "Enlace inválido"}>
+    <AuthCard titulo={expirado ? "El enlace venció" : "Enlace no válido"}>
       <div className="flex flex-col items-center text-center gap-3 py-2">
         <XCircle size={40} className="text-red-500" />
         <p className="text-[13px] text-[var(--text-secondary)]">
-          {resultado === "expirado"
+          {expirado
             ? "Este enlace de verificación ya venció. Inicia sesión con tu correo y contraseña para pedir uno nuevo."
-            : "Este enlace no es válido. Revisa que copiaste la URL completa del correo."}
+            : "Este enlace no corresponde a ningún correo pendiente. Puede que ya hayas verificado tu cuenta, o que hayas abierto un correo anterior: inicia sesión para comprobarlo o pedir uno nuevo."}
         </p>
         <Link href="/login" className="text-[13px] font-medium text-agro-600 hover:text-agro-800">
           Volver a iniciar sesión
