@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generarToken, expiraEnHoras, tokenExpirado } from "@/lib/tokens";
+import { generarToken, expiraEnHoras, tokenExpirado, tokenVigenteOGenerar } from "@/lib/tokens";
 
 describe("tokens (self-signup / recuperar contraseña)", () => {
   it("generarToken produce strings distintos y suficientemente largos", () => {
@@ -29,5 +29,28 @@ describe("tokens (self-signup / recuperar contraseña)", () => {
     const resetExpira = expiraEnHoras(1);
     const verificacionExpira = expiraEnHoras(24);
     expect(resetExpira.getTime()).toBeLessThan(verificacionExpira.getTime());
+  });
+
+  describe("tokenVigenteOGenerar (reenviar sin invalidar correos anteriores)", () => {
+    it("reutiliza el token si todavía está vigente", () => {
+      const expira = expiraEnHoras(5);
+      const r = tokenVigenteOGenerar("token-existente", expira, 24);
+      expect(r.token).toBe("token-existente");
+      expect(r.esNuevo).toBe(false);
+      expect(r.expira).toBe(expira);
+    });
+
+    it("genera uno nuevo si el actual ya venció", () => {
+      const r = tokenVigenteOGenerar("token-viejo", new Date(Date.now() - 1000), 24);
+      expect(r.token).not.toBe("token-viejo");
+      expect(r.esNuevo).toBe(true);
+      expect(r.expira.getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("genera uno nuevo si no hay token (o falta su fecha de expiración)", () => {
+      expect(tokenVigenteOGenerar(null, null, 24).esNuevo).toBe(true);
+      expect(tokenVigenteOGenerar("token-sin-fecha", null, 24).esNuevo).toBe(true);
+      expect(tokenVigenteOGenerar(null, expiraEnHoras(5), 24).esNuevo).toBe(true);
+    });
   });
 });

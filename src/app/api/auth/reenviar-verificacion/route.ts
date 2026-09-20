@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recuperarSchema } from "@/lib/validations";
-import { generarToken, expiraEnHoras } from "@/lib/tokens";
+import { tokenVigenteOGenerar } from "@/lib/tokens";
 import { enviarEmailVerificacion } from "@/lib/email";
 import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
@@ -26,13 +26,17 @@ export async function POST(req: Request) {
     const { email } = parsed.data;
     await verificarLimite("recuperarPassword", `${ip}:${email}`);
 
-    const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, emailVerificado: true } });
+    const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, emailVerificado: true, tokenVerificacion: true, tokenVerificacionExpira: true } });
     if (user && !user.emailVerificado) {
-      const token = generarToken();
-      await db.user.update({
-        where: { id: user.id },
-        data: { tokenVerificacion: token, tokenVerificacionExpira: expiraEnHoras(24) },
-      });
+      // Se reutiliza el token si sigue vigente: así un segundo "Reenviar" (o abrir
+      // el primer correo) no deja los enlaces anteriores como "inválidos".
+      const { token, expira, esNuevo } = tokenVigenteOGenerar(user.tokenVerificacion, user.tokenVerificacionExpira, 24);
+      if (esNuevo) {
+        await db.user.update({
+          where: { id: user.id },
+          data: { tokenVerificacion: token, tokenVerificacionExpira: expira },
+        });
+      }
       await enviarEmailVerificacion(email, user.name, token);
     }
 

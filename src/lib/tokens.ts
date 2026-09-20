@@ -24,3 +24,20 @@ export function expiraEnHoras(horas: number): Date {
 export function tokenExpirado(expira: Date | null): boolean {
   return !expira || expira < new Date();
 }
+
+/**
+ * Reenvío de verificación/reset: si ya hay un token VIGENTE se reutiliza en vez
+ * de emitir uno nuevo. Antes cada "Reenviar" generaba un token distinto e
+ * invalidaba los correos anteriores — quien pulsaba dos veces, o abría el
+ * primer correo, encontraba "Enlace inválido" con un enlace perfectamente
+ * recién enviado. Reutilizar mantiene válidos todos los correos que siguen
+ * dentro de su ventana de expiración.
+ */
+export function tokenVigenteOGenerar(
+  actual: string | null,
+  expira: Date | null,
+  horas: number,
+): { token: string; expira: Date; esNuevo: boolean } {
+  if (actual && expira && !tokenExpirado(expira)) return { token: actual, expira, esNuevo: false };
+  return { token: generarToken(), expira: expiraEnHoras(horas), esNuevo: true };
+}
