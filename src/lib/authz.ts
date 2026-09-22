@@ -2,39 +2,29 @@
  * Autorización centralizada (RBAC) — Fase 0/2 del roadmap multi-tenant.
  * Ver CLAUDE.md §2.3 y docs/REQUERIMIENTOS.md §6 (matriz de roles) y ADR-004.
  *
- * Estado: skeleton funcional, aún NO exigido en las rutas existentes (Fase 0).
- * La migración de cada API route del chequeo ad hoc actual
- * (`where: { finca: { userId: session.user.id } }`) a `requireAccess()` es
- * trabajo de Fase 2 — se hace ruta por ruta, no de una vez, para no arriesgar
- * producción. `requireAccess()` es un complemento al `where` de scoping, no un
- * reemplazo: el helper decide *si puede*, el query sigue filtrando *qué ve*.
+ * ADR-011 Sprint 2: `requireAccess()` decide ahora con `can()` (evaluador puro
+ * de `src/lib/authz/policies.ts`) sobre la matriz extendida de
+ * `src/lib/authz/permissions.ts`, en vez de indexar a mano
+ * `MATRIZ_ORGANIZACION` (conservada abajo, sin usar, como referencia de
+ * equivalencia — ver su comentario). La firma pública de `requireAccess()` NO
+ * cambió: los 55 call sites existentes (`grep -rn "requireAccess(" src/app/`)
+ * siguen funcionando exactamente igual, sin tocarlos.
  *
- * Roles INVERSIONISTA/COMPRADOR quedan con casos parciales — sus modelos de
- * dominio (`InversionCultivo`, `EnlaceCompartido`) son de Fase 3/4 y aún no
- * existen en el schema; hoy solo pueden autorizarse como miembros de solo
- * lectura de una finca, no scoped a un cultivo específico como es el objetivo.
+ * `requireAccess()` es un complemento al `where` de scoping de cada query, no
+ * un reemplazo: el helper decide *si puede*, el query sigue filtrando *qué
+ * ve*.
+ *
+ * Roles INVERSIONISTA/COMPRADOR quedan con casos parciales en esta capa — su
+ * activación completa vía `can()` (con `InversionCultivo`/`EnlaceCompartido`
+ * como scope real) es un sprint aparte (`CLAUDE.md §7`: tests de aislamiento
+ * cross-tenant obligatorios antes de habilitarlos en producción).
  */
 import type { RolFinca, RolOrganizacion } from "@prisma/client";
 import { db } from "./db";
+import { can, rolLegacyARolIam, type MembresiaContexto } from "./authz/policies";
+import type { Recurso, Accion, Permiso } from "./authz/permissions";
 
-export type Recurso =
-  | "organizacion"
-  | "membresia"
-  | "finca"
-  | "lote"
-  | "analisisSuelo"
-  | "cultivo"
-  | "registroCultivo"
-  | "gasto"
-  | "ingreso"
-  | "presupuesto"
-  | "jornal"
-  | "alerta"
-  | "comprador"
-  | "fichaTecnica"
-  | "enlaceCompartido";
-
-export type Accion = "create" | "read" | "update" | "delete";
+export type { Recurso, Accion };
 
 export interface AuthzContext {
   organizacionId?: string;
@@ -59,8 +49,18 @@ export class AuthzError extends Error {
  * Matriz de permisos rol-de-organización × recurso × acción, resumen operativo
  * de la tabla completa en docs/REQUERIMIENTOS.md §6.1. OWNER tiene acceso total
  * dentro de su organización por diseño (no se tabula explícitamente).
+ *
+ * ADR-011 Sprint 2: esta matriz YA NO es la fuente de verdad en tiempo de
+ * ejecución — `requireAccess()` decide con `can()`/`MATRIZ` de
+ * `src/lib/authz/permissions.ts` (que extiende la matriz del ADR con estos
+ * mismos recursos, ver comentario del tipo `Recurso` ahí). Se conserva
+ * exportada, sin usar en la lógica, como la referencia contra la que
+ * `src/__tests__/lib/authz-equivalencia-legacy.test.ts` prueba que el swap no
+ * cambió el comportamiento de ningún rol real — mismo criterio de
+ * "nunca borrar, dejar documentado como superado" ya aplicado a `rolIam` y a
+ * los valores viejos de `PlanOrganizacion`.
  */
-const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Record<Recurso, Accion[]>>> = {
+export const MATRIZ_ORGANIZACION: Record<Exclude<RolOrganizacion, "OWNER">, Partial<Record<Recurso, Accion[]>>> = {
   ADMIN_FINCA: {
     organizacion: ["read"],
     membresia: ["read"],
@@ -150,6 +150,21 @@ async function resolverOrganizacionId(ctx: AuthzContext): Promise<string | null>
  * Verifica si `session.user` puede ejecutar `accion` sobre `recurso` en el
  * contexto dado. Lanza `AuthzError` si no está autorizado — no retorna un
  * booleano a propósito, para que el caller no pueda "olvidar" el chequeo.
+ *
+ * ADR-011 Sprint 2: de acá para abajo (tras el early-return de OWNER) la
+ * decisión la toma `can()` sobre la matriz extendida de `permissions.ts`, no
+ * un lookup manual en `MATRIZ_ORGANIZACION`. Dos atajos deliberados, ambos
+ * verificados contra la matriz vieja con
+ * `src/__tests__/lib/authz-equivalencia-legacy.test.ts`:
+ *  - OWNER sigue resolviéndose ANTES de tocar `can()` (bypass total, sin
+ *    cambios) — no por desconfianza en la matriz nueva, sino porque OWNER es
+ *    el único rol legacy que se traduce a DOS roles IAM (`rolLegacyARolIam`
+ *    → `[ORG_OWNER, FARM_OWNER]` en una org individual) y mover ese caso a
+ *    `can()` obligaría a resolver `Organizacion.tipo` en cada llamada sin
+ *    necesidad real: como OWNER nunca llega a este punto, ese costo se evita.
+ *  - Por lo mismo, `rolLegacyARolIam()` se llama sin `tipoOrg` (default
+ *    "INDIVIDUAL"): el único caso que ese parámetro afecta es justamente el
+ *    de OWNER, que ya salió por el atajo de arriba.
  */
 export async function requireAccess(
   session: AuthzSession | null | undefined,
@@ -183,13 +198,42 @@ export async function requireAccess(
 
   if (membresia.rol === "OWNER") return; // acceso total dentro de su organización
 
-  const permitido = MATRIZ_ORGANIZACION[membresia.rol]?.[recurso]?.includes(accion) ?? false;
+  // `Membresia.rolesIam`/`estado` (columnas "sombra" del Sprint 1) NO se leen
+  // acá a propósito: Equipo (`editarMiembro`/`toggleActivaMiembro`) cambia
+  // `rol`/`activa` en vivo pero todavía no las mantiene sincronizadas (el
+  // cutover real es de un sprint posterior — ver comentario del schema en
+  // `Membresia`). Se recalculan en el momento desde `rol`/`aceptada`/`activa`,
+  // que SÍ son la fuente de verdad hoy — igual que hace el backfill, pero
+  // fresco en cada llamada en vez de confiar en una copia que puede quedar
+  // vieja.
+  const rolesIam = rolLegacyARolIam(membresia.rol);
+
+  // `Membresia.fincaId` tampoco se puebla todavía (Sprint 3) — para los
+  // roles FARM_*, se usa el `fincaId` del propio `ctx` de esta llamada como
+  // scope de la membresía: el límite real entre fincas de una misma
+  // organización lo sigue imponiendo el chequeo de FincaAcceso de abajo, sin
+  // cambios — ni más ni menos de lo que ya hacía `MATRIZ_ORGANIZACION`, que
+  // tampoco distinguía fincas (solo rol×recurso×acción).
+  const membresias: MembresiaContexto[] = rolesIam.map((rol) => ({
+    rol,
+    organizacionId,
+    fincaId: ctx.fincaId,
+    estado: "ACTIVA",
+  }));
+
+  const permiso = `${recurso}:${accion}` as Permiso;
+  const permitido = can(membresias, permiso, {
+    organizacionId,
+    fincaId: ctx.fincaId,
+    cultivoId: ctx.cultivoId,
+  });
   if (!permitido) {
     throw new AuthzError(`Rol ${membresia.rol} no autorizado para ${accion} sobre ${recurso}`);
   }
 
   // ADMIN_FINCA/COLABORADOR además deben tener FincaAcceso explícito a la
-  // finca concreta cuando el contexto la identifica (scoping fino, §2.1).
+  // finca concreta cuando el contexto la identifica (scoping fino, §2.1) —
+  // capa ortogonal que el ADR todavía no cubre; sin cambios.
   if (ctx.fincaId && (membresia.rol === "ADMIN_FINCA" || membresia.rol === "COLABORADOR")) {
     const acceso = await db.fincaAcceso.findUnique({
       where: { userId_fincaId: { userId, fincaId: ctx.fincaId } },

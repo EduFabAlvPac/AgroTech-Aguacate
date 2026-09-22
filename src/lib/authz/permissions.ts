@@ -29,7 +29,22 @@ import type { Rol } from "@prisma/client";
 
 export type Accion = "create" | "read" | "update" | "delete";
 
-/** Filas de la matriz §4 del ADR, en camelCase español como src/lib/authz.ts. */
+/**
+ * Filas de la matriz §4 del ADR, en camelCase español como src/lib/authz.ts,
+ * MÁS los recursos que hoy solo existen en `src/lib/authz.ts::MATRIZ_ORGANIZACION`
+ * y no tienen equivalente 1:1 en la matriz §4 del ADR (Sprint 2 de ADR-011 —
+ * ver docs/ADR-011-notas-de-implementacion.md §3 "MATRIZ extendida").
+ *
+ * Se agregan como filas propias, NO se fuerzan a encajar en categorías del
+ * ADR que ya existen (ej. `gasto`/`ingreso` → `finanzasEditar`): mapearlos
+ * así habría cambiado comportamiento real (`finanzasEditar` para
+ * FARM_COLLABORATOR es NADA en el ADR, pero hoy COLABORADOR SÍ puede crear/
+ * leer gasto/ingreso) — una regresión silenciosa para colaboradores reales
+ * en producción. Añadidos: `registroCultivo`, `membresia`, `analisisSuelo`,
+ * `gasto`, `ingreso`, `presupuesto`, `jornal`, `alerta`, `comprador` (el
+ * contacto CRM — distinto de `compradorLink`, que es el acceso vía
+ * EnlaceCompartido), `fichaTecnica`, `enlaceCompartido`.
+ */
 export type Recurso =
   | "organizacion"
   | "facturacion" // Billing / Plan
@@ -45,7 +60,19 @@ export type Recurso =
   | "compradorLink" // Comprador (link)
   | "reportesOrg" // Reportes agregados de la organización
   | "auditLog"
-  | "impersonarUsuario";
+  | "impersonarUsuario"
+  // ─── Extensión Sprint 2 (recursos legacy sin fila en el ADR) ───────────────
+  | "registroCultivo"
+  | "membresia"
+  | "analisisSuelo"
+  | "gasto"
+  | "ingreso"
+  | "presupuesto"
+  | "jornal"
+  | "alerta"
+  | "comprador"
+  | "fichaTecnica"
+  | "enlaceCompartido";
 
 /** Código de permiso, ej. "lote:update" (mismo formato que el ejemplo del ADR). */
 export type Permiso = `${Recurso}:${Accion}`;
@@ -82,6 +109,7 @@ export const ACCIONES: readonly Accion[] = ["create", "read", "update", "delete"
 
 const CRUD: readonly Accion[] = ["create", "read", "update", "delete"];
 const CRU: readonly Accion[] = ["create", "read", "update"];
+const CR: readonly Accion[] = ["create", "read"];
 const RU: readonly Accion[] = ["read", "update"];
 const R: readonly Accion[] = ["read"];
 const NADA: readonly Accion[] = [];
@@ -167,6 +195,68 @@ export const MATRIZ: Record<Recurso, Record<Rol, Celda>> = {
     // y el límite de 2 h los impone el flujo del Sprint 7, no esta matriz.
     SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: ["create", "read"], ORG_OWNER: NADA, ORG_ADMIN: NADA,
     FARM_OWNER: NADA, FARM_ADMIN: NADA, FARM_COLLABORATOR: NADA, INVESTOR: NADA, BUYER: NADA,
+  },
+
+  // ─── Extensión Sprint 2 — recursos legacy (ver comentario en `Recurso`) ────
+  // Portados 1:1 desde `MATRIZ_ORGANIZACION`/`MATRIZ_FINCA` de `src/lib/authz.ts`
+  // (vía `rolLegacyARolIam`), no desde el documento del ADR (esas filas no
+  // existen ahí). `ORG_ADMIN`/`PLATFORM_SUPPORT` quedan en NADA en las 11: hoy
+  // ningún `RolOrganizacion` legacy mapea a esos roles IAM (nadie los tiene
+  // todavía), así que no hay comportamiento real que preservar para ellos acá.
+  registroCultivo: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CRU, INVESTOR: NADA, BUYER: NADA,
+  },
+  // Sin call site real hoy (ver auditoría Sprint 2) — se porta igual, por si
+  // algún día se enchufa "gestión de membresías" a `requireAccess`.
+  membresia: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: R, ORG_ADMIN: NADA,
+    FARM_OWNER: R, FARM_ADMIN: R, FARM_COLLABORATOR: NADA, INVESTOR: NADA, BUYER: NADA,
+  },
+  analisisSuelo: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CRU, INVESTOR: NADA, BUYER: NADA,
+  },
+  gasto: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CR, INVESTOR: NADA, BUYER: NADA,
+  },
+  ingreso: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CR, INVESTOR: NADA, BUYER: NADA,
+  },
+  presupuesto: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: NADA, INVESTOR: NADA, BUYER: NADA,
+  },
+  jornal: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CR, INVESTOR: NADA, BUYER: NADA,
+  },
+  alerta: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: RU, INVESTOR: NADA, BUYER: NADA,
+  },
+  // El contacto CRM (`db.comprador`) — distinto de `compradorLink` (el acceso
+  // vía EnlaceCompartido).
+  comprador: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: R, INVESTOR: NADA, BUYER: NADA,
+  },
+  // Sin call site real hoy (la gestión real de fichas maestras pasa por
+  // `requireSuperAdmin()`, no por acá) — se porta igual que `membresia`, con
+  // una excepción: legacy da a INVERSIONISTA lectura incondicional, pero el
+  // catálogo exige que INVESTOR/BUYER SIEMPRE vayan condicionados (invariante
+  // ya cubierto por un test, ver authz-permissions.test.ts) — como esta fila
+  // no tiene ningún call site real, se deniega en vez de forzar una condición
+  // que no aplica (fichaTecnica no es un recurso scoped a cultivo/finca).
+  fichaTecnica: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: R, ORG_ADMIN: NADA,
+    FARM_OWNER: R, FARM_ADMIN: R, FARM_COLLABORATOR: R, INVESTOR: NADA, BUYER: NADA,
+  },
+  enlaceCompartido: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: NADA, INVESTOR: NADA, BUYER: NADA,
   },
 };
 

@@ -27,9 +27,9 @@ const enFinca1 = (rol: Rol) => membresia(rol, { fincaId: FINCA_1 });
 const objetivoFinca1: ObjetivoAutorizacion = { organizacionId: ORG_A, fincaId: FINCA_1 };
 
 describe("catálogo — estructura", () => {
-  it("cubre los 9 roles del ADR y los 15 recursos de la matriz", () => {
+  it("cubre los 9 roles del ADR y los 26 recursos de la matriz (15 del ADR + 11 legacy, Sprint 2)", () => {
     expect(ROLES).toHaveLength(9);
-    expect(RECURSOS).toHaveLength(15);
+    expect(RECURSOS).toHaveLength(26);
     for (const recurso of RECURSOS) {
       expect(Object.keys(MATRIZ[recurso]).sort()).toEqual([...ROLES].sort());
     }

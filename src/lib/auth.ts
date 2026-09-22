@@ -16,6 +16,7 @@ import {
   SESION_MAX_AGE_SEGUNDOS,
   SESION_REVALIDACION_STALENESS_MS,
 } from "./sesiones";
+import { rolLegacyARolIam } from "./authz/policies";
 
 /**
  * Claims comunes que van al JWT/sesión — extraído del authorize() original
@@ -32,6 +33,27 @@ async function resolverClaimsSesion(user: PrismaUser) {
     where: { userId: user.id, rol: "OWNER", aceptada: true, activa: true },
     select: { id: true },
   });
+
+  // ADR-011 Sprint 2 — membresías IAM embebidas en el JWT, para
+  // `usePermission()` (src/lib/authz/use-permission.ts): el hook de cliente
+  // evalúa `can()` con esto, sin ida y vuelta al servidor. Mismo criterio que
+  // `requireAccess()` (src/lib/authz.ts): se recalcula con
+  // `rolLegacyARolIam()` a partir de `rol`/`organizacion.tipo` en cada login,
+  // no se lee ninguna columna "sombra" (`rolesIam`) que Equipo todavía no
+  // mantiene sincronizada. Compacto a propósito (son las membresías de UN
+  // usuario — normalmente 1, rara vez más de 2-3 — no las de una
+  // organización entera).
+  const membresiasActivas = await db.membresia.findMany({
+    where: { userId: user.id, aceptada: true, activa: true },
+    select: { organizacionId: true, rol: true, organizacion: { select: { tipo: true } } },
+  });
+  const membresias = membresiasActivas.flatMap((m) =>
+    rolLegacyARolIam(m.rol, m.organizacion.tipo).map((rol) => ({
+      rol,
+      organizacionId: m.organizacionId,
+      estado: "ACTIVA" as const,
+    }))
+  );
 
   // modulosPermitidos: qué menús del dashboard ve este usuario (capa
   // adicional de UX/navegación sobre el RBAC por recurso de authz.ts —
@@ -61,6 +83,7 @@ async function resolverClaimsSesion(user: PrismaUser) {
     esSuperAdmin: user.esSuperAdmin,
     esOwner: !!esOwner,
     modulosPermitidos,
+    membresias,
   };
 }
 
@@ -255,6 +278,7 @@ export const authOptions: NextAuthOptions = {
         token.esSuperAdmin = (user as any).esSuperAdmin ?? false;
         token.esOwner = (user as any).esOwner ?? false;
         token.modulosPermitidos = (user as any).modulosPermitidos ?? "ALL";
+        token.membresias = (user as any).membresias ?? [];
         // sid ya viene creado desde adentro de authorize() (ahí sí hay
         // headers reales) — acá solo se copia al token, mismo patrón que
         // el resto de los claims de esta rama.
@@ -292,6 +316,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).esSuperAdmin = token.esSuperAdmin ?? false;
         (session.user as any).esOwner = token.esOwner ?? false;
         (session.user as any).modulosPermitidos = token.modulosPermitidos ?? "ALL";
+        (session.user as any).membresias = token.membresias ?? [];
       }
       return session;
     },
