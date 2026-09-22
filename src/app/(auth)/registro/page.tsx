@@ -49,14 +49,21 @@ export default function RegistroPage() {
     <AuthCard titulo="Crea tu cuenta" subtitulo="Empieza a gestionar tu finca con GermIA">
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Tu nombre</label>
+          {/* Neutral a propósito (hallazgo del usuario, 2026-09-22): el campo
+              acepta cualquier texto —User.name es texto libre, sin
+              validación que exija persona natural— pero "Tu nombre" +
+              "Juan Pérez" daba a entender que era solo para personas. No
+              distingue natural/jurídica por dentro (eso viviría en
+              Organizacion.tipo/nit del ADR-011, sin conectar todavía) —
+              este es solo el texto, a propósito, por ahora. */}
+          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Nombre o razón social</label>
           <div className="relative">
             <User size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
             <input
               type="text"
               value={form.nombre}
               onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-              placeholder="Juan Pérez"
+              placeholder="Juan Pérez o Finca El Juncal S.A.S."
               required
               className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
             />
