@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { User, Building2, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { User, Mail, Lock, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
 import { AuthCard } from "@/components/auth/AuthCard";
 
@@ -10,7 +10,7 @@ export default function RegistroPage() {
   const [loading, setLoading] = useState(false);
   const [enviado, setEnviado] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
-  const [form, setForm] = useState({ nombre: "", nombreOrganizacion: "", email: "", password: "", aceptaTerminos: false });
+  const [form, setForm] = useState({ nombre: "", email: "", password: "", aceptaTerminos: false });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -57,21 +57,6 @@ export default function RegistroPage() {
               value={form.nombre}
               onChange={(e) => setForm({ ...form, nombre: e.target.value })}
               placeholder="Juan Pérez"
-              required
-              className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Nombre de tu finca o negocio</label>
-          <div className="relative">
-            <Building2 size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
-            <input
-              type="text"
-              value={form.nombreOrganizacion}
-              onChange={(e) => setForm({ ...form, nombreOrganizacion: e.target.value })}
-              placeholder="Finca El Juncal"
               required
               className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
             />

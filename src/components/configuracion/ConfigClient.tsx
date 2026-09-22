@@ -10,12 +10,13 @@ import type { VistaPreferida } from "@prisma/client";
 import { generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
 import {
   actualizarPerfil,
-  actualizarFinca,
   actualizarAlertas,
   exportarMisDatos,
   eliminarCuenta,
 } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
 import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
+import { FincasTab } from "@/components/configuracion/FincasTab";
+import type { FincaResumen } from "@/lib/data/fincas";
 
 interface ConfigClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida };
@@ -24,16 +25,15 @@ interface ConfigClientProps {
     rainAlertMm: number; windAlertKmh: number;
     droughtDays: number; emailAlerts: boolean; pushAlerts: boolean;
   } | null;
-  finca: {
-    nombre: string; municipio: string; departamento: string;
-    lat: number | null; lng: number | null; areaTotal: number | null;
-  } | null;
+  fincas: FincaResumen[];
+  fincaActivaId: string | null;
+  puedeCrearFinca: boolean;
 }
 
 type Tab = "profile" | "finca" | "alertas" | "privacidad";
 const TABS_VALIDOS: Tab[] = ["profile", "finca", "alertas", "privacidad"];
 
-export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
+export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca }: ConfigClientProps) {
   // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
   // pueda aterrizar en la sección exacta (ej. "alertas" o "privacidad") en
   // vez de siempre "profile". Sin el parámetro, comportamiento idéntico al
@@ -55,15 +55,6 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
     telefono: user?.telefono ?? "",
     currentPassword: "",
     newPassword: "",
-  });
-
-  const [fincaForm, setFincaForm] = useState({
-    nombre: finca?.nombre ?? "",
-    municipio: finca?.municipio ?? "",
-    departamento: finca?.departamento ?? "",
-    lat: finca?.lat?.toString() ?? "8.320589",
-    lng: finca?.lng?.toString() ?? "-73.337551",
-    areaTotal: finca?.areaTotal?.toString() ?? "2",
   });
 
   const [alertaForm, setAlertaForm] = useState({
@@ -92,30 +83,6 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
         if (profileForm.newPassword) fd.set("newPassword", profileForm.newPassword);
 
         const result = await actualizarPerfil({}, fd);
-        if (result.error) {
-          toast.error(result.error);
-          return;
-        }
-        toast.success("Configuración guardada");
-      } finally {
-        setSaving(false);
-      }
-    });
-  };
-
-  const saveFinca = () => {
-    setSaving(true);
-    startTransition(async () => {
-      try {
-        const fd = new FormData();
-        fd.set("nombre", fincaForm.nombre);
-        fd.set("municipio", fincaForm.municipio);
-        fd.set("departamento", fincaForm.departamento);
-        fd.set("lat", fincaForm.lat);
-        fd.set("lng", fincaForm.lng);
-        fd.set("areaTotal", fincaForm.areaTotal);
-
-        const result = await actualizarFinca({}, fd);
         if (result.error) {
           toast.error(result.error);
           return;
@@ -325,71 +292,7 @@ export function ConfigClient({ user, prefs, finca }: ConfigClientProps) {
 
       {/* ── Finca ───────────────────────────────────────────────────────── */}
       {tab === "finca" && (
-        <div className="card p-6 space-y-5">
-          <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">
-            Datos de la finca
-          </h2>
-
-          <div className="space-y-4">
-            <Input
-              label="Nombre de la finca"
-              value={fincaForm.nombre}
-              onChange={(e) => setFincaForm({ ...fincaForm, nombre: e.target.value })}
-              placeholder="Finca Álvarez Pacheco"
-            />
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Municipio"
-                value={fincaForm.municipio}
-                onChange={(e) => setFincaForm({ ...fincaForm, municipio: e.target.value })}
-                placeholder="Norte de Santander"
-              />
-              <Input
-                label="Departamento"
-                value={fincaForm.departamento}
-                onChange={(e) => setFincaForm({ ...fincaForm, departamento: e.target.value })}
-                placeholder="Norte de Santander"
-              />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <Input
-                label="Latitud"
-                type="number"
-                value={fincaForm.lat}
-                onChange={(e) => setFincaForm({ ...fincaForm, lat: e.target.value })}
-                step="0.0001"
-              />
-              <Input
-                label="Longitud"
-                type="number"
-                value={fincaForm.lng}
-                onChange={(e) => setFincaForm({ ...fincaForm, lng: e.target.value })}
-                step="0.0001"
-              />
-              <Input
-                label="Área total (ha)"
-                type="number"
-                value={fincaForm.areaTotal}
-                onChange={(e) => setFincaForm({ ...fincaForm, areaTotal: e.target.value })}
-                step="0.1"
-              />
-            </div>
-          </div>
-
-          <div className="p-3 bg-agro-50 rounded-[var(--radius-md)] text-[12px] text-agro-600">
-            💡 Las coordenadas GPS se usan para el mapa interactivo y las alertas climáticas.
-            Puedes obtenerlas desde Google Maps haciendo clic derecho en tu finca.
-          </div>
-
-          <Button
-            onClick={saveFinca}
-            loading={saving}
-            className="w-full"
-          >
-            <Save size={15} />
-            Guardar datos de la finca
-          </Button>
-        </div>
+        <FincasTab fincas={fincas} fincaActivaId={fincaActivaId} puedeCrear={puedeCrearFinca} />
       )}
 
       {/* ── Alertas ─────────────────────────────────────────────────────── */}

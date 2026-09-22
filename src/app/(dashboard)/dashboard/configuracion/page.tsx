@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { resolverModoApp } from "@/lib/modo-app";
 import { getConfiguracionResumen } from "@/lib/data/configuracion";
+import { getFincas } from "@/lib/data/fincas";
 import { tieneModulo } from "@/lib/modulos";
 import { PerfilSimpleClient } from "@/components/modo-simple/PerfilSimpleClient";
 
@@ -17,7 +18,10 @@ export default async function ConfiguracionPage() {
   if (!session?.user?.id) redirect("/login");
 
   const { fincaActivaId } = await resolverFincaActiva(session);
-  const { user, prefs, finca } = await getConfiguracionResumen(session.user.id, fincaActivaId);
+  const [{ user, prefs }, fincas] = await Promise.all([
+    getConfiguracionResumen(session.user.id),
+    getFincas(session),
+  ]);
 
   // Fase 3 de ADR-006 — bifurcación real (ver checkpoint). Configuración es
   // la única de las 6 rutas donde la rama simple es una versión REDUCIDA
@@ -47,7 +51,13 @@ export default async function ConfiguracionPage() {
         subtitle="Perfil, finca y preferencias de alertas"
       />
       <main className="page-scroll">
-        <ConfigClient user={user as any} prefs={prefs} finca={finca} />
+        <ConfigClient
+          user={user as any}
+          prefs={prefs}
+          fincas={fincas}
+          fincaActivaId={fincaActivaId}
+          puedeCrearFinca={!!session.user.esOwner}
+        />
       </main>
     </>
   );
