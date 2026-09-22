@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { membresiaOwner } from "@/lib/equipo";
 import { MODULOS_DASHBOARD, obtenerPlantillaModulos, type ModuloKey } from "@/lib/modulos";
 import { registrarAuditoria } from "@/lib/audit";
+import { revocarSesionesDeUsuario } from "@/lib/sesiones";
 
 function modulosValidos(modulos: unknown): ModuloKey[] | null {
   if (!Array.isArray(modulos)) return null;
@@ -37,6 +38,11 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
 
     if (activa !== undefined) {
       await db.membresia.update({ where: { id: membresiaId }, data: { activa: Boolean(activa) } });
+      // ADR-011 Sprint 1 — ver equipo-actions.ts::toggleActivaMiembro (mismo
+      // criterio, esta ruta es la segunda entrada al mismo caso de uso).
+      if (!activa) {
+        await revocarSesionesDeUsuario(miembro.userId);
+      }
     }
 
     // Edición de rol/finca/módulos: se manda siempre junta (rolFinca +
@@ -109,6 +115,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ memb
       }),
       db.membresia.delete({ where: { id: membresiaId } }),
     ]);
+
+    // ADR-011 Sprint 1 — ver equipo-actions.ts::eliminarMiembro (mismo
+    // criterio: remover siempre revoca sesiones, sin condición).
+    await revocarSesionesDeUsuario(miembro.userId);
 
     await registrarAuditoria({
       actorId: session.user.id,

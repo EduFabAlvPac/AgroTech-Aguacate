@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { generarToken, expiraEnHoras, tokenExpirado, tokenVigenteOGenerar } from "@/lib/tokens";
+import { generarToken, expiraEnHoras, tokenExpirado, tokenVigenteOGenerar, hashToken } from "@/lib/tokens";
 
 describe("tokens (self-signup / recuperar contraseña)", () => {
   it("generarToken produce strings distintos y suficientemente largos", () => {
@@ -51,6 +51,24 @@ describe("tokens (self-signup / recuperar contraseña)", () => {
       expect(tokenVigenteOGenerar(null, null, 24).esNuevo).toBe(true);
       expect(tokenVigenteOGenerar("token-sin-fecha", null, 24).esNuevo).toBe(true);
       expect(tokenVigenteOGenerar(null, expiraEnHoras(5), 24).esNuevo).toBe(true);
+    });
+  });
+
+  describe("hashToken (ADR-011 Sprint 1 — TokenAuth/Sesion guardan el hash, nunca el crudo)", () => {
+    it("es determinístico: el mismo token siempre produce el mismo hash", () => {
+      const token = generarToken();
+      expect(hashToken(token)).toBe(hashToken(token));
+    });
+
+    it("tokens distintos producen hashes distintos", () => {
+      const a = generarToken();
+      const b = generarToken();
+      expect(hashToken(a)).not.toBe(hashToken(b));
+    });
+
+    it("produce un hex de 64 caracteres (sha256)", () => {
+      const hash = hashToken(generarToken());
+      expect(hash).toMatch(/^[0-9a-f]{64}$/);
     });
   });
 });

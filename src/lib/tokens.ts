@@ -11,6 +11,20 @@ export function generarToken(): string {
   return crypto.randomBytes(32).toString("base64url");
 }
 
+/**
+ * ADR-011 Sprint 1 — hash de un token/id de sesión para guardarlo en BD sin
+ * exponer el valor crudo si la base se filtra (mismo motivo que una
+ * contraseña, aunque aquí basta SHA-256 sin costo de cómputo: a diferencia
+ * de una contraseña, este valor ya viene con 256 bits de entropía real —
+ * no es adivinable por fuerza bruta offline como sí lo sería una clave
+ * corta elegida por una persona). Determinístico a propósito: el lookup
+ * siempre es "hashear lo que llegó y buscar por igualdad", nunca por
+ * comparación tipo bcrypt.
+ */
+export function hashToken(token: string): string {
+  return crypto.createHash("sha256").update(token).digest("hex");
+}
+
 const UNA_HORA_MS = 60 * 60 * 1000;
 
 /** Estándar de la industria: la ventana de reset de contraseña es más corta
