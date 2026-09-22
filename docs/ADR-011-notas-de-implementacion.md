@@ -6,11 +6,12 @@
 
 | Entregado | No entregado (a propósito) |
 |---|---|
-| `prisma/schema.prisma` **único** con el IAM integrado, 100 % aditivo | Ninguna ruta, login ni pantalla usa todavía el modelo nuevo |
-| `src/lib/authz/permissions.ts` + `policies.ts` (matriz §4 + evaluador puro) con 41 tests | `src/lib/authz.ts` (el RBAC vigente) **no se tocó** |
-| `prisma/sql/2026-09-adr011-iam-aditivo.sql` para producción | Backfill de datos (Sprint 1), sesiones, MFA, Magic Link, impersonación |
+| `prisma/schema.prisma` **único** con el IAM integrado, 100 % aditivo | Ninguna ruta de negocio usa todavía `can()`/`ROLE_PERMISSIONS` — `src/lib/authz.ts` (el RBAC vigente) sigue mandando |
+| `src/lib/authz/permissions.ts` + `policies.ts` (matriz §4 + evaluador puro) con 41 tests | Guards (`requireAccess` apoyado en `can()`), `middleware.ts`, `usePermission()` (Sprint 2) |
+| `prisma/sql/2026-09-adr011-iam-aditivo.sql` para producción (PR #50) | — |
+| **Sprint 1**: `Sesion` (lista de revocación sobre JWT), `TokenAuth` con hash reemplazando los tokens en texto plano, `prisma/backfill-iam.ts` idempotente | MFA, Magic Link WhatsApp, impersonación, tests de aislamiento cross-tenant (Sprint 2) |
 
-Consecuencia: el comportamiento de la app es **idéntico** al anterior. Todo lo nuevo es infraestructura dormida.
+Consecuencia: **el login y la sesión sí cambiaron de mecanismo** (revocación real, tokens hasheados) pero el comportamiento visible para el usuario es idéntico al anterior — mismo flujo, mismas pantallas. La autorización por rol (`authz.ts`) sigue sin tocarse; eso es el Sprint 2.
 
 ## 2. Estrategia de fusión: evolucionar, no reemplazar
 
@@ -34,8 +35,8 @@ El original quedó archivado en [`docs/anexos/ADR-011-schema-iam.original.prisma
 | `User.eliminadoEn` | **nuevo**, junto a `eliminacionSolicitadaEn` | solicitud ≠ baja efectuada |
 | `Organization` | `Organizacion` | + `tipo`, `nit`, plan/trial/límites, branding, `eliminadoEn` |
 | `PlanTipo` | `PlanOrganizacion` (extendido) | un solo enum; los 4 valores originales se conservan |
-| `Membership` | `Membresia` | + `fincaId`, `estado`, `esRolPrimario`, `rolIam`, campos de revocación |
-| `Rol` | enum `Rol` **nuevo** + `Membresia.rolIam` | el viejo `RolOrganizacion` sigue mandando hasta el cutover |
+| `Membership` | `Membresia` | + `fincaId`, `estado`, `esRolPrimario`, `rolesIam`, campos de revocación |
+| `Rol` | enum `Rol` **nuevo** + `Membresia.rolesIam` | el viejo `RolOrganizacion` sigue mandando hasta el cutover; ver corrección de diseño en §5bis |
 | `AuditLog` | `AuditLog` (extendido) | los 29 call sites de `registrarAuditoria()` no cambian |
 | `Sesion`, `TokenAuth`, `Invitacion`, `Facturacion`, `Impersonacion` | **nuevas** | con los ajustes de §3 |
 | — (no está en el ADR) | `FincaAcceso`, `RolModulosDefault` | se conservan; gating de módulos de UI, se unifican en el Sprint 3 |
@@ -63,18 +64,24 @@ Ordenados por impacto. Los marcados ⚠️ cambian cómo hay que construir algo.
 2. ⚠️ **Matriz §4 incompleta:** falta la columna `PLATFORM_SUPPORT` (es el 9.º rol), el `*` no se define en ningún lado, e "Impersonar usuario" figura solo para SUPER_ADMIN mientras §6.5 lo inicia PLATFORM_SUPPORT. Además §2.2 dice "lectura" pero §7 (A.8.2) dice "sin acceso persistente". Se adoptó la lectura más restrictiva (ver `permissions.ts`, "INTERPRETACIONES") — **confirmar al firmar**.
 3. ⚠️ **Migrar roles no es 1:1.** `OWNER` actual ≠ `ORG_OWNER`: el ADR le da solo *lectura* de "Actividad de campo", así que un dueño de org individual perdería la capacidad de registrar actividades. Regla adoptada (`rolLegacyARolIam`): en org `INDIVIDUAL`, `OWNER → ORG_OWNER + FARM_OWNER`. `ADMIN_FINCA → FARM_ADMIN` (no `ORG_ADMIN`: está atado a fincas concretas vía `FincaAcceso`).
 4. **Hash-chain de `AuditLog` con concurrencia.** Con escrituras simultáneas (serverless) una cadena global se rompe (dos escritores leen el mismo `hashPrevio`). Cadena **por organización** + transacción serializable (Sprint 5).
-5. **Tokens en texto plano hoy.** `User.tokenVerificacion` y `tokenResetPassword` (Tanda 2) se guardan sin hash; el ADR pide SHA-256. Migrarlos a `TokenAuth` en el Sprint 1.
+5. ✅ **Tokens en texto plano hoy.** `User.tokenVerificacion` y `tokenResetPassword` (Tanda 2) se guardaban sin hash; el ADR pide SHA-256. **Resuelto en el Sprint 1**: los 5 archivos que los leían/escribían (`registro`, `recuperar`, `restablecer`, `reenviar-verificacion`, `verificar/[token]` — ruta y página) pasaron a `TokenAuth` con `tokenHash` (SHA-256 vía `hashToken()`, `src/lib/tokens.ts`). Las columnas viejas de `User` no se borraron (mismo criterio de nunca-`DROP`), quedan sin uso.
 6. **MFA obligatorio para `ORG_OWNER`** afecta a los dueños actuales de producción → enrolamiento con periodo de gracia. El "cifrado a nivel de aplicación" de `documentoIdentidad` y `mfaSecret` no define gestión de llaves (`ENCRYPTION_KEY`, rotación).
 7. **Cron de §8.1 "cada 6 horas":** Vercel **Hobby** solo permite una ejecución diaria. O se acepta diario, o se necesita plan Pro.
 8. **§7.1 (Ley 1581) — verificar con abogado, no lo doy por cierto:** el ADR dice que el registro ante la SIC es obligatorio al superar 100.000 *titulares*. Mi entendimiento (Decreto 090 de 2018) es que el umbral del RNBD es por **activos totales (100.000 UVT)**, no por número de titulares. Si es así, la alerta de "80.000 titulares" mide otra cosa.
-9. **Migración de datos existentes:** `metodoAuthPreferido` quedará en `EMAIL_PASSWORD` para los Campesino actuales hasta el backfill (nada lo lee todavía).
+9. ✅ **Migración de datos existentes:** `metodoAuthPreferido` quedaba en `EMAIL_PASSWORD` para todos hasta correr el backfill. Resuelto — `prisma/backfill-iam.ts` (Sprint 1) lo recalcula para cuentas existentes; sigue sin ser leído por ninguna ruta todavía (Sprint 2+).
 10. Menores: los enums de §5.2 están truncados en el .docx (manda el `.prisma`); `Facturacion` se solapa con ADR-012 (pendiente); `propietarioTemp` de §6.2 no existe ni hace falta (`Invitacion.fincaId`); §6.2 y §5.3 usan `Farm`/`Organization` donde el código dice `Finca`/`Organizacion`.
+
+## 5bis. Corrección de diseño detectada al construir el Sprint 1: `rolIam` → `rolesIam`
+
+El PR #50 dejó `Membresia.rolIam: Rol?` (singular). Al conectar `rolLegacyARolIam()` (hallazgo 3 de §5) para el backfill, resultó que esa función devuelve **un arreglo**, no un solo valor: en una organización `INDIVIDUAL`, un `OWNER` es a la vez `ORG_OWNER` y `FARM_OWNER` en el modelo nuevo — son dos roles simultáneos que hoy no se pueden modelar como dos filas de `Membresia` (el `@@unique([userId, organizacionId])` actual lo impide hasta el Sprint 3, ver §4).
+
+Se agregó `Membresia.rolesIam Rol[] @default([])` (columna nueva, aditiva) y `rolIam` quedó **sin usar**, documentado en el propio schema. Mismo criterio que los 4 valores viejos de `PlanOrganizacion`: nunca se hace `DROP` de una columna que ya se envió, aunque el error se detecte al día siguiente. El backfill (`prisma/backfill-iam.ts`) llena `rolesIam`, no `rolIam`.
 
 ## 6. Mapa de sprints → código real
 
 | Sprint | Alcance del ADR | Qué implica en ESTE código | Bloqueos |
 |---|---|---|---|
-| **S1** | Login/sesiones | `Sesion` como lista de revocación (JWT + `sesionId`, ver §5.1) · migrar tokens de `User` a `TokenAuth` con hash · **`prisma/backfill-iam.ts`** idempotente: `estado` ← `aceptada/activa`, `rolIam` ← `rolLegacyARolIam()`, `esRolPrimario` ← membresía más antigua, `metodoAuthPreferido` ← `experiencia`, `Organizacion.tipo/planIniciadoEn` | — |
+| **S1** ✅ | Login/sesiones | `Sesion` como lista de revocación (JWT + `sid`, revalidado cada 5 min, ver §5.1) · tokens de `User` migrados a `TokenAuth` con hash (`hashToken`) · `Sesion` se revoca en `signOut` y al inactivar/remover a alguien de Equipo (antes, ninguna de las dos cosas le hacía nada a una sesión ya iniciada) · **`prisma/backfill-iam.ts`** idempotente: `estado` ← `aceptada/activa`, `rolesIam` ← `rolLegacyARolIam()` (ver corrección §5bis), `esRolPrimario` ← membresía más antigua, `metodoAuthPreferido` ← `experiencia`/`password`, `Organizacion.planIniciadoEn` ← `createdAt` | — |
 | **S2** | Guards + `usePermission()` | Hacer que `requireAccess` (`src/lib/authz.ts`) se apoye en `ROLE_PERMISSIONS`/`can()` · `middleware.ts` (hoy no existe) · hook cliente · **tests de aislamiento cross-tenant** (pendiente desde `CLAUDE.md §7`) | — |
 | **S3** | UI Equipo/orgs | Cambio del unique de `Membresia` (§4) y de las ~13 llamadas a `userId_organizacionId` · selector de contexto · invitaciones · registro de org Colectivo · unificar `FincaAcceso` | — |
 | **S4** | Magic Link WhatsApp | Emisor enchufable con fallback a log (mismo patrón que `src/lib/email.ts` y `rate-limit.ts`) · normalizar `telefono` a E.164 · requiere cuenta Meta WhatsApp Business + plantillas aprobadas | **Firma** (canal único) + cuenta Meta |

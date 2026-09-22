@@ -9,6 +9,13 @@ import { registrarAuditoria } from "./audit";
 import { normalizarTelefono } from "./telefono";
 import { verificarLimite } from "./rate-limit";
 import { MENSAJE_EMAIL_NO_VERIFICADO } from "./auth-shared";
+import {
+  crearSesion,
+  sesionEsValida,
+  revocarSesionPorRawId,
+  SESION_MAX_AGE_SEGUNDOS,
+  SESION_REVALIDACION_STALENESS_MS,
+} from "./sesiones";
 
 /**
  * Claims comunes que van al JWT/sesión — extraído del authorize() original
@@ -70,8 +77,19 @@ function obtenerIp(headers: Record<string, string> | Headers | undefined): strin
   return valor?.split(",")[0]?.trim() || "ip-desconocida";
 }
 
+/** User-Agent real del cliente — mismo criterio de "headers puede venir en
+ * dos formas" que obtenerIp() de arriba. Se guarda tal cual (sin parsear
+ * dispositivo/navegador) en Sesion.userAgent — ver ADR-011 Sprint 1. */
+function obtenerUserAgent(headers: Record<string, string> | Headers | undefined): string | undefined {
+  const valor = headers instanceof Headers ? headers.get("user-agent") : headers?.["user-agent"];
+  return valor ?? undefined;
+}
+
 export const authOptions: NextAuthOptions = {
-  session: { strategy: "jwt" },
+  // maxAge explícito (ADR-011 Sprint 1) — mismo valor que NextAuth ya usaba
+  // por default (30 días), ahora escrito en vez de heredado en silencio.
+  // Diferenciar sesión más corta para roles privilegiados: Sprint 6 (MFA).
+  session: { strategy: "jwt", maxAge: SESION_MAX_AGE_SEGUNDOS },
   pages: { signIn: "/login" },
   providers: [
     CredentialsProvider({
@@ -142,7 +160,13 @@ export const authOptions: NextAuthOptions = {
           throw new Error(MENSAJE_EMAIL_NO_VERIFICADO);
         }
 
-        return resolverClaimsSesion(user);
+        const claims = await resolverClaimsSesion(user);
+        // ADR-011 Sprint 1 — se crea acá (no en jwt()) porque acá SÍ hay
+        // `req` con headers reales; el `sid` crudo viaja dentro del objeto
+        // que NextAuth pasa como `user` al jwt() de abajo, mismo mecanismo
+        // que ya usaba este archivo para esOwner/modulosPermitidos.
+        const { sid } = await crearSesion(user.id, { ip: obtenerIp(req?.headers), userAgent: obtenerUserAgent(req?.headers) });
+        return { ...claims, sid };
       },
     }),
     // Login "modo Campesino" — solo número de celular, sin contraseña, sin
@@ -178,7 +202,9 @@ export const authOptions: NextAuthOptions = {
         // ESTANDAR aunque alguien adivine su número.
         if (!user || user.experiencia !== "CAMPESINO") return null;
 
-        return resolverClaimsSesion(user);
+        const claims = await resolverClaimsSesion(user);
+        const { sid } = await crearSesion(user.id, { ip: obtenerIp(req?.headers), userAgent: obtenerUserAgent(req?.headers) });
+        return { ...claims, sid };
       },
     }),
     // Exclusivo del perfil "Otro rol" — el Campesino nunca ve este botón.
@@ -205,11 +231,21 @@ export const authOptions: NextAuthOptions = {
       return true;
     },
     async jwt({ token, user, account }) {
+      // Google: rama que YA solo corre en el login inicial — `account`
+      // viene poblado únicamente en el handshake OAuth, nunca en lecturas
+      // posteriores del mismo token. Es el punto exacto para crear la
+      // sesión (ADR-011 Sprint 1), igual que `user` lo es para los
+      // providers Credentials de abajo. Sin ip/user-agent acá — no hay
+      // `req` con headers reales dentro de este callback; quedan null.
       if (account?.provider === "google" && token.email) {
         const dbUser = await db.user.findUnique({ where: { email: token.email } });
         if (dbUser) {
           const claims = await resolverClaimsSesion(dbUser);
           Object.assign(token, claims);
+          const { sid } = await crearSesion(dbUser.id);
+          token.sid = sid;
+          token.sidValid = true;
+          token.sidCheckedAt = Date.now();
         }
         return token;
       }
@@ -219,11 +255,38 @@ export const authOptions: NextAuthOptions = {
         token.esSuperAdmin = (user as any).esSuperAdmin ?? false;
         token.esOwner = (user as any).esOwner ?? false;
         token.modulosPermitidos = (user as any).modulosPermitidos ?? "ALL";
+        // sid ya viene creado desde adentro de authorize() (ahí sí hay
+        // headers reales) — acá solo se copia al token, mismo patrón que
+        // el resto de los claims de esta rama.
+        token.sid = (user as any).sid;
+        token.sidValid = true;
+        token.sidCheckedAt = Date.now();
+        return token;
+      }
+
+      // Lectura posterior (ni login inicial ni Google) — revalida contra
+      // Sesion solo si pasó la ventana de staleness (ver sesiones.ts): la
+      // inmensa mayoría de los requests de una sesión activa NO tocan la
+      // base acá, se confía en lo que ya quedó cacheado en el propio JWT.
+      // Tokens emitidos ANTES de este cambio no tienen `sid` — quedan
+      // vivos como siempre (no se expulsa a nadie el día del deploy), solo
+      // que no son revocables hasta que vuelvan a loguearse.
+      if (token.sid) {
+        const ultimoChequeo = (token.sidCheckedAt as number | undefined) ?? 0;
+        if (Date.now() - ultimoChequeo > SESION_REVALIDACION_STALENESS_MS) {
+          token.sidValid = await sesionEsValida(token.sid as string);
+          token.sidCheckedAt = Date.now();
+        }
       }
       return token;
     },
     session({ session, token }) {
-      if (token && session.user) {
+      // sidValid es undefined (token viejo, sin sid) o true → sesión
+      // normal. Solo false (sesión revocada o vencida, confirmado contra
+      // la base) deja session.user.id sin llenar — el resto de la app ya
+      // trata eso exactamente como "no autenticado"
+      // (`if (!session?.user?.id) ...`, ~60 rutas), sin tocar ninguna.
+      if (token && session.user && token.sidValid !== false) {
         session.user.id = token.id as string;
         (session.user as any).role = token.role;
         (session.user as any).esSuperAdmin = token.esSuperAdmin ?? false;
@@ -231,6 +294,15 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).modulosPermitidos = token.modulosPermitidos ?? "ALL";
       }
       return session;
+    },
+  },
+  events: {
+    // Cierre de sesión normal (signOut() del cliente) también limpia la
+    // fila de Sesion — ADR-011 Sprint 1. Confirmado en los tipos instalados
+    // de next-auth: en estrategia JWT este evento recibe `token`, no
+    // `session`.
+    async signOut({ token }) {
+      if (token?.sid) await revocarSesionPorRawId(token.sid as string);
     },
   },
   secret: process.env.NEXTAUTH_SECRET,

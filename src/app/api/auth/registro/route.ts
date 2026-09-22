@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
 import { registroSchema } from "@/lib/validations";
 import { slugUnico } from "@/lib/organizacion";
-import { generarToken, expiraEnHoras } from "@/lib/tokens";
+import { generarToken, expiraEnHoras, hashToken } from "@/lib/tokens";
 import { enviarEmailVerificacion } from "@/lib/email";
 import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
@@ -47,6 +47,9 @@ export async function POST(req: Request) {
     const nombreOrganizacion = `Finca de ${nombre}`;
     const slug = await slugUnico(nombreOrganizacion);
     const hashed = await bcrypt.hash(password, 12);
+    // ADR-011 Sprint 1 — el token de verificación ya NO se guarda en User
+    // (texto plano); vive en TokenAuth con hash. Solo el valor crudo sale
+    // por correo, nunca se persiste.
     const tokenVerificacion = generarToken();
 
     const { user } = await db.$transaction(async (tx) => {
@@ -60,12 +63,18 @@ export async function POST(req: Request) {
           password: hashed,
           role: "PRODUCER",
           terminosAceptadosEn: new Date(),
-          tokenVerificacion,
-          tokenVerificacionExpira: expiraEnHoras(24),
         },
       });
       await tx.membresia.create({
         data: { userId: user.id, organizacionId: organizacion.id, rol: "OWNER" },
+      });
+      await tx.tokenAuth.create({
+        data: {
+          userId: user.id,
+          tipo: "VERIFY_EMAIL",
+          tokenHash: hashToken(tokenVerificacion),
+          expiraEn: expiraEnHoras(24),
+        },
       });
       return { user, organizacion };
     });

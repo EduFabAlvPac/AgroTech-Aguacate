@@ -299,12 +299,20 @@ model Membresia {
   // (Sprints 1-3), `rol`/`aceptada`/`activa` siguen siendo la fuente de verdad
   // y estas columnas quedan como "sombra" que el backfill del Sprint 1 llena:
   //   estado    ← aceptada/activa  (activa=false → SUSPENDIDA, aceptada=false → PENDIENTE)
-  //   rolIam    ← rol, por src/lib/authz/policies.ts::rolLegacyARolIam()
+  //   rolesIam  ← rol, por src/lib/authz/policies.ts::rolLegacyARolIam()
   //   esRolPrimario ← la membresía más antigua de cada usuario
   fincaId          String?
   estado           EstadoMembresia @default(ACTIVA)
   esRolPrimario    Boolean         @default(false)
+  // `rolIam` (singular) quedó sin usar a propósito — error de diseño del PR
+  // #50: un OWNER de organización INDIVIDUAL es a la vez ORG_OWNER y
+  // FARM_OWNER en el modelo nuevo (rolLegacyARolIam() ya devuelve un
+  // arreglo), y hoy no se puede modelar como dos filas de Membresia (el
+  // @@unique de abajo lo impide hasta el Sprint 3). Se corrige con
+  // `rolesIam` (plural). `rolIam` no se borra — mismo criterio que los 4
+  // valores viejos de PlanOrganizacion: nunca DROP de algo que ya se envió.
   rolIam           Rol?
+  rolesIam         Rol[]           @default([])
   aceptadoEn       DateTime?
   revocadoEn       DateTime?
   revocadoPorId    String?
@@ -1362,7 +1370,7 @@ model ConsultaDiagnosticoCampesino {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 // Los 9 roles del ADR (§2.2). `Membresia.rol` (RolOrganizacion) sigue mandando
-// hasta el cutover; `Membresia.rolIam` guarda el equivalente en este enum.
+// hasta el cutover; `Membresia.rolesIam` guarda el/los equivalente(s) en este enum.
 enum Rol {
   // Plataforma (CrecIAgro S.A.S.) — Membresía en la org CRECIAGRO_INTERNAL
   SUPER_ADMIN // máx. 5 personas

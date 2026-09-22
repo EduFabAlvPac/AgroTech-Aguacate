@@ -19,6 +19,7 @@ import { db } from "@/lib/db";
 import { membresiaOwner } from "@/lib/equipo";
 import { MODULOS_DASHBOARD, obtenerPlantillaModulos, type ModuloKey, type PlantillasModulos } from "@/lib/modulos";
 import { registrarAuditoria } from "@/lib/audit";
+import { revocarSesionesDeUsuario } from "@/lib/sesiones";
 
 function modulosValidos(modulos: unknown): ModuloKey[] | null {
   if (!Array.isArray(modulos)) return null;
@@ -183,6 +184,13 @@ export async function toggleActivaMiembro(membresiaId: string, nuevaActiva: bool
 
     await db.membresia.update({ where: { id: membresiaId }, data: { activa: nuevaActiva } });
 
+    // ADR-011 Sprint 1 — al inactivar, se revocan las sesiones ya iniciadas
+    // de esa persona (antes de esto, inactivar acá no le hacía nada a una
+    // sesión que ya estaba adentro, podía seguir entrando hasta 30 días).
+    if (!nuevaActiva) {
+      await revocarSesionesDeUsuario(miembro.userId);
+    }
+
     await registrarAuditoria({
       actorId: session.user.id,
       actorEmail: session.user.email,
@@ -222,6 +230,11 @@ export async function eliminarMiembro(_prev: EliminarMiembroState, membresiaId: 
       db.fincaAcceso.deleteMany({ where: { userId: miembro.userId, fincaId: { in: fincasDeLaOrg.map((f) => f.id) } } }),
       db.membresia.delete({ where: { id: membresiaId } }),
     ]);
+
+    // ADR-011 Sprint 1 — remover a alguien del equipo también revoca
+    // cualquier sesión ya iniciada (a diferencia de inactivar, acá siempre,
+    // sin condición: ya no es miembro de nada).
+    await revocarSesionesDeUsuario(miembro.userId);
 
     await registrarAuditoria({
       actorId: session.user.id,

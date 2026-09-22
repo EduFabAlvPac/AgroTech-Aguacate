@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { db } from "@/lib/db";
-import { tokenExpirado } from "@/lib/tokens";
+import { hashToken, tokenExpirado } from "@/lib/tokens";
 import { AuthCard } from "@/components/auth/AuthCard";
 import { ConfirmarVerificacion } from "@/components/auth/ConfirmarVerificacion";
 
@@ -12,14 +12,20 @@ import { ConfirmarVerificacion } from "@/components/auth/ConfirmarVerificacion";
  * render y borraba el token, así que cualquier "previsualización" del enlace
  * (filtros de seguridad de correos de empresa) dejaba a la persona con
  * "Enlace inválido" pese a tener la cuenta ya verificada.
+ *
+ * ADR-011 Sprint 1 — el token vive en TokenAuth (hash), no en User.
  */
 export default async function VerificarPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
 
-  const user = await db.user.findUnique({
-    where: { tokenVerificacion: token },
-    select: { tokenVerificacionExpira: true, emailVerificado: true },
+  const registro = await db.tokenAuth.findUnique({
+    where: { tokenHash: hashToken(token) },
+    select: { tipo: true, expiraEn: true, user: { select: { emailVerificado: true } } },
   });
+  // Un token ya usado (usadoEn) siempre implica emailVerificado=true (ambos
+  // se escriben juntos en la misma transacción, ver POST de esta ruta) —
+  // por eso alcanza con mirar el estado real del usuario, no el del token.
+  const user = registro?.tipo === "VERIFY_EMAIL" ? { tokenVerificacionExpira: registro.expiraEn, emailVerificado: registro.user.emailVerificado } : null;
 
   if (user?.emailVerificado) {
     return (

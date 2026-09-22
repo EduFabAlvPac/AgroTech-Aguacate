@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recuperarSchema } from "@/lib/validations";
-import { tokenVigenteOGenerar } from "@/lib/tokens";
+import { generarToken, expiraEnHoras, hashToken } from "@/lib/tokens";
 import { enviarEmailVerificacion } from "@/lib/email";
 import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
@@ -14,6 +14,14 @@ import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
  * Mismo criterio anti-enumeración que /api/auth/recuperar: responde 200
  * igual si el correo existe, no existe, o ya está verificado — nunca revela
  * cuál de los tres pasó.
+ *
+ * ADR-011 Sprint 1 — ya no "reutiliza" un token vigente (`tokenVigenteOGenerar`,
+ * PR #51): con hash no se puede, nunca se guarda el valor crudo, esa es
+ * justamente la propiedad de hashear. Cada reenvío crea una fila TokenAuth
+ * nueva — el efecto que buscaba el PR #51 (que un correo viejo no quede
+ * "inválido") se mantiene igual o mejor: pueden convivir varias filas
+ * válidas para el mismo usuario, así que un enlace anterior sigue sirviendo
+ * hasta que expire o se use, sin necesidad de reutilizar nada.
  */
 export async function POST(req: Request) {
   try {
@@ -26,17 +34,17 @@ export async function POST(req: Request) {
     const { email } = parsed.data;
     await verificarLimite("recuperarPassword", `${ip}:${email}`);
 
-    const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, emailVerificado: true, tokenVerificacion: true, tokenVerificacionExpira: true } });
+    const user = await db.user.findUnique({ where: { email }, select: { id: true, name: true, emailVerificado: true } });
     if (user && !user.emailVerificado) {
-      // Se reutiliza el token si sigue vigente: así un segundo "Reenviar" (o abrir
-      // el primer correo) no deja los enlaces anteriores como "inválidos".
-      const { token, expira, esNuevo } = tokenVigenteOGenerar(user.tokenVerificacion, user.tokenVerificacionExpira, 24);
-      if (esNuevo) {
-        await db.user.update({
-          where: { id: user.id },
-          data: { tokenVerificacion: token, tokenVerificacionExpira: expira },
-        });
-      }
+      const token = generarToken();
+      await db.tokenAuth.create({
+        data: {
+          userId: user.id,
+          tipo: "VERIFY_EMAIL",
+          tokenHash: hashToken(token),
+          expiraEn: expiraEnHoras(24),
+        },
+      });
       await enviarEmailVerificacion(email, user.name, token);
     }
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { tokenExpirado } from "@/lib/tokens";
+import { hashToken, tokenExpirado } from "@/lib/tokens";
 
 /**
  * POST /api/auth/verificar/[token] — confirma el correo del self-signup (Fase 1
@@ -11,30 +11,42 @@ import { tokenExpirado } from "@/lib/tokens";
  * consumía antes que la persona, y al abrirlo ella veía "Enlace inválido" con
  * la cuenta ya verificada.
  *
- * El token NO se borra al verificar: así volver a abrir el enlace muestra "ya
- * estaba verificado" en vez de "inválido". No otorga nada más que ese aviso
- * (verificar un correo ya verificado es idempotente).
+ * ADR-011 Sprint 1 — el token ya NO vive en `User.tokenVerificacion` (texto
+ * plano); se busca por hash en `TokenAuth`. No se borra al usarse (queda
+ * `usadoEn`), igual que antes no se borraba `tokenVerificacion`: reabrir el
+ * enlace debe mostrar "ya estaba verificado", no "inválido".
  */
 export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await params;
 
-    const user = await db.user.findUnique({
-      where: { tokenVerificacion: token },
-      select: { id: true, tokenVerificacionExpira: true, emailVerificado: true },
+    const registro = await db.tokenAuth.findUnique({
+      where: { tokenHash: hashToken(token) },
+      select: {
+        id: true,
+        userId: true,
+        tipo: true,
+        expiraEn: true,
+        usadoEn: true,
+        invalidadoEn: true,
+        user: { select: { emailVerificado: true } },
+      },
     });
 
-    if (!user) {
+    if (!registro || registro.tipo !== "VERIFY_EMAIL") {
       return NextResponse.json({ error: "Enlace de verificación inválido" }, { status: 404 });
     }
-    if (user.emailVerificado) {
+    if (registro.user.emailVerificado) {
       return NextResponse.json({ data: { yaVerificado: true } });
     }
-    if (tokenExpirado(user.tokenVerificacionExpira)) {
+    if (registro.usadoEn || registro.invalidadoEn || tokenExpirado(registro.expiraEn)) {
       return NextResponse.json({ error: "Este enlace venció. Pide que te reenvíen el correo de verificación." }, { status: 410 });
     }
 
-    await db.user.update({ where: { id: user.id }, data: { emailVerificado: new Date() } });
+    await db.$transaction([
+      db.user.update({ where: { id: registro.userId }, data: { emailVerificado: new Date() } }),
+      db.tokenAuth.update({ where: { id: registro.id }, data: { usadoEn: new Date() } }),
+    ]);
 
     return NextResponse.json({ data: { yaVerificado: false } });
   } catch (error) {

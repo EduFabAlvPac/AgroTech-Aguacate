@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { recuperarSchema } from "@/lib/validations";
-import { generarToken, expiraEnHoras } from "@/lib/tokens";
+import { generarToken, expiraEnHoras, hashToken } from "@/lib/tokens";
 import { enviarEmailResetPassword } from "@/lib/email";
 import { verificarLimite, RateLimitError } from "@/lib/rate-limit";
 
@@ -25,10 +25,16 @@ export async function POST(req: Request) {
     // Sin password (cuenta Campesino/Google) → no tiene sentido "recuperar
     // contraseña" ahí, se omite en silencio, mismo criterio anti-enumeración.
     if (user?.password) {
+      // ADR-011 Sprint 1 — TokenAuth con hash, ya no User.tokenResetPassword
+      // en texto plano.
       const token = generarToken();
-      await db.user.update({
-        where: { id: user.id },
-        data: { tokenResetPassword: token, tokenResetPasswordExpira: expiraEnHoras(1) },
+      await db.tokenAuth.create({
+        data: {
+          userId: user.id,
+          tipo: "RESET_PASSWORD",
+          tokenHash: hashToken(token),
+          expiraEn: expiraEnHoras(1),
+        },
       });
       await enviarEmailResetPassword(email, user.name, token);
     }
