@@ -19,6 +19,7 @@
     "db:backfill-alertas": "tsx prisma/backfill-alertas-finca.ts",
     "db:backfill-compradores": "tsx prisma/backfill-compradores-finca.ts",
     "db:backfill-iam": "tsx prisma/backfill-iam.ts",
+    "db:fix-email-verificado-equipo": "tsx prisma/backfill-emailverificado-equipo.ts",
     "db:seed-actividades-aguacate": "tsx prisma/seed-actividades-aguacate.ts",
     "db:reset": "prisma migrate reset --force && npm run db:seed"
   },
