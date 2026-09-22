@@ -111,8 +111,11 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "La contraseña debe tener al menos 8 caracteres" }, { status: 400 });
       }
       const hashed = await bcrypt.hash(password, 12);
+      // emailVerificado se marca de una vez — ver el mismo comentario en
+      // equipo-actions.ts::agregarMiembro (esta ruta es la segunda entrada
+      // al mismo caso de uso, con la misma lógica replicada literal).
       user = await db.user.create({
-        data: { name: nombre, email, password: hashed, role: "ADVISOR" },
+        data: { name: nombre, email, password: hashed, role: "ADVISOR", emailVerificado: new Date() },
       });
     }
 

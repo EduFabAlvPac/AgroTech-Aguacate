@@ -73,7 +73,16 @@ export async function agregarMiembro(_prev: MiembroActionState, formData: FormDa
         return { error: "La contraseña debe tener al menos 8 caracteres" };
       }
       const hashed = await bcrypt.hash(password, 12);
-      user = await db.user.create({ data: { name: nombre, email, password: hashed, role: "ADVISOR" } });
+      // emailVerificado se marca de una vez: es el dueño quien escribe este
+      // correo y comparte la contraseña por fuera de la app (WhatsApp/
+      // verbal, ver docstring del archivo) — no hay un self-signup que
+      // confirmar. Sin esto, la cuenta quedaba con emailVerificado null y
+      // no podía iniciar sesión desde que existe esa verificación (bug real
+      // detectado en QA del Sprint 1 de ADR-011, afectaba a todo colaborador
+      // agregado en producción desde el PR #48).
+      user = await db.user.create({
+        data: { name: nombre, email, password: hashed, role: "ADVISOR", emailVerificado: new Date() },
+      });
     }
 
     const modulosFinal = modulosValidos(modulos) ?? (await obtenerPlantillaModulos(propia.organizacionId))[rolFinca as "ADMIN" | "OPERARIO" | "LECTURA"];
