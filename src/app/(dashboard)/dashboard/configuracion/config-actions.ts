@@ -9,7 +9,6 @@
  *
  * Qué revalida:
  * - actualizarPerfil → revalidatePath("/dashboard/configuracion"), "/dashboard" (nombre en el header)
- * - actualizarFinca → revalidatePath("/dashboard/configuracion"), "/dashboard" (nombre de finca en KPIs/sidebar)
  * - actualizarAlertas → revalidatePath("/dashboard/configuracion")
  * - actualizarVistaPreferida (Fase 3) → revalidatePath("/dashboard", "layout"),
  *   no un path puntual — cambia qué conjunto de componentes (completo/simple)
@@ -18,14 +17,19 @@
  * - exportarMisDatos → no revalida (solo lectura)
  * - eliminarCuenta → no revalida (la sesión termina; signOut() del lado
  *   del cliente redirige a /login)
+ *
+ * La pestaña "Finca" ya NO tiene su propio actualizarFinca acá (hallazgo del
+ * usuario, 2026-09-21: solo editaba "la finca activa" implícita, sin poder
+ * ver/crear/eliminar las demás). Pasó a usar crearFinca/actualizarFinca/
+ * eliminarFinca de src/app/(dashboard)/dashboard/fincas/finca-actions.ts —
+ * las mismas Server Actions que ya usaba "Mis fincas" (modo Simple), con
+ * autorización y protecciones de borrado ya resueltas ahí. Ver FincasTab.tsx.
  */
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { requireAccess, AuthzError } from "@/lib/authz";
-import { resolverFincaActiva } from "@/lib/finca-activa";
 import { exportarDatosUsuario, puedeEliminarDeInmediato } from "@/lib/cuenta-datos";
 import { registrarAuditoria } from "@/lib/audit";
 import type { VistaPreferida } from "@prisma/client";
@@ -94,43 +98,6 @@ export async function actualizarVistaPreferida(
   } catch (error) {
     console.error("[actualizarVistaPreferida]", error);
     return { error: "Error al guardar la preferencia" };
-  }
-}
-
-export async function actualizarFinca(_prev: ConfigActionState, formData: FormData): Promise<ConfigActionState> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.id) return { error: "No autorizado" };
-
-  try {
-    // Edita la finca activa (funcionalidad de fincas) — no "la primera
-    // finca del usuario" literal.
-    const { fincaActivaId } = await resolverFincaActiva(session);
-    if (!fincaActivaId) return { error: "Finca no encontrada" };
-    await requireAccess(session, "finca", "update", { fincaId: fincaActivaId });
-
-    const lat = formData.get("lat") as string;
-    const lng = formData.get("lng") as string;
-    const areaTotal = formData.get("areaTotal") as string;
-
-    await db.finca.update({
-      where: { id: fincaActivaId },
-      data: {
-        nombre: (formData.get("nombre") as string) || undefined,
-        municipio: (formData.get("municipio") as string) || undefined,
-        departamento: (formData.get("departamento") as string) || undefined,
-        lat: lat ? Number(lat) : undefined,
-        lng: lng ? Number(lng) : undefined,
-        areaTotal: areaTotal ? Number(areaTotal) : undefined,
-      },
-    });
-
-    revalidatePath("/dashboard/configuracion");
-    revalidatePath("/dashboard");
-    return { ok: true };
-  } catch (error) {
-    if (error instanceof AuthzError) return { error: error.message };
-    console.error("[actualizarFinca]", error);
-    return { error: "Error al guardar" };
   }
 }
 

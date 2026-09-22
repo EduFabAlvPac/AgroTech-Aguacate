@@ -4,7 +4,6 @@ import { registroSchema, recuperarSchema, restablecerSchema } from "@/lib/valida
 describe("registroSchema (self-signup, Fase 1 SaaS Tanda 2)", () => {
   const base = {
     nombre: "Juan Pérez",
-    nombreOrganizacion: "Finca El Juncal",
     email: "juan@ejemplo.com",
     password: "contraseña-segura-123",
   };

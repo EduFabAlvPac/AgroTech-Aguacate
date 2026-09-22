@@ -212,7 +212,12 @@ const passwordSchema = z
 
 export const registroSchema = z.object({
   nombre: z.string().min(1, "Tu nombre es requerido").max(100, "Máximo 100 caracteres"),
-  nombreOrganizacion: z.string().min(1, "El nombre de tu finca/negocio es requerido").max(100, "Máximo 100 caracteres"),
+  // Sin nombreOrganizacion a propósito (hallazgo del usuario, 2026-09-21):
+  // Organizacion.nombre no se muestra en ningún lado de la UI, así que
+  // pedirlo en el registro era un campo sin utilidad visible. Se genera solo
+  // (ver route.ts) con el mismo patrón que ya usa
+  // prisma/backfill-organizaciones.ts. El nombre real de la finca lo pone el
+  // usuario al crear su primera finca (Configuración → Finca).
   email: z.string().email("Correo inválido"),
   password: passwordSchema,
   // literal(true) en vez de boolean(): rechaza explícitamente `false` Y

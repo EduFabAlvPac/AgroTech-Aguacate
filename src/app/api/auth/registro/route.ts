@@ -34,13 +34,17 @@ export async function POST(req: Request) {
     }
     // aceptaTerminos ya viene validado como `true` por el schema (z.literal) —
     // si llegó hasta acá, el usuario marcó el checkbox.
-    const { nombre, nombreOrganizacion, email, password } = parsed.data;
+    const { nombre, email, password } = parsed.data;
 
     const existente = await db.user.findUnique({ where: { email }, select: { id: true } });
     if (existente) {
       return NextResponse.json({ error: "Ya existe una cuenta con ese correo" }, { status: 409 });
     }
 
+    // Sin campo de "nombre de finca/negocio" en el formulario (Organizacion.nombre
+    // no se muestra en ningún lado de la UI) — mismo patrón que ya usa
+    // prisma/backfill-organizaciones.ts para las organizaciones creadas antes.
+    const nombreOrganizacion = `Finca de ${nombre}`;
     const slug = await slugUnico(nombreOrganizacion);
     const hashed = await bcrypt.hash(password, 12);
     const tokenVerificacion = generarToken();

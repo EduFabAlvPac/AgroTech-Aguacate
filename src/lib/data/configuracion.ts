@@ -12,26 +12,20 @@ export interface ConfiguracionResumen {
     rainAlertMm: number; windAlertKmh: number;
     droughtDays: number; emailAlerts: boolean; pushAlerts: boolean;
   } | null;
-  finca: {
-    nombre: string; municipio: string; departamento: string;
-    lat: number | null; lng: number | null; areaTotal: number | null;
-  } | null;
 }
 
-export async function getConfiguracionResumen(userId: string, fincaActivaId: string | null): Promise<ConfiguracionResumen> {
-  const [user, prefs, finca] = await Promise.all([
+// Ya no devuelve una sola "finca activa" (hallazgo del usuario, 2026-09-21:
+// la pestaña "Finca" pasó de editar una implícita a listar/crear/editar/
+// eliminar todas — ver FincasTab.tsx, que recibe la lista completa vía
+// getFincas() de src/lib/data/fincas.ts, la misma que ya usaba "Mis fincas").
+export async function getConfiguracionResumen(userId: string): Promise<ConfiguracionResumen> {
+  const [user, prefs] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
       select: { name: true, email: true, telefono: true, vistaPreferida: true },
     }),
     db.userPreferences.findUnique({ where: { userId } }),
-    fincaActivaId
-      ? db.finca.findUnique({
-          where: { id: fincaActivaId },
-          select: { nombre: true, municipio: true, departamento: true, lat: true, lng: true, areaTotal: true },
-        })
-      : null,
   ]);
 
-  return { user, prefs, finca };
+  return { user, prefs };
 }
