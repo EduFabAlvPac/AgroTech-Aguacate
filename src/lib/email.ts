@@ -67,3 +67,27 @@ export async function enviarEmailResetPassword(email: string, nombre: string | n
     "recuperación de contraseña"
   );
 }
+
+// ADR-011 Sprint 3 — invitaciones por correo (reemplaza, como opción nueva,
+// el flujo de "el dueño escribe una contraseña temporal y la comparte por
+// WhatsApp"; ver invitacion-actions.ts).
+export async function enviarEmailInvitacion(
+  email: string,
+  organizacionNombre: string,
+  rolLabel: string,
+  token: string,
+  mensajePersonal?: string
+): Promise<void> {
+  const enlace = `${baseUrl()}/invitacion/${token}`;
+  await enviar(
+    email,
+    `${organizacionNombre} te invita a GermIA`,
+    `<p>Hola,</p>
+     <p><strong>${organizacionNombre}</strong> te invita a unirte a GermIA como <strong>${rolLabel}</strong>.</p>
+     ${mensajePersonal ? `<p>"${mensajePersonal}"</p>` : ""}
+     <p>Acepta la invitación aquí:</p>
+     <p><a href="${enlace}">${enlace}</a></p>
+     <p>Este enlace vence en 72 horas. Si no esperabas esta invitación, puedes ignorar este correo.</p>`,
+    "invitación a organización"
+  );
+}

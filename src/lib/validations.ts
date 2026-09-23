@@ -252,3 +252,28 @@ export const organizacionSchema = z.object({
   celularContacto: z.string().max(30, "Máximo 30 caracteres").optional().or(z.literal("")),
 });
 export type OrganizacionFormData = z.infer<typeof organizacionSchema>;
+
+// ── Invitaciones por correo (ADR-011 Sprint 3) ──────────────────────────────
+
+// Solo 2 opciones, no las 3 de agregarMiembro() (ADMIN/OPERARIO/LECTURA):
+// `Invitacion.rol` es el enum IAM (Rol), que no distingue OPERARIO de
+// LECTURA (ambos son FARM_COLLABORATOR) — guardar solo esa columna y
+// reconstruir "LECTURA" al aceptar sería adivinar, con el riesgo real de
+// que alguien invitado como "solo lectura" termine con permisos de
+// escritura. Más seguro ofrecer menos opciones acá y que el dueño ajuste a
+// "Solo lectura" después de que la persona acepte (Equipo → Editar) que
+// arriesgar una discrepancia silenciosa. Ver invitacion-actions.ts.
+export const invitarMiembroSchema = z.object({
+  email: z.string().email("Correo inválido"),
+  rolFinca: z.enum(["ADMIN", "OPERARIO"], { errorMap: () => ({ message: "rolFinca debe ser ADMIN u OPERARIO" }) }),
+  fincaId: z.string().min(1, "La finca es requerida"),
+  mensajePersonal: z.string().max(500, "Máximo 500 caracteres").optional().or(z.literal("")),
+});
+export type InvitarMiembroFormData = z.infer<typeof invitarMiembroSchema>;
+
+export const aceptarInvitacionNuevoUsuarioSchema = z.object({
+  token: z.string().min(1, "Token requerido"),
+  nombre: z.string().min(1, "Tu nombre es requerido").max(100, "Máximo 100 caracteres"),
+  password: passwordSchema,
+});
+export type AceptarInvitacionNuevoUsuarioData = z.infer<typeof aceptarInvitacionNuevoUsuarioSchema>;

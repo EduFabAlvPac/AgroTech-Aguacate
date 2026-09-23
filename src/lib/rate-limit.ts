@@ -51,6 +51,11 @@ export const CONFIGS_LIMITE = {
   // Por IP+email — evita bombardear la casilla de alguien con correos de
   // "recupera tu contraseña" repetidos (spam, no solo costo).
   recuperarPassword: { ventana: "15 m", maximo: 5 },
+  // ADR-011 Sprint 3 — por organización (no por IP: es el dueño autenticado
+  // quien invita). 20/hora alcanza de sobra para el uso real (un dueño
+  // agregando su equipo) y frena una cuenta comprometida bombardeando
+  // correos de invitación.
+  invitarMiembro: { ventana: "1 h", maximo: 20 },
 } as const;
 
 export type CasoLimite = keyof typeof CONFIGS_LIMITE;
