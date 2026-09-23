@@ -21,9 +21,11 @@ import { generate as generarTOTP } from "otplib";
  * verifican con `verificarCodigoTOTP`, en vez de mockear la librería.
  */
 beforeAll(() => {
-  // Clave fija de prueba — 32 bytes en base64, mismo formato que
-  // `openssl rand -base64 32` produciría en producción.
-  process.env.MFA_ENCRYPTION_KEY = crypto.randomBytes(32).toString("base64");
+  // Clave fija de prueba — 32 bytes en hex, mismo formato que
+  // `openssl rand -hex 32` produciría en producción (ver mfa.ts: se cambió
+  // de base64 a hex tras un hallazgo real de un `+` corrompido al pegar la
+  // clave en el panel de Vercel).
+  process.env.MFA_ENCRYPTION_KEY = crypto.randomBytes(32).toString("hex");
 });
 
 describe("encriptarSecreto / desencriptarSecreto", () => {
