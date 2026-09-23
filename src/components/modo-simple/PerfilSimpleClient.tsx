@@ -147,6 +147,13 @@ export function PerfilSimpleClient({ user, accesos }: PerfilSimpleClientProps) {
         {accesos?.esOwner && (
           <SalidaModoCompleto href="/dashboard/equipo" titulo="Equipo" descripcion="Invita colaboradores y administra roles" />
         )}
+        {accesos?.esOwner && (
+          <SalidaModoCompleto
+            href="/dashboard/configuracion?tab=organizacion"
+            titulo="Datos de la organización"
+            descripcion="Nombre, NIT y contacto"
+          />
+        )}
         {accesos?.esSuperAdmin && (
           <SalidaModoCompleto href="/dashboard/admin/fichas-tecnicas" titulo="Fichas técnicas" descripcion="Catálogo de cultivos y variedades" />
         )}
