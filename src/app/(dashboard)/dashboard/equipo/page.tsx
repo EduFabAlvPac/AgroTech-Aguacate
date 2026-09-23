@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { Header } from "@/components/layout/Header";
 import { EquipoClient } from "@/components/equipo/EquipoClient";
 import { getEquipoResumen } from "@/lib/data/equipo";
+import { getAuditoriaOrganizacion } from "@/lib/data/auditoria";
 
 export const metadata = { title: "Equipo" };
 export const dynamic = "force-dynamic";
@@ -21,7 +22,10 @@ export default async function EquipoPage() {
   });
   if (!propia) redirect("/dashboard");
 
-  const { miembros, fincas, plantillas, cuentasCampesino } = await getEquipoResumen(propia.organizacionId, session.user.id);
+  const [{ miembros, fincas, plantillas, cuentasCampesino }, auditoria] = await Promise.all([
+    getEquipoResumen(propia.organizacionId, session.user.id),
+    getAuditoriaOrganizacion(propia.organizacionId),
+  ]);
 
   return (
     <>
@@ -35,6 +39,7 @@ export default async function EquipoPage() {
           fincas={fincas}
           plantillasIniciales={plantillas}
           cuentasCampesinoIniciales={cuentasCampesino}
+          auditoria={auditoria}
         />
       </main>
     </>
