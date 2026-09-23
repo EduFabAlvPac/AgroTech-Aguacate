@@ -108,6 +108,9 @@ export async function agregarMiembro(_prev: MiembroActionState, formData: FormDa
       actorEmail: session.user.email,
       accion: "equipo.invitar",
       detalle: { membresiaId: membresia.id, emailInvitado: user.email, rol: membresia.rol, fincaId },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresia.id,
     });
 
     revalidatePath("/dashboard/equipo");
@@ -171,6 +174,9 @@ export async function editarMiembro(
       actorEmail: session.user.email,
       accion: "equipo.editar",
       detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { rolFinca, fincaId } },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresiaId,
     });
 
     revalidatePath("/dashboard/equipo");
@@ -210,6 +216,9 @@ export async function toggleActivaMiembro(membresiaId: string, nuevaActiva: bool
       actorEmail: session.user.email,
       accion: "equipo.editar",
       detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { activa: nuevaActiva } },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresiaId,
     });
 
     revalidatePath("/dashboard/equipo");
@@ -255,6 +264,9 @@ export async function eliminarMiembro(_prev: EliminarMiembroState, membresiaId: 
       actorEmail: session.user.email,
       accion: "equipo.remover",
       detalle: { membresiaId, userIdRemovido: miembro.userId },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresiaId,
     });
 
     revalidatePath("/dashboard/equipo");
@@ -292,6 +304,9 @@ export async function guardarPlantillaRol(rol: "ADMIN" | "OPERARIO" | "LECTURA",
       actorEmail: session.user.email,
       accion: "equipo.editar_plantilla_rol",
       detalle: { rol, modulos: modulosFinal },
+      organizacionId: propia.organizacionId,
+      recurso: "RolModulosDefault",
+      recursoId: rol,
     });
 
     revalidatePath("/dashboard/equipo");

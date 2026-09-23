@@ -74,7 +74,10 @@ export async function actualizarOrganizacion(_prev: OrganizacionActionState, for
       actorId: session.user.id,
       actorEmail: session.user.email,
       accion: "organizacion.editar",
-      detalle: { organizacionId: propia.organizacionId, cambios: { nombre, nit, ciudad, departamento, emailContacto, celularContacto } },
+      detalle: { cambios: { nombre, nit, ciudad, departamento, emailContacto, celularContacto } },
+      organizacionId: propia.organizacionId,
+      recurso: "Organizacion",
+      recursoId: propia.organizacionId,
     });
 
     revalidatePath("/dashboard/configuracion");

@@ -68,6 +68,9 @@ export async function crearCuentaCampesino(_prev: CampesinoActionState, formData
       actorEmail: session.user.email,
       accion: "campesino.crear_cuenta",
       detalle: { userIdCreado: user.id, telefono },
+      organizacionId: propia.organizacionId,
+      recurso: "User",
+      recursoId: user.id,
     });
 
     revalidatePath("/dashboard/equipo");
@@ -105,6 +108,9 @@ export async function eliminarCuentaCampesino(_prev: EliminarCampesinoState, id:
       actorEmail: session.user.email,
       accion: "campesino.eliminar_cuenta",
       detalle: { userIdEliminado: id },
+      organizacionId: propia.organizacionId,
+      recurso: "User",
+      recursoId: id,
     });
 
     revalidatePath("/dashboard/equipo");

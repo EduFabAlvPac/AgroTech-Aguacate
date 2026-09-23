@@ -91,8 +91,11 @@ async function resolverClaimsSesion(user: PrismaUser) {
  * una lista separada por comas (cliente, luego proxies intermedios); el
  * primer valor es el del cliente. Sin ese header (dev local sin proxy),
  * cae a un valor fijo — el rate limit sigue funcionando, solo agrupa a
- * todo el tráfico local bajo la misma clave, que es aceptable en dev. */
-function obtenerIp(headers: Record<string, string> | Headers | undefined): string {
+ * todo el tráfico local bajo la misma clave, que es aceptable en dev.
+ * Exportada (ADR-011 Sprint 5) — registrarAuditoria() (src/lib/audit.ts) la
+ * reusa para ipAddress/userAgent, ahí con headers() de "next/headers" en vez
+ * del req.headers/req de un provider de NextAuth. */
+export function obtenerIp(headers: Record<string, string> | Headers | undefined): string {
   const valor =
     headers instanceof Headers
       ? headers.get("x-forwarded-for")
@@ -102,8 +105,9 @@ function obtenerIp(headers: Record<string, string> | Headers | undefined): strin
 
 /** User-Agent real del cliente — mismo criterio de "headers puede venir en
  * dos formas" que obtenerIp() de arriba. Se guarda tal cual (sin parsear
- * dispositivo/navegador) en Sesion.userAgent — ver ADR-011 Sprint 1. */
-function obtenerUserAgent(headers: Record<string, string> | Headers | undefined): string | undefined {
+ * dispositivo/navegador) en Sesion.userAgent — ver ADR-011 Sprint 1.
+ * Exportada (ADR-011 Sprint 5) — ver comentario de obtenerIp(). */
+export function obtenerUserAgent(headers: Record<string, string> | Headers | undefined): string | undefined {
   const valor = headers instanceof Headers ? headers.get("user-agent") : headers?.["user-agent"];
   return valor ?? undefined;
 }

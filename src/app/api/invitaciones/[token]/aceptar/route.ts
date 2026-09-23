@@ -128,7 +128,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       actorId: userId,
       actorEmail: invitacion.emailOCelular,
       accion: "equipo.invitacion_aceptada",
-      detalle: { invitacionId: invitacion.id, organizacionId: invitacion.organizacionId, rol: invitacion.rol },
+      detalle: { invitacionId: invitacion.id, rol: invitacion.rol },
+      organizacionId: invitacion.organizacionId,
+      recurso: "Invitacion",
+      recursoId: invitacion.id,
     });
 
     // Cierre del círculo — confirmación a quien aceptó y aviso a quien

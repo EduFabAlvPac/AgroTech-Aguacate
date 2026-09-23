@@ -110,6 +110,9 @@ export async function invitarMiembroPorCorreo(_prev: InvitarMiembroState, formDa
       actorEmail: session.user.email,
       accion: "equipo.invitacion_enviada",
       detalle: { invitacionId: invitacion.id, emailInvitado: email, rol: rolIam, fincaId },
+      organizacionId: propia.organizacionId,
+      recurso: "Invitacion",
+      recursoId: invitacion.id,
     });
 
     revalidatePath("/dashboard/equipo");
