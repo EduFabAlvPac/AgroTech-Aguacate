@@ -3,19 +3,10 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { Header } from "@/components/layout/Header";
+import { ETIQUETAS_ACCION } from "@/lib/auditoria-labels";
 
 export const metadata = { title: "Auditoría — Admin" };
 export const dynamic = "force-dynamic";
-
-const ETIQUETAS_ACCION: Record<string, string> = {
-  "auth.cuenta_bloqueada": "🔒 Cuenta bloqueada (fuerza bruta)",
-  "cuenta.eliminar": "🗑️ Cuenta eliminada",
-  "cuenta.solicitar_eliminacion": "📩 Solicitud de eliminación",
-  "cuenta.exportar": "⬇️ Datos exportados",
-  "equipo.invitar": "➕ Colaborador invitado",
-  "equipo.editar": "✏️ Colaborador editado",
-  "equipo.remover": "➖ Colaborador removido",
-};
 
 export default async function AuditoriaAdminPage() {
   const session = await getServerSession(authOptions);
