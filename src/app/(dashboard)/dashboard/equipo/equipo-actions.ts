@@ -61,8 +61,13 @@ export async function agregarMiembro(_prev: MiembroActionState, formData: FormDa
     let user = await db.user.findUnique({ where: { email } });
 
     if (user) {
-      const yaEsMiembro = await db.membresia.findUnique({
-        where: { userId_organizacionId: { userId: user.id, organizacionId: propia.organizacionId } },
+      // findFirst, no findUnique con la key compuesta: la migración del
+      // @@unique de Membresia (ADR-011 Sprint 3) sigue diferida (sin un
+      // consumidor real todavía, ver docs/ADR-011-notas-de-implementacion.md
+      // §6) — este cambio es solo una limpieza de estilo aprovechando tocar
+      // el archivo, sin cambiar comportamiento.
+      const yaEsMiembro = await db.membresia.findFirst({
+        where: { userId: user.id, organizacionId: propia.organizacionId },
       });
       if (yaEsMiembro) return { error: "Este correo ya es miembro de tu organización" };
     } else {

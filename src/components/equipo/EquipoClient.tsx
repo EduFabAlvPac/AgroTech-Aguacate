@@ -14,6 +14,7 @@ import {
   guardarPlantillaRol,
 } from "@/app/(dashboard)/dashboard/equipo/equipo-actions";
 import { crearCuentaCampesino, eliminarCuentaCampesino } from "@/app/(dashboard)/dashboard/equipo/campesino-actions";
+import { invitarMiembroPorCorreo } from "@/app/(dashboard)/dashboard/equipo/invitacion-actions";
 
 type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
@@ -74,6 +75,14 @@ const ROL_FINCA_OPTIONS = [
   { value: "ADMIN", label: "Administrador de finca" },
 ];
 
+// Invitar por correo (ADR-011 Sprint 3) solo ofrece 2 de los 3 roles — sin
+// "Solo lectura" (ver comentario en invitarMiembroSchema, validations.ts:
+// el enum IAM que guarda la invitación no distingue OPERARIO de LECTURA,
+// así que ofrecer esa opción acá arriesgaría una discrepancia silenciosa
+// entre lo que el dueño elige y el permiso real que queda al aceptar). Se
+// puede ajustar a "Solo lectura" después, desde "Editar".
+const ROL_FINCA_OPTIONS_INVITAR = ROL_FINCA_OPTIONS.filter((o) => o.value !== "LECTURA");
+
 const emptyForm = {
   nombre: "",
   email: "",
@@ -82,6 +91,8 @@ const emptyForm = {
   fincaId: "",
   modulos: modulosPorDefecto("OPERARIO"),
 };
+
+const emptyInviteForm = { email: "", rolFinca: "OPERARIO" as "ADMIN" | "OPERARIO", fincaId: "", mensajePersonal: "" };
 
 export function EquipoClient({
   miembros: initial,
@@ -100,11 +111,16 @@ export function EquipoClient({
   const [eliminandoCampesinoId, setEliminandoCampesinoId] = useState<string | null>(null);
   const [plantillas, setPlantillas] = useState(plantillasIniciales);
   const [showModal, setShowModal] = useState(false);
+  // ADR-011 Sprint 3 — dos formas de sumar un colaborador: crear la cuenta
+  // directamente (flujo de siempre) o invitar por correo (nuevo). El modal
+  // es el mismo, solo cambia qué pide y a qué Server Action llama.
+  const [modoAgregar, setModoAgregar] = useState<"cuenta" | "invitar">("cuenta");
   const [form, setForm] = useState(() => ({
     ...emptyForm,
     fincaId: fincas[0]?.id ?? "",
     modulos: plantillasIniciales.OPERARIO,
   }));
+  const [inviteForm, setInviteForm] = useState(() => ({ ...emptyInviteForm, fincaId: fincas[0]?.id ?? "" }));
   const [loading, setLoading] = useState(false);
   const [, startTransition] = useTransition();
 
@@ -230,6 +246,32 @@ export function EquipoClient({
         toast.success("Colaborador agregado — comparte sus credenciales por WhatsApp o en persona.");
         setShowModal(false);
         setForm({ ...emptyForm, fincaId: fincas[0]?.id ?? "", modulos: plantillas.OPERARIO });
+      } finally {
+        setLoading(false);
+      }
+    });
+  };
+
+  const handleInvitar = () => {
+    if (!inviteForm.email.trim()) return toast.error("El email es requerido");
+    if (!inviteForm.fincaId) return toast.error("Selecciona la finca a la que tendrá acceso");
+    setLoading(true);
+    startTransition(async () => {
+      try {
+        const fd = new FormData();
+        fd.set("email", inviteForm.email);
+        fd.set("rolFinca", inviteForm.rolFinca);
+        fd.set("fincaId", inviteForm.fincaId);
+        fd.set("mensajePersonal", inviteForm.mensajePersonal);
+
+        const result = await invitarMiembroPorCorreo({}, fd);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(`Invitación enviada a ${inviteForm.email}`);
+        setShowModal(false);
+        setInviteForm({ ...emptyInviteForm, fincaId: fincas[0]?.id ?? "" });
       } finally {
         setLoading(false);
       }
@@ -539,73 +581,146 @@ export function EquipoClient({
       {/* Modal: agregar colaborador */}
       <Modal isOpen={showModal} onClose={() => setShowModal(false)} title="Agregar colaborador">
         <div className="space-y-3">
-          <p className="text-[12px] text-[var(--text-muted)] -mt-1">
-            No hay envío de correo automático — crea la cuenta aquí y comparte el email/contraseña con la persona por
-            WhatsApp o en persona. Si el email ya tiene cuenta en GermIA, se agrega directamente sin pedir contraseña.
-          </p>
-          <Input
-            label="Nombre"
-            value={form.nombre}
-            onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-            placeholder="Ej: Jhon Álvarez"
-          />
-          <Input
-            label="Email *"
-            type="email"
-            value={form.email}
-            onChange={(e) => setForm({ ...form, email: e.target.value })}
-            placeholder="colaborador@ejemplo.co"
-          />
-          <Input
-            label="Contraseña temporal (solo si es cuenta nueva)"
-            type="text"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder="Mínimo 8 caracteres"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <Select
-              label="Rol"
-              value={form.rolFinca}
-              onChange={(e) => {
-                const rolFinca = e.target.value as RolFinca;
-                setForm({ ...form, rolFinca, modulos: plantillas[rolFinca] });
-              }}
-              options={ROL_FINCA_OPTIONS}
-            />
-            <Select
-              label="Finca con acceso"
-              value={form.fincaId}
-              onChange={(e) => setForm({ ...form, fincaId: e.target.value })}
-              options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
-            />
+          {/* ADR-011 Sprint 3 — elegir entre crear la cuenta directamente
+              (flujo de siempre) o invitar por correo (nuevo). */}
+          <div className="flex gap-1 p-1 bg-[var(--surface-page)] rounded-[var(--radius-lg)] border border-[var(--border-subtle)] -mt-1">
+            {(
+              [
+                { id: "cuenta" as const, label: "Crear cuenta" },
+                { id: "invitar" as const, label: "Invitar por correo" },
+              ]
+            ).map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setModoAgregar(id)}
+                className={`flex-1 py-1.5 rounded-[var(--radius-md)] text-[12px] font-medium transition-all ${
+                  modoAgregar === id
+                    ? "bg-white text-agro-600 shadow-card border border-agro-100"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
-          {form.rolFinca === "LECTURA" && (
-            <p className="text-[11px] text-[var(--text-muted)] -mt-1">
-              Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
-            </p>
-          )}
-          <div>
-            <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
-              Menús a los que puede ingresar
-            </label>
-            <div className="grid grid-cols-2 gap-1.5">
-              {MODULOS_DASHBOARD.map((mod) => (
-                <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
-                  <input
-                    type="checkbox"
-                    checked={form.modulos.includes(mod.key)}
-                    onChange={() => setForm({ ...form, modulos: toggleModulo(form.modulos, mod.key) })}
-                  />
-                  {mod.label}
+
+          {modoAgregar === "cuenta" ? (
+            <>
+              <p className="text-[12px] text-[var(--text-muted)] -mt-1">
+                No hay envío de correo automático — crea la cuenta aquí y comparte el email/contraseña con la persona por
+                WhatsApp o en persona. Si el email ya tiene cuenta en GermIA, se agrega directamente sin pedir contraseña.
+              </p>
+              <Input
+                label="Nombre"
+                value={form.nombre}
+                onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                placeholder="Ej: Jhon Álvarez"
+              />
+              <Input
+                label="Email *"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="colaborador@ejemplo.co"
+              />
+              <Input
+                label="Contraseña temporal (solo si es cuenta nueva)"
+                type="text"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder="Mínimo 8 caracteres"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Select
+                  label="Rol"
+                  value={form.rolFinca}
+                  onChange={(e) => {
+                    const rolFinca = e.target.value as RolFinca;
+                    setForm({ ...form, rolFinca, modulos: plantillas[rolFinca] });
+                  }}
+                  options={ROL_FINCA_OPTIONS}
+                />
+                <Select
+                  label="Finca con acceso"
+                  value={form.fincaId}
+                  onChange={(e) => setForm({ ...form, fincaId: e.target.value })}
+                  options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
+                />
+              </div>
+              {form.rolFinca === "LECTURA" && (
+                <p className="text-[11px] text-[var(--text-muted)] -mt-1">
+                  Este rol solo puede consultar — nunca crear, editar ni borrar, sin importar qué menús marques abajo.
+                </p>
+              )}
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+                  Menús a los que puede ingresar
                 </label>
-              ))}
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
-            <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
-            <Button loading={loading} onClick={handleAgregar}>Agregar</Button>
-          </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {MODULOS_DASHBOARD.map((mod) => (
+                    <label key={mod.key} className="flex items-center gap-2 text-[12px] text-[var(--text-secondary)]">
+                      <input
+                        type="checkbox"
+                        checked={form.modulos.includes(mod.key)}
+                        onChange={() => setForm({ ...form, modulos: toggleModulo(form.modulos, mod.key) })}
+                      />
+                      {mod.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
+                <Button loading={loading} onClick={handleAgregar}>Agregar</Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-[12px] text-[var(--text-muted)] -mt-1">
+                Le mandamos un enlace a su correo — acepta con la cuenta que ya tenga en GermIA o crea una nueva, sin que
+                tengas que compartirle ninguna contraseña. Los menús que puede ver salen de la plantilla de "Roles y
+                permisos"; puedes ajustarlos después desde "Editar".
+              </p>
+              <Input
+                label="Email *"
+                type="email"
+                value={inviteForm.email}
+                onChange={(e) => setInviteForm({ ...inviteForm, email: e.target.value })}
+                placeholder="colaborador@ejemplo.co"
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <Select
+                  label="Rol"
+                  value={inviteForm.rolFinca}
+                  onChange={(e) => setInviteForm({ ...inviteForm, rolFinca: e.target.value as "ADMIN" | "OPERARIO" })}
+                  options={ROL_FINCA_OPTIONS_INVITAR}
+                />
+                <Select
+                  label="Finca con acceso"
+                  value={inviteForm.fincaId}
+                  onChange={(e) => setInviteForm({ ...inviteForm, fincaId: e.target.value })}
+                  options={fincas.map((f) => ({ value: f.id, label: f.nombre }))}
+                />
+              </div>
+              <div>
+                <label className="block text-[12px] font-medium text-[var(--text-secondary)] mb-1.5">
+                  Mensaje personal (opcional)
+                </label>
+                <textarea
+                  value={inviteForm.mensajePersonal}
+                  onChange={(e) => setInviteForm({ ...inviteForm, mensajePersonal: e.target.value })}
+                  placeholder="Ej: Hola Juan, te agrego al equipo de la finca para que registres las actividades del lote B."
+                  rows={2}
+                  className="w-full px-3 py-2 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button variant="secondary" onClick={() => setShowModal(false)}>Cancelar</Button>
+                <Button loading={loading} onClick={handleInvitar}>Enviar invitación</Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
 

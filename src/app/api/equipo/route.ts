@@ -94,8 +94,11 @@ export async function POST(req: Request) {
     let user = await db.user.findUnique({ where: { email } });
 
     if (user) {
-      const yaEsMiembro = await db.membresia.findUnique({
-        where: { userId_organizacionId: { userId: user.id, organizacionId: propia.organizacionId } },
+      // findFirst, no findUnique con la key compuesta — ver el mismo
+      // comentario en equipo-actions.ts::agregarMiembro (esta ruta es la
+      // segunda entrada al mismo caso de uso).
+      const yaEsMiembro = await db.membresia.findFirst({
+        where: { userId: user.id, organizacionId: propia.organizacionId },
       });
       if (yaEsMiembro) {
         return NextResponse.json({ error: "Este correo ya es miembro de tu organización" }, { status: 409 });
