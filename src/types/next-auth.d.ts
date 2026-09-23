@@ -8,6 +8,7 @@ declare module "next-auth" {
       esSuperAdmin?: boolean;
       esOwner?: boolean;
       modulosPermitidos?: string[] | "ALL";
+      mfaHabilitado?: boolean;
     } & DefaultSession["user"];
   }
 }

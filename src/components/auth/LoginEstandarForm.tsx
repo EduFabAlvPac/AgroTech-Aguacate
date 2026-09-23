@@ -6,7 +6,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Mail, Eye, EyeOff } from "lucide-react";
 import toast from "react-hot-toast";
-import { MENSAJE_RATE_LIMIT, MENSAJE_EMAIL_NO_VERIFICADO } from "@/lib/auth-shared";
+import {
+  MENSAJE_RATE_LIMIT,
+  MENSAJE_EMAIL_NO_VERIFICADO,
+  MENSAJE_MFA_REQUERIDO,
+  MENSAJE_MFA_CODIGO_INVALIDO,
+} from "@/lib/auth-shared";
 
 /**
  * Login estándar (correo+contraseña) — extraído literal de la página de
@@ -17,6 +22,12 @@ import { MENSAJE_RATE_LIMIT, MENSAJE_EMAIL_NO_VERIFICADO } from "@/lib/auth-shar
  * Fase 1 SaaS, Tanda 2: suma enlaces a /registro y /recuperar, y un botón de
  * reenvío cuando el error es específicamente "correo sin verificar" (para no
  * dejar a nadie varado si el primer correo no le llegó o lo perdió).
+ *
+ * ADR-011 Sprint 6: segundo paso de MFA — si `authorize()` responde
+ * MENSAJE_MFA_REQUERIDO, se revela el input del código y el siguiente submit
+ * reintenta el MISMO email+password con `codigoMfa` agregado (no un flujo ni
+ * un endpoint separado — mismo signIn("credentials", ...), mismo patrón que
+ * el reenvío de verificación de correo de abajo).
  */
 export function LoginEstandarForm() {
   const router = useRouter();
@@ -25,15 +36,25 @@ export function LoginEstandarForm() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [mostrarReenviar, setMostrarReenviar] = useState(false);
   const [reenviando, setReenviando] = useState(false);
+  const [pidiendoMfa, setPidiendoMfa] = useState(false);
+  const [codigoMfa, setCodigoMfa] = useState("");
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMostrarReenviar(false);
 
+    // OJO — hallazgo de QA real: next-auth serializa un valor `undefined` en
+    // el body como el STRING "undefined" (no lo omite), así que
+    // `{ codigoMfa: undefined }` haría que authorize() reciba la cadena
+    // "undefined" (truthy) en vez de nada — saltándose el mensaje "ingresa
+    // el código" y cayendo directo en "código inválido" en el primer
+    // submit. Se arma el objeto sin la clave cuando no aplica, en vez de
+    // pasarla con `undefined`.
     const res = await signIn("credentials", {
       email: form.email,
       password: form.password,
+      ...(pidiendoMfa ? { codigoMfa } : {}),
       redirect: false,
     });
 
@@ -45,6 +66,11 @@ export function LoginEstandarForm() {
       } else if (res.error === MENSAJE_EMAIL_NO_VERIFICADO) {
         toast.error(MENSAJE_EMAIL_NO_VERIFICADO);
         setMostrarReenviar(true);
+      } else if (res.error === MENSAJE_MFA_REQUERIDO) {
+        setPidiendoMfa(true);
+      } else if (res.error === MENSAJE_MFA_CODIGO_INVALIDO) {
+        toast.error(MENSAJE_MFA_CODIGO_INVALIDO);
+        setCodigoMfa("");
       } else {
         toast.error("Credenciales incorrectas. Verifica tu email y contraseña.");
       }
@@ -80,6 +106,59 @@ export function LoginEstandarForm() {
       setReenviando(false);
     }
   };
+
+  // ADR-011 Sprint 6 — paso 2, cuenta con MFA activo. Formulario chico y
+  // separado a propósito (no un campo más mezclado con email/password): en
+  // este punto ya no tiene sentido mostrar el botón de Google ni "¿No tienes
+  // cuenta?", y "volver" tiene que limpiar el código para no reenviar uno
+  // vencido si el usuario retrocede y vuelve a entrar.
+  if (pidiendoMfa) {
+    return (
+      <form
+        onSubmit={handleSubmit}
+        className="space-y-4"
+      >
+        <div>
+          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
+            Código de verificación
+          </label>
+          <p className="text-[12px] text-[var(--text-muted)] mb-2">
+            Abre tu app de autenticación (Google Authenticator o similar) e ingresa el código de 6 dígitos, o un
+            código de respaldo si no tienes acceso a la app.
+          </p>
+          <input
+            type="text"
+            inputMode="text"
+            value={codigoMfa}
+            onChange={(e) => setCodigoMfa(e.target.value)}
+            placeholder="123456"
+            autoFocus
+            required
+            className="w-full px-4 py-2.5 text-[15px] tracking-widest text-center border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
+          />
+        </div>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-2.5 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[14px] font-semibold rounded-[var(--radius-md)] transition-colors"
+        >
+          {loading ? "Verificando..." : "Verificar e ingresar"}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => {
+            setPidiendoMfa(false);
+            setCodigoMfa("");
+          }}
+          className="w-full text-[12px] font-medium text-[var(--text-muted)] hover:text-[var(--text-secondary)] py-1"
+        >
+          Volver
+        </button>
+      </form>
+    );
+  }
 
   return (
     <>

@@ -8,7 +8,8 @@ import { modulosPorDefecto } from "./modulos";
 import { registrarAuditoria } from "./audit";
 import { normalizarTelefono } from "./telefono";
 import { verificarLimite } from "./rate-limit";
-import { MENSAJE_EMAIL_NO_VERIFICADO } from "./auth-shared";
+import { MENSAJE_EMAIL_NO_VERIFICADO, MENSAJE_MFA_REQUERIDO, MENSAJE_MFA_CODIGO_INVALIDO } from "./auth-shared";
+import { desencriptarSecreto, verificarCodigoTOTP, verificarYConsumirCodigoRespaldo } from "./mfa";
 import {
   crearSesion,
   sesionEsValida,
@@ -84,6 +85,11 @@ async function resolverClaimsSesion(user: PrismaUser) {
     esOwner: !!esOwner,
     modulosPermitidos,
     membresias,
+    // ADR-011 Sprint 6 — para el aviso "activa MFA" en el shell del
+    // dashboard (Super Admin sin MFA todavía). No es la fuente de verdad de
+    // si el login LO EXIGIÓ (eso ya se resolvió en authorize() antes de
+    // llegar acá) — es solo el estado actual de la cuenta, para la UI.
+    mfaHabilitado: user.mfaHabilitado,
   };
 }
 
@@ -124,6 +130,10 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Contraseña", type: "password" },
+        // ADR-011 Sprint 6 — opcional: solo lo manda el formulario en el
+        // segundo submit, después de que este mismo authorize() ya rechazó
+        // el primero con MENSAJE_MFA_REQUERIDO (ver LoginEstandarForm.tsx).
+        codigoMfa: { label: "Código de verificación", type: "text" },
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -185,6 +195,44 @@ export const authOptions: NextAuthOptions = {
         // crearon.
         if (!user.emailVerificado) {
           throw new Error(MENSAJE_EMAIL_NO_VERIFICADO);
+        }
+
+        // ADR-011 Sprint 6 — MFA obligatorio SOLO para quien ya lo activó
+        // (una vez encendido, siempre se exige). Para Super Admin sin MFA
+        // todavía, decisión explícita de producto: "aviso primero, bloqueo
+        // después" — no se bloquea el login acá, se avisa en el dashboard
+        // (ver mfaHabilitado en resolverClaimsSesion()). Google/Campesino no
+        // pasan por este challenge (ver docs/ADR-011-notas-de-implementacion.md).
+        if (user.mfaHabilitado) {
+          // Defensa en profundidad — hallazgo de QA real (2026-09-23):
+          // next-auth serializa un `undefined` en el body de signIn() como
+          // el STRING "undefined", no como ausente (ver el comentario
+          // gemelo en LoginEstandarForm.tsx, ya corregido ahí). Si algún
+          // otro caller repitiera ese error, esto evita que "undefined" se
+          // trate como un código real en vez de "no llegó ninguno".
+          const codigoMfa = credentials.codigoMfa?.trim();
+          if (!codigoMfa || codigoMfa === "undefined") {
+            throw new Error(MENSAJE_MFA_REQUERIDO);
+          }
+
+          // Mismo criterio que loginPassword: frena fuerza bruta contra el
+          // código de 6 dígitos, ya con la contraseña confirmada.
+          await verificarLimite("mfaVerificacion", `${obtenerIp(req?.headers)}:${credentials.email}`);
+
+          let mfaValido = false;
+          if (user.mfaSecret) {
+            mfaValido = await verificarCodigoTOTP(desencriptarSecreto(user.mfaSecret), codigoMfa);
+          }
+          if (!mfaValido) {
+            const { valido, codigosRestantes } = verificarYConsumirCodigoRespaldo(user.mfaBackupCodes, codigoMfa);
+            if (valido) {
+              mfaValido = true;
+              await db.user.update({ where: { id: user.id }, data: { mfaBackupCodes: codigosRestantes } });
+            }
+          }
+          if (!mfaValido) {
+            throw new Error(MENSAJE_MFA_CODIGO_INVALIDO);
+          }
         }
 
         const claims = await resolverClaimsSesion(user);
@@ -283,6 +331,7 @@ export const authOptions: NextAuthOptions = {
         token.esOwner = (user as any).esOwner ?? false;
         token.modulosPermitidos = (user as any).modulosPermitidos ?? "ALL";
         token.membresias = (user as any).membresias ?? [];
+        token.mfaHabilitado = (user as any).mfaHabilitado ?? false;
         // sid ya viene creado desde adentro de authorize() (ahí sí hay
         // headers reales) — acá solo se copia al token, mismo patrón que
         // el resto de los claims de esta rama.
@@ -321,6 +370,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).esOwner = token.esOwner ?? false;
         (session.user as any).modulosPermitidos = token.modulosPermitidos ?? "ALL";
         (session.user as any).membresias = token.membresias ?? [];
+        (session.user as any).mfaHabilitado = token.mfaHabilitado ?? false;
       }
       return session;
     },

@@ -56,6 +56,12 @@ export const CONFIGS_LIMITE = {
   // agregando su equipo) y frena una cuenta comprometida bombardeando
   // correos de invitación.
   invitarMiembro: { ventana: "1 h", maximo: 20 },
+  // ADR-011 Sprint 6 — el segundo paso del login (código TOTP de 6 dígitos o
+  // código de respaldo) YA pasó el chequeo de contraseña en este punto, pero
+  // igual necesita su propio límite: un código de 6 dígitos es fuerza-bruteable
+  // en un número de intentos manejable si no hubiera ningún freno acá. Mismo
+  // criterio que loginPassword (por IP+email, no solo por IP).
+  mfaVerificacion: { ventana: "15 m", maximo: 8 },
 } as const;
 
 export type CasoLimite = keyof typeof CONFIGS_LIMITE;
