@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone, MessageCircle } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone, MessageCircle, History, Download } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
@@ -15,6 +15,9 @@ import {
 } from "@/app/(dashboard)/dashboard/equipo/equipo-actions";
 import { crearCuentaCampesino, eliminarCuentaCampesino } from "@/app/(dashboard)/dashboard/equipo/campesino-actions";
 import { invitarMiembroPorCorreo } from "@/app/(dashboard)/dashboard/equipo/invitacion-actions";
+import { exportarAuditoriaCSV } from "@/app/(dashboard)/dashboard/equipo/auditoria-actions";
+import { ETIQUETAS_ACCION } from "@/lib/auditoria-labels";
+import type { AuditoriaEvento } from "@/lib/data/auditoria";
 
 type RolFinca = "ADMIN" | "OPERARIO" | "LECTURA";
 
@@ -119,13 +122,19 @@ export function EquipoClient({
   fincas,
   plantillasIniciales,
   cuentasCampesinoIniciales,
+  auditoria,
 }: {
   miembros: MiembroData[];
   fincas: FincaOption[];
   plantillasIniciales: PlantillasModulos;
   cuentasCampesinoIniciales: CuentaCampesinoData[];
+  // ADR-011 Sprint 5 — la página ya gatea toda esta pantalla a "solo OWNER"
+  // (equipo/page.tsx redirige si no lo es), así que no hace falta un chequeo
+  // aparte acá para mostrar la pestaña.
+  auditoria: AuditoriaEvento[];
 }) {
-  const [tab, setTab] = useState<"miembros" | "roles">("miembros");
+  const [tab, setTab] = useState<"miembros" | "roles" | "auditoria">("miembros");
+  const [exportandoAuditoria, setExportandoAuditoria] = useState(false);
   const [miembros, setMiembros] = useState(initial);
   const [cuentasCampesino, setCuentasCampesino] = useState(cuentasCampesinoIniciales);
   const [eliminandoCampesinoId, setEliminandoCampesinoId] = useState<string | null>(null);
@@ -298,6 +307,32 @@ export function EquipoClient({
     });
   };
 
+  // ADR-011 Sprint 5 — mismo patrón que handleExportar() en ConfigClient.tsx
+  // (exportarMisDatos): una Server Action no puede mandar Content-Disposition,
+  // así que arma el CSV como string y el cliente construye el Blob.
+  const handleExportarAuditoria = () => {
+    setExportandoAuditoria(true);
+    startTransition(async () => {
+      try {
+        const result = await exportarAuditoriaCSV();
+        if (result.error || !result.csv) {
+          toast.error(result.error || "No se pudo generar el archivo");
+          return;
+        }
+        const blob = new Blob([result.csv], { type: "text/csv;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = result.filename ?? `germia-auditoria-${new Date().toISOString().slice(0, 10)}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success("Descarga iniciada");
+      } finally {
+        setExportandoAuditoria(false);
+      }
+    });
+  };
+
   const abrirEditar = (m: MiembroData) => {
     const acceso = m.fincas[0];
     const rolFinca: RolFinca =
@@ -401,6 +436,7 @@ export function EquipoClient({
           {[
             { id: "miembros" as const, label: "Miembros", icon: UsersIcon },
             { id: "roles" as const, label: "Roles y permisos", icon: SlidersHorizontal },
+            { id: "auditoria" as const, label: "Auditoría", icon: History },
           ].map(({ id, label, icon: Icon }) => (
             <button
               key={id}
@@ -426,7 +462,61 @@ export function EquipoClient({
             </Button>
           </div>
         )}
+        {tab === "auditoria" && (
+          <Button variant="secondary" loading={exportandoAuditoria} onClick={handleExportarAuditoria}>
+            <Download size={16} /> Descargar CSV (últimos 30 días)
+          </Button>
+        )}
       </div>
+
+      {tab === "auditoria" && (
+        <div className="space-y-2">
+          <p className="text-[12px] text-[var(--text-muted)]">
+            Últimos {auditoria.length} evento{auditoria.length === 1 ? "" : "s"} de tu organización — creación/edición de
+            colaboradores, invitaciones, cambios en los datos de la organización. El CSV incluye los últimos 30 días
+            completos, no solo lo que ves acá.
+          </p>
+          {auditoria.length === 0 ? (
+            <EmptyState
+              icon={<History size={22} />}
+              title="Sin eventos todavía"
+              description="Acá vas a ver el historial de cambios en tu equipo y tu organización."
+            />
+          ) : (
+            <div className="card overflow-x-auto">
+              <table className="w-full text-[13px]">
+                <thead>
+                  <tr className="border-b border-[var(--border-subtle)] text-left text-[11px] uppercase tracking-wide text-[var(--text-muted)]">
+                    <th className="px-4 py-3 font-medium">Fecha</th>
+                    <th className="px-4 py-3 font-medium">Quién</th>
+                    <th className="px-4 py-3 font-medium">Acción</th>
+                    <th className="px-4 py-3 font-medium">Detalle</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditoria.map((evento) => (
+                    <tr key={evento.id} className="border-b border-[var(--border-subtle)] last:border-0">
+                      <td className="px-4 py-3 whitespace-nowrap text-[var(--text-secondary)]">
+                        {new Date(evento.createdAt).toLocaleString("es-CO", { dateStyle: "short", timeStyle: "short" })}
+                      </td>
+                      <td className="px-4 py-3 text-[var(--text-secondary)]">{evento.actorEmail ?? "—"}</td>
+                      <td className="px-4 py-3 font-medium text-[var(--text-primary)]">
+                        {ETIQUETAS_ACCION[evento.accion] ?? evento.accion}
+                      </td>
+                      <td
+                        className="px-4 py-3 text-[11px] text-[var(--text-muted)] max-w-xs truncate"
+                        title={evento.detalle ? JSON.stringify(evento.detalle) : ""}
+                      >
+                        {evento.detalle ? JSON.stringify(evento.detalle) : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {tab === "roles" && (
         <div className="space-y-4">
