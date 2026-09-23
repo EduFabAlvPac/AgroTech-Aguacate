@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2 } from "lucide-react";
+import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2, Building2 } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { VistaPreferida } from "@prisma/client";
@@ -16,7 +16,9 @@ import {
 } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
 import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
 import { FincasTab } from "@/components/configuracion/FincasTab";
+import { OrganizacionTab } from "@/components/configuracion/OrganizacionTab";
 import type { FincaResumen } from "@/lib/data/fincas";
+import type { OrganizacionResumen } from "@/lib/data/configuracion";
 
 interface ConfigClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida };
@@ -28,12 +30,15 @@ interface ConfigClientProps {
   fincas: FincaResumen[];
   fincaActivaId: string | null;
   puedeCrearFinca: boolean;
+  // ADR-011 Sprint 3 — solo el OWNER la recibe (ver page.tsx); null para
+  // cualquier otro rol, y en ese caso la pestaña ni se ofrece.
+  organizacion: OrganizacionResumen | null;
 }
 
-type Tab = "profile" | "finca" | "alertas" | "privacidad";
-const TABS_VALIDOS: Tab[] = ["profile", "finca", "alertas", "privacidad"];
+type Tab = "profile" | "finca" | "organizacion" | "alertas" | "privacidad";
+const TABS_VALIDOS: Tab[] = ["profile", "finca", "organizacion", "alertas", "privacidad"];
 
-export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca }: ConfigClientProps) {
+export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca, organizacion }: ConfigClientProps) {
   // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
   // pueda aterrizar en la sección exacta (ej. "alertas" o "privacidad") en
   // vez de siempre "profile". Sin el parámetro, comportamiento idéntico al
@@ -188,6 +193,9 @@ export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFin
   const tabs: { id: Tab; label: string; icon: React.ElementType }[] = [
     { id: "profile", label: "Perfil", icon: User },
     { id: "finca", label: "Finca", icon: MapPin },
+    // Solo si el OWNER trae datos de organización (ver page.tsx) — un
+    // colaborador ni siquiera ve esta pestaña.
+    ...(organizacion ? [{ id: "organizacion" as Tab, label: "Organización", icon: Building2 }] : []),
     { id: "alertas", label: "Alertas", icon: Bell },
     { id: "privacidad", label: "Privacidad", icon: ShieldCheck },
   ];
@@ -294,6 +302,9 @@ export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFin
       {tab === "finca" && (
         <FincasTab fincas={fincas} fincaActivaId={fincaActivaId} puedeCrear={puedeCrearFinca} />
       )}
+
+      {/* ── Organización (ADR-011 Sprint 3) ────────────────────────────────── */}
+      {tab === "organizacion" && organizacion && <OrganizacionTab organizacion={organizacion} />}
 
       {/* ── Alertas ─────────────────────────────────────────────────────── */}
       {tab === "alertas" && (
