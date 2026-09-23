@@ -7,6 +7,7 @@ import { hashToken } from "@/lib/tokens";
 import { aceptarInvitacionNuevoUsuarioSchema } from "@/lib/validations";
 import { registrarAuditoria } from "@/lib/audit";
 import { obtenerPlantillaModulos } from "@/lib/modulos";
+import { enviarEmailInvitacionAceptada, enviarEmailInvitacionAceptadaAlDueno } from "@/lib/email";
 import type { RolFinca } from "@prisma/client";
 
 /**
@@ -39,6 +40,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       select: {
         id: true, organizacionId: true, emailOCelular: true, rol: true, fincaId: true,
         expiraEn: true, aceptadaEn: true, invitadaPorId: true,
+        organizacion: { select: { nombre: true } },
+        invitadaPor: { select: { email: true, name: true } },
       },
     });
 
@@ -56,9 +59,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     const rolFinca: RolFinca = invitacion.rol === "FARM_ADMIN" ? "ADMIN" : "OPERARIO";
     const modulosFinal = (await obtenerPlantillaModulos(invitacion.organizacionId))[rolFinca];
 
-    const usuarioExistente = await db.user.findUnique({ where: { email: invitacion.emailOCelular }, select: { id: true } });
+    const usuarioExistente = await db.user.findUnique({ where: { email: invitacion.emailOCelular }, select: { id: true, name: true } });
 
     let userId: string;
+    let nombreAceptado: string | null;
 
     if (usuarioExistente) {
       const session = await getServerSession(authOptions);
@@ -69,6 +73,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         );
       }
       userId = usuarioExistente.id;
+      nombreAceptado = usuarioExistente.name;
 
       const yaEsMiembro = await db.membresia.findFirst({
         where: { userId, organizacionId: invitacion.organizacionId },
@@ -100,6 +105,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         },
       });
       userId = user.id;
+      nombreAceptado = user.name;
     }
 
     await db.$transaction([
@@ -124,6 +130,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       accion: "equipo.invitacion_aceptada",
       detalle: { invitacionId: invitacion.id, organizacionId: invitacion.organizacionId, rol: invitacion.rol },
     });
+
+    // Cierre del círculo — confirmación a quien aceptó y aviso a quien
+    // invitó (hoy no tenía forma de saber si/cuándo alguien aceptó sin
+    // entrar manualmente a Equipo). Nunca credenciales por correo (ver
+    // comentario de enviarEmailInvitacionAceptada en email.ts); si algún
+    // envío falla, no debe tumbar la aceptación ya confirmada — ambas
+    // funciones ya absorben sus propios errores (mismo patrón que el resto
+    // de email.ts).
+    await enviarEmailInvitacionAceptada(invitacion.emailOCelular, nombreAceptado, invitacion.organizacion.nombre);
+    if (invitacion.invitadaPor) {
+      await enviarEmailInvitacionAceptadaAlDueno(
+        invitacion.invitadaPor.email,
+        nombreAceptado,
+        invitacion.emailOCelular,
+        invitacion.organizacion.nombre
+      );
+    }
 
     return NextResponse.json({ data: { ok: true, yaEraMiembro: false } });
   } catch (error) {

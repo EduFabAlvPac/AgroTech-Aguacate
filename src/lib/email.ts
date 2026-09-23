@@ -91,3 +91,40 @@ export async function enviarEmailInvitacion(
     "invitación a organización"
   );
 }
+
+// Cierra el círculo de la invitación por correo — deliberadamente NO manda
+// contraseñas ni credenciales (eso es justo lo que esta invitación evita
+// respecto al flujo de "Crear cuenta" con contraseña temporal, ver
+// invitacion-actions.ts): solo confirma que la cuenta ya está activa, la
+// persona ya sabe su contraseña porque la escribió ella misma.
+export async function enviarEmailInvitacionAceptada(email: string, nombre: string | null, organizacionNombre: string): Promise<void> {
+  const enlace = `${baseUrl()}/login`;
+  await enviar(
+    email,
+    `Tu cuenta en GermIA ya está activa`,
+    `<p>Hola ${nombre ?? ""},</p>
+     <p>Tu cuenta quedó activa — ya eres parte de <strong>${organizacionNombre}</strong> en GermIA.</p>
+     <p><a href="${enlace}">${enlace}</a></p>`,
+    "confirmación de invitación aceptada"
+  );
+}
+
+// Al dueño que invitó — hoy no tenía forma de saber si/cuándo alguien
+// aceptó su invitación sin entrar manualmente a Equipo a revisar.
+export async function enviarEmailInvitacionAceptadaAlDueno(
+  emailDueno: string,
+  nombreInvitado: string | null,
+  emailInvitado: string,
+  organizacionNombre: string
+): Promise<void> {
+  const enlace = `${baseUrl()}/dashboard/equipo`;
+  await enviar(
+    emailDueno,
+    `${nombreInvitado ?? emailInvitado} aceptó tu invitación`,
+    `<p>Hola,</p>
+     <p><strong>${nombreInvitado ?? emailInvitado}</strong> (${emailInvitado}) aceptó tu invitación y ya es parte de
+     <strong>${organizacionNombre}</strong> en GermIA.</p>
+     <p><a href="${enlace}">${enlace}</a></p>`,
+    "notificación de invitación aceptada (dueño)"
+  );
+}
