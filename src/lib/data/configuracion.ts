@@ -6,7 +6,14 @@ import { db } from "@/lib/db";
 import type { VistaPreferida } from "@prisma/client";
 
 export interface ConfiguracionResumen {
-  user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
+  user: {
+    name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida;
+    // ADR-011 Sprint 6 — pestaña "Seguridad". Se lee fresco de la BD (no de
+    // la sesión JWT) porque el JWT queda cacheado hasta el próximo login;
+    // así la pestaña refleja el estado real justo después de activar/
+    // desactivar MFA en la misma sesión.
+    mfaHabilitado: boolean;
+  } | null;
   prefs: {
     tempMinAlert: number; tempMaxAlert: number;
     rainAlertMm: number; windAlertKmh: number;
@@ -22,7 +29,7 @@ export async function getConfiguracionResumen(userId: string): Promise<Configura
   const [user, prefs] = await Promise.all([
     db.user.findUnique({
       where: { id: userId },
-      select: { name: true, email: true, telefono: true, vistaPreferida: true },
+      select: { name: true, email: true, telefono: true, vistaPreferida: true, mfaHabilitado: true },
     }),
     db.userPreferences.findUnique({ where: { userId } }),
   ]);

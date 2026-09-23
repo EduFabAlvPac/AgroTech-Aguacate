@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { signOut } from "next-auth/react";
-import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2, Building2 } from "lucide-react";
+import { User, MapPin, Bell, Save, RefreshCw, ShieldCheck, Download, Trash2, Building2, Shield } from "lucide-react";
 import { Button, Input, Modal } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { VistaPreferida } from "@prisma/client";
@@ -17,11 +17,12 @@ import {
 import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
 import { FincasTab } from "@/components/configuracion/FincasTab";
 import { OrganizacionTab } from "@/components/configuracion/OrganizacionTab";
+import { SeguridadTab } from "@/components/configuracion/SeguridadTab";
 import type { FincaResumen } from "@/lib/data/fincas";
 import type { OrganizacionResumen } from "@/lib/data/configuracion";
 
 interface ConfigClientProps {
-  user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida };
+  user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida; mfaHabilitado?: boolean };
   prefs: {
     tempMinAlert: number; tempMaxAlert: number;
     rainAlertMm: number; windAlertKmh: number;
@@ -35,8 +36,8 @@ interface ConfigClientProps {
   organizacion: OrganizacionResumen | null;
 }
 
-type Tab = "profile" | "finca" | "organizacion" | "alertas" | "privacidad";
-const TABS_VALIDOS: Tab[] = ["profile", "finca", "organizacion", "alertas", "privacidad"];
+type Tab = "profile" | "finca" | "organizacion" | "seguridad" | "alertas" | "privacidad";
+const TABS_VALIDOS: Tab[] = ["profile", "finca", "organizacion", "seguridad", "alertas", "privacidad"];
 
 export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca, organizacion }: ConfigClientProps) {
   // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
@@ -196,6 +197,7 @@ export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFin
     // Solo si el OWNER trae datos de organización (ver page.tsx) — un
     // colaborador ni siquiera ve esta pestaña.
     ...(organizacion ? [{ id: "organizacion" as Tab, label: "Organización", icon: Building2 }] : []),
+    { id: "seguridad", label: "Seguridad", icon: Shield },
     { id: "alertas", label: "Alertas", icon: Bell },
     { id: "privacidad", label: "Privacidad", icon: ShieldCheck },
   ];
@@ -305,6 +307,9 @@ export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFin
 
       {/* ── Organización (ADR-011 Sprint 3) ────────────────────────────────── */}
       {tab === "organizacion" && organizacion && <OrganizacionTab organizacion={organizacion} />}
+
+      {/* ── Seguridad (ADR-011 Sprint 6) ─────────────────────────────────── */}
+      {tab === "seguridad" && <SeguridadTab mfaHabilitado={!!user?.mfaHabilitado} />}
 
       {/* ── Alertas ─────────────────────────────────────────────────────── */}
       {tab === "alertas" && (

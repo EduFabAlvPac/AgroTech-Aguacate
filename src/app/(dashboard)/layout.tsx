@@ -15,6 +15,7 @@ import { obtenerExperienciaUsuario } from "@/lib/experiencia";
 import { getAlertas } from "@/lib/data/alertas";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
 import { VolverModoSimple } from "@/components/shared/VolverModoSimple";
+import { MfaAvisoSuperAdmin } from "@/components/layout/MfaAvisoSuperAdmin";
 
 export default async function DashboardLayout({
   children,
@@ -101,6 +102,7 @@ export default async function DashboardLayout({
       <SessionProvider session={session}>
         <SidebarProvider sidebarDisponible={false}>
           <div className="flex flex-col h-screen">
+            {session.user.esSuperAdmin && !session.user.mfaHabilitado && <MfaAvisoSuperAdmin />}
             <VolverModoSimple />
             {/* Sin <MobileFAB /> acá a propósito (hallazgo del usuario,
                 2026-08-15): sus atajos ("AgroIA", "Gasto", "Riego") son del
@@ -126,6 +128,7 @@ export default async function DashboardLayout({
       <SidebarProvider>
         <div className="flex flex-col h-screen">
           <OfflineBanner />
+          {session.user.esSuperAdmin && !session.user.mfaHabilitado && <MfaAvisoSuperAdmin />}
           {visitaPuntual && <VolverModoSimple />}
           <div className="app-shell flex-1 min-h-0">
             <Sidebar fincas={fincas} fincaActivaId={fincaActivaId} />
