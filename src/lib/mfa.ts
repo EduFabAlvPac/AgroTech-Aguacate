@@ -31,16 +31,35 @@ import { generateSecret, generateURI, verify as verificarTOTP } from "otplib";
 const ALGORITMO = "aes-256-gcm";
 const IV_BYTES = 12; // recomendado para GCM
 
+/**
+ * Tolera los dos errores de copiado/pegado ya vistos en la práctica al
+ * configurar esta variable en el panel de Vercel: espacio/salto de línea
+ * sobrante en los extremos, y comillas incluidas por error (el propio
+ * .env.example la muestra entre comillas, formato .env — fácil de copiar de
+ * más sin querer). No corrige contenido corrupto EN MEDIO del valor, solo
+ * lo más común en los bordes.
+ */
+function limpiarClave(valor: string): string {
+  let v = valor.trim();
+  if (v.length >= 2 && v.startsWith('"') && v.endsWith('"')) v = v.slice(1, -1).trim();
+  return v;
+}
+
 function claveEncriptacion(): Buffer {
-  const hex = process.env.MFA_ENCRYPTION_KEY;
-  if (!hex) {
+  const crudo = process.env.MFA_ENCRYPTION_KEY;
+  if (!crudo) {
     throw new Error(
       "MFA_ENCRYPTION_KEY no está configurada — no se puede activar/verificar MFA en este entorno."
     );
   }
+  const hex = limpiarClave(crudo);
   const clave = Buffer.from(hex, "hex");
   if (clave.length !== 32) {
-    throw new Error("MFA_ENCRYPTION_KEY debe decodificar a 32 bytes (generar con `openssl rand -hex 32`).");
+    throw new Error(
+      `MFA_ENCRYPTION_KEY debe decodificar a 32 bytes (generar con \`openssl rand -hex 32\`) — ` +
+        `hoy tiene ${hex.length} caracteres y decodifica a ${clave.length} bytes. ` +
+        `Debe ser exactamente 64 caracteres hexadecimales (0-9a-f), sin comillas ni espacios.`
+    );
   }
   return clave;
 }

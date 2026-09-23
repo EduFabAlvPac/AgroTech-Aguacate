@@ -57,6 +57,46 @@ describe("encriptarSecreto / desencriptarSecreto", () => {
       process.env.MFA_ENCRYPTION_KEY = original;
     }
   });
+
+  // Regresión de QA real (2026-09-23) — dos errores de copiado/pegado
+  // reales al configurar la variable en el panel de Vercel: espacios/saltos
+  // de línea sobrantes, y comillas incluidas por error (el propio
+  // .env.example la muestra en formato .env, entre comillas).
+  describe("regresión de QA real — clave con espacios/comillas de más", () => {
+    it("tolera espacio y salto de línea al final del valor", () => {
+      const original = process.env.MFA_ENCRYPTION_KEY!;
+      const secreto = generarSecretoTOTP();
+      const cifrado = encriptarSecreto(secreto);
+      process.env.MFA_ENCRYPTION_KEY = `${original}\n `;
+      try {
+        expect(desencriptarSecreto(cifrado)).toBe(secreto);
+      } finally {
+        process.env.MFA_ENCRYPTION_KEY = original;
+      }
+    });
+
+    it("tolera comillas dobles envolviendo el valor completo", () => {
+      const original = process.env.MFA_ENCRYPTION_KEY!;
+      const secreto = generarSecretoTOTP();
+      const cifrado = encriptarSecreto(secreto);
+      process.env.MFA_ENCRYPTION_KEY = `"${original}"`;
+      try {
+        expect(desencriptarSecreto(cifrado)).toBe(secreto);
+      } finally {
+        process.env.MFA_ENCRYPTION_KEY = original;
+      }
+    });
+
+    it("un valor realmente corto reporta cuántos caracteres/bytes encontró, no solo 'inválido'", () => {
+      const original = process.env.MFA_ENCRYPTION_KEY;
+      process.env.MFA_ENCRYPTION_KEY = "abc123";
+      try {
+        expect(() => encriptarSecreto("x")).toThrow(/6 caracteres/);
+      } finally {
+        process.env.MFA_ENCRYPTION_KEY = original;
+      }
+    });
+  });
 });
 
 describe("TOTP", () => {
