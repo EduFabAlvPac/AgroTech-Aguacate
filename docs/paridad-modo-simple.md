@@ -70,6 +70,7 @@
 | Vista preferida (switch de 3 posiciones) | ✅ | ✅ | Paridad completa |
 | Configurar umbrales de alerta | ✅ | ❌ | Exclusión con salida (Fase 5) — `/dashboard/configuracion?tab=alertas` |
 | Exportar mis datos / eliminar cuenta | ✅ | ❌ | Exclusión con salida (Fase 5) — `/dashboard/configuracion?tab=privacidad` |
+| Editar datos de la organización (nombre, NIT, contacto) — solo OWNER | ✅ `organizacion-actions.ts` | ❌ | **Exclusión con salida** (ADR-011 Sprint 3) — `/dashboard/configuracion?tab=organizacion`, tarjeta solo visible si `accesos.esOwner` (mismo gate que la salida a Equipo) |
 
 ## Asistente IA
 

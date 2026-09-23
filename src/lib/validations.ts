@@ -238,6 +238,21 @@ export const restablecerSchema = z.object({
   password: passwordSchema,
 });
 
+// ── Organización (ADR-011 Sprint 3) ─────────────────────────────────────────
+// Solo los campos identitarios/de contacto — `tipo`/`plan` son de solo
+// lectura en esta pestaña (ver OrganizacionTab.tsx): cambiar el tipo de una
+// organización implica trial/límites que este formulario no maneja.
+
+export const organizacionSchema = z.object({
+  nombre: z.string().min(1, "El nombre es requerido").max(150, "Máximo 150 caracteres"),
+  nit: z.string().max(30, "Máximo 30 caracteres").optional().or(z.literal("")),
+  ciudad: z.string().max(100, "Máximo 100 caracteres").optional().or(z.literal("")),
+  departamento: z.string().max(100, "Máximo 100 caracteres").optional().or(z.literal("")),
+  emailContacto: z.string().email("Correo inválido").max(200, "Máximo 200 caracteres").optional().or(z.literal("")),
+  celularContacto: z.string().max(30, "Máximo 30 caracteres").optional().or(z.literal("")),
+});
+export type OrganizacionFormData = z.infer<typeof organizacionSchema>;
+
 // ── Invitaciones por correo (ADR-011 Sprint 3) ──────────────────────────────
 
 // Solo 2 opciones, no las 3 de agregarMiembro() (ADMIN/OPERARIO/LECTURA):
