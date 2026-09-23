@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone, MessageCircle } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
@@ -93,6 +93,26 @@ const emptyForm = {
 };
 
 const emptyInviteForm = { email: "", rolFinca: "OPERARIO" as "ADMIN" | "OPERARIO", fincaId: "", mensajePersonal: "" };
+
+/**
+ * Puente hasta que exista el WhatsApp Business API real (ADR-011 Sprint 4,
+ * pendiente de cuenta de Meta + firma del fundador sobre "WhatsApp sin
+ * respaldo SMS") — un cuenta Campesino hoy no recibe ningún aviso
+ * automático de que ya tiene acceso. `wa.me` es un enlace público de
+ * WhatsApp (no la API de Meta, no necesita cuenta de negocio ni plantillas
+ * aprobadas): abre el WhatsApp del propio dueño con el mensaje ya
+ * redactado, listo para mandar con un toque — el dueño sigue siendo quien
+ * envía, desde su número personal.
+ *
+ * `telefono` ya viene solo en dígitos (normalizarTelefono(), sin +57) — se
+ * antepone el indicativo de Colombia porque hoy toda la app es solo
+ * Colombia (paisIso @default("CO")).
+ */
+function enlaceWhatsAppCampesino(nombre: string | null, telefono: string): string {
+  const numero = `57${telefono}`;
+  const mensaje = `Hola ${nombre ?? ""}, ya tienes acceso a GermIA. Abre este enlace y entra con tu número de celular (sin contraseña): ${window.location.origin}/login`;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
+}
 
 export function EquipoClient({
   miembros: initial,
@@ -478,15 +498,29 @@ export function EquipoClient({
                   </p>
                 </div>
               </div>
-              <button
-                onClick={() => handleEliminarCampesino(c.id)}
-                disabled={eliminandoCampesinoId === c.id}
-                className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors flex-shrink-0 disabled:opacity-50"
-                aria-label="Eliminar cuenta Campesino"
-                title="Eliminar"
-              >
-                <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
-              </button>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {c.telefono && (
+                  <a
+                    href={enlaceWhatsAppCampesino(c.nombre, c.telefono)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-agro-50 transition-colors"
+                    aria-label="Avisarle por WhatsApp"
+                    title="Avisarle por WhatsApp que ya tiene acceso"
+                  >
+                    <MessageCircle size={14} className="text-[var(--text-muted)] hover:text-agro-600" />
+                  </a>
+                )}
+                <button
+                  onClick={() => handleEliminarCampesino(c.id)}
+                  disabled={eliminandoCampesinoId === c.id}
+                  className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors disabled:opacity-50"
+                  aria-label="Eliminar cuenta Campesino"
+                  title="Eliminar"
+                >
+                  <Trash2 size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
