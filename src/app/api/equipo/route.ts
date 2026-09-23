@@ -140,6 +140,9 @@ export async function POST(req: Request) {
       actorEmail: session.user.email,
       accion: "equipo.invitar",
       detalle: { membresiaId: membresia.id, emailInvitado: user.email, rol: membresia.rol, fincaId },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresia.id,
     });
 
     return NextResponse.json(

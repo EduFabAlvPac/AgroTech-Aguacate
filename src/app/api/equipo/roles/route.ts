@@ -63,6 +63,9 @@ export async function PUT(req: Request) {
       actorEmail: session.user.email,
       accion: "equipo.editar_plantilla_rol",
       detalle: { rol, modulos: modulosFinal },
+      organizacionId: propia.organizacionId,
+      recurso: "RolModulosDefault",
+      recursoId: rol,
     });
 
     return NextResponse.json({ data: { updated: true } });

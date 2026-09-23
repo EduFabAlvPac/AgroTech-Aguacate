@@ -80,6 +80,9 @@ export async function PUT(req: Request, { params }: { params: Promise<{ membresi
       actorEmail: session.user.email,
       accion: "equipo.editar",
       detalle: { membresiaId, userIdAfectado: miembro.userId, cambios: { rolFinca, fincaId, activa } },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresiaId,
     });
 
     return NextResponse.json({ data: { updated: true } });
@@ -125,6 +128,9 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ memb
       actorEmail: session.user.email,
       accion: "equipo.remover",
       detalle: { membresiaId, userIdRemovido: miembro.userId },
+      organizacionId: propia.organizacionId,
+      recurso: "Membresia",
+      recursoId: membresiaId,
     });
 
     return NextResponse.json({ data: { deleted: true } });
