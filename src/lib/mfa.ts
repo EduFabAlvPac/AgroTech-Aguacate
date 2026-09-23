@@ -12,6 +12,15 @@
  * tan crítica como `NEXTAUTH_SECRET`: perderla o rotarla deja sin poder
  * validar el login de cualquier cuenta que ya tenga MFA activo.
  *
+ * Hallazgo real (2026-09-23, al configurar la variable en Vercel): con la
+ * clave en base64 (`openssl rand -base64 32`), un `+` del valor se corrompió
+ * al copiarla/pegarla (probablemente autocorrección o un gestor de
+ * portapapeles interpretándolo) y terminó decodificando a 31 bytes en vez de
+ * 32 — el mismo string en base64 nunca es seguro de copiar a mano porque usa
+ * `+`/`/`/`=`. Cambiado a hexadecimal (`openssl rand -hex 32`): mismos 32
+ * bytes de entropía, pero solo caracteres `0-9a-f`, imposibles de confundir
+ * con espacios o de que algo los reinterprete.
+ *
  * Códigos de respaldo: sí se guardan hasheados (mismo patrón sha256 que
  * `hashToken()` en tokens.ts) — son de un solo uso, nunca hace falta
  * recuperarlos, solo compararlos.
@@ -23,15 +32,15 @@ const ALGORITMO = "aes-256-gcm";
 const IV_BYTES = 12; // recomendado para GCM
 
 function claveEncriptacion(): Buffer {
-  const b64 = process.env.MFA_ENCRYPTION_KEY;
-  if (!b64) {
+  const hex = process.env.MFA_ENCRYPTION_KEY;
+  if (!hex) {
     throw new Error(
       "MFA_ENCRYPTION_KEY no está configurada — no se puede activar/verificar MFA en este entorno."
     );
   }
-  const clave = Buffer.from(b64, "base64");
+  const clave = Buffer.from(hex, "hex");
   if (clave.length !== 32) {
-    throw new Error("MFA_ENCRYPTION_KEY debe decodificar a 32 bytes (generar con `openssl rand -base64 32`).");
+    throw new Error("MFA_ENCRYPTION_KEY debe decodificar a 32 bytes (generar con `openssl rand -hex 32`).");
   }
   return clave;
 }
