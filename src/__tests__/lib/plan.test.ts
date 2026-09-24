@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   estadoEfectivoOrg, puedeEscribir, diasRestantesTrial, limiteAsociados, puedeAgregarAsociado,
-  finDeTrial, avisoPendiente, TRIAL_DIAS, type OrgPlanInfo,
+  finDeTrial, avisoPendiente, nuevoFinTrial, TRIAL_DIAS, type OrgPlanInfo,
 } from "@/lib/plan";
 
 const AHORA = new Date("2026-10-01T12:00:00Z");
@@ -89,5 +89,19 @@ describe("avisoPendiente (cron diario)", () => {
     const r = avisoPendiente(2, []);
     expect(r?.enviar).toBe(3);
     expect(r?.marcar.sort()).toEqual([3, 7]);
+  });
+});
+
+describe("nuevoFinTrial (extender la prueba)", () => {
+  it("si el trial sigue vigente, suma desde su fin actual", () => {
+    expect(nuevoFinTrial(dias(10), 15, AHORA).getTime()).toBe(dias(25).getTime());
+  });
+  it("si ya venció, suma desde HOY (no queda vencido de nuevo)", () => {
+    const nuevo = nuevoFinTrial(dias(-40), 15, AHORA);
+    expect(nuevo.getTime()).toBe(dias(15).getTime());
+    expect(puedeEscribir(org({ esTrial: true, trialFinEn: nuevo }), AHORA)).toBe(true);
+  });
+  it("sin fecha previa suma desde hoy", () => {
+    expect(nuevoFinTrial(null, 7, AHORA).getTime()).toBe(dias(7).getTime());
   });
 });

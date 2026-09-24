@@ -20,6 +20,7 @@ import {
   History,
   LineChart,
   ShoppingBag,
+  Building2,
 } from "lucide-react";
 import { signOut, useSession } from "next-auth/react";
 import { clsx } from "clsx";
@@ -103,6 +104,7 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
       // mismo criterio de acceso que Fichas técnicas.
       { href: "/dashboard/admin/precios-mercado", icon: LineChart, label: "Precios de mercado" },
       { href: "/dashboard/admin/productos-tienda", icon: ShoppingBag, label: "Tienda (insumos)" },
+      { href: "/dashboard/admin/organizaciones", icon: Building2, label: "Organizaciones" },
       { href: "/dashboard/admin/auditoria", icon: History, label: "Auditoría" },
     ];
   }

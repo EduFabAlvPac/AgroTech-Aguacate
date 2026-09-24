@@ -22,6 +22,8 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "campesino.vincular_dispositivo": "📲 Celular vinculado (Campesino)",
   "campesino.revocar_dispositivos": "🚫 Dispositivos quitados (Campesino)",
   "organizacion.crear": "🏢 Organización creada",
+  "organizacion.extender_trial": "⏳ Prueba extendida (Super Admin)",
+  "organizacion.activar_plan": "✅ Plan Colectivo activado (Super Admin)",
   "organizacion.editar": "🏢 Organización editada",
   "mfa.activar": "🔐 Verificación en dos pasos activada",
   "mfa.desactivar": "🔓 Verificación en dos pasos desactivada",
