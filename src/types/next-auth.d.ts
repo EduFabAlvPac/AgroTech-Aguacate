@@ -9,6 +9,7 @@ declare module "next-auth" {
       esOwner?: boolean;
       modulosPermitidos?: string[] | "ALL";
       mfaHabilitado?: boolean;
+      sesionHash?: string;
     } & DefaultSession["user"];
   }
 }

@@ -25,5 +25,6 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "mfa.activar": "🔐 Verificación en dos pasos activada",
   "mfa.desactivar": "🔓 Verificación en dos pasos desactivada",
   "mfa.regenerar_codigos": "🔁 Códigos de respaldo regenerados",
+  "sesion.revocar_otras": "🚪 Todas las demás sesiones cerradas",
   "sesion.revocar": "🚪 Sesión cerrada desde otro dispositivo",
 };
