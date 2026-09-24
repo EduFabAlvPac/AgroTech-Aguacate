@@ -4,7 +4,8 @@ import { useState, useTransition } from "react";
 import { Save } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button, Input } from "@/components/ui";
-import type { OrganizacionResumen } from "@/lib/data/configuracion";
+import Link from "next/link";
+import type { OrganizacionResumen, PlanResumen } from "@/lib/data/configuracion";
 import { actualizarOrganizacion } from "@/app/(dashboard)/dashboard/configuracion/organizacion-actions";
 
 /**
@@ -46,9 +47,10 @@ const PLAN_LABELS: Record<string, string> = {
 
 interface OrganizacionTabProps {
   organizacion: OrganizacionResumen;
+  plan?: PlanResumen | null;
 }
 
-export function OrganizacionTab({ organizacion: inicial }: OrganizacionTabProps) {
+export function OrganizacionTab({ organizacion: inicial, plan }: OrganizacionTabProps) {
   const [, startTransition] = useTransition();
   const [organizacion, setOrganizacion] = useState(inicial);
   const [form, setForm] = useState({
@@ -91,6 +93,25 @@ export function OrganizacionTab({ organizacion: inicial }: OrganizacionTabProps)
   };
 
   return (
+    <div className="space-y-4">
+    {plan && (
+      <div className={`card p-5 space-y-2 ${plan.vencido ? "border-negative-100" : ""}`}>
+        <h2 className="text-[15px] font-semibold text-[var(--text-primary)]">Tu plan</h2>
+        {plan.esTrial ? (
+          <p className="text-[13px] text-[var(--text-secondary)]">
+            {plan.vencido
+              ? "Tu prueba de 30 días terminó: la organización está en modo lectura (puedes ver todo, pero no agregar ni editar). Contacta a GermIA para activar el plan Colectivo."
+              : `Prueba gratis del plan Colectivo: te quedan ${plan.diasRestantes} ${plan.diasRestantes === 1 ? "día" : "días"}.`}
+          </p>
+        ) : (
+          <p className="text-[13px] text-[var(--text-secondary)]">Plan activo.</p>
+        )}
+        <p className="text-[12px] text-[var(--text-muted)]">
+          Asociados (cuentas Campesino): <b>{plan.asociados}</b>
+          {plan.limiteAsociados !== null ? ` de ${plan.limiteAsociados}` : " (sin límite)"}
+        </p>
+      </div>
+    )}
     <div className="card p-6 space-y-5">
       <div>
         <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">Datos de tu organización</h2>
@@ -157,6 +178,13 @@ export function OrganizacionTab({ organizacion: inicial }: OrganizacionTabProps)
         <Save size={15} />
         Guardar organización
       </Button>
+    </div>
+    <p className="text-center text-[12px] text-[var(--text-muted)]">
+      ¿Coordinas una cooperativa o gremio?{" "}
+      <Link href="/registrarse-colectivo" className="font-semibold text-agro-600 hover:text-agro-800">
+        Registra otra organización
+      </Link>
+    </p>
     </div>
   );
 }

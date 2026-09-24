@@ -256,6 +256,12 @@ export function LoginEstandarForm() {
           Regístrate
         </Link>
       </p>
+      <p className="text-center text-[12px] text-[var(--text-muted)] mt-2">
+        ¿Eres una cooperativa o gremio?{" "}
+        <Link href="/registrarse-colectivo" className="font-semibold text-agro-600 hover:text-agro-800">
+          Regístrala aquí
+        </Link>
+      </p>
     </>
   );
 }

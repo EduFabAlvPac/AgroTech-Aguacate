@@ -2,7 +2,8 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Check, Building2 } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, Check, Building2, Plus } from "lucide-react";
 import toast from "react-hot-toast";
 
 export interface OrganizacionOption {
@@ -118,6 +119,12 @@ export function OrganizacionSelector({ organizaciones, organizacionActivaId, col
               {o.id === activa.id && <Check size={14} className="text-agro-400 flex-shrink-0" />}
             </button>
           ))}
+          <Link
+            href="/registrarse-colectivo"
+            className="flex items-center gap-1.5 px-3 py-2 border-t border-[var(--border-subtle)] text-[12px] font-medium text-agro-600 hover:bg-agro-50 transition-colors"
+          >
+            <Plus size={13} /> Registrar una cooperativa
+          </Link>
         </div>
       )}
     </div>

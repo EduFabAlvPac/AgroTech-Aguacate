@@ -14,6 +14,7 @@
  * Gateada igual que agregarMiembro(): solo el OWNER de la organización
  * (mismo criterio que el resto de Equipo, ver membresiaOwner()).
  */
+import { motivoBloqueoEscritura, motivoLimiteAsociados } from "@/lib/plan-guard";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -39,6 +40,12 @@ export async function crearCuentaCampesino(_prev: CampesinoActionState, formData
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede agregar cuentas Campesino" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
+  // Límite de asociados del plan (trial: 5) — el 6º recibe el CTA a Colectivo.
+  const limite = await motivoLimiteAsociados(propia.organizacionId, session.user.id);
+  if (limite) return { error: limite };
 
   const nombre = ((formData.get("nombre") as string) || "").trim();
   // Normalizado a solo dígitos al guardar — así el login (que también
@@ -152,6 +159,9 @@ export async function generarCodigoVinculacion(_prev: CodigoVinculacionState, ca
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede generar códigos" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
 
   try {
     const cuenta = await db.user.findFirst({

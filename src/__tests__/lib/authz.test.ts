@@ -21,6 +21,7 @@ const dbMock = {
   cultivo: { findUnique: vi.fn() },
   membresia: { findUnique: vi.fn() },
   fincaAcceso: { findUnique: vi.fn() },
+  organizacion: { findUnique: vi.fn() },
 };
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
@@ -48,6 +49,8 @@ async function esperarAuthzError(promesa: Promise<void>): Promise<InstanceType<t
 beforeEach(() => {
   vi.clearAllMocks();
   dbMock.user.findUnique.mockResolvedValue({ esSuperAdmin: false });
+  // Por defecto: organización activa, sin trial (no bloquea escrituras).
+  dbMock.organizacion.findUnique.mockResolvedValue({ esTrial: false, trialFinEn: null, estadoPlan: "ACTIVA", trialMaxAsociados: null, limiteAsociadosPlan: null });
 });
 
 describe("requireAccess() — aislamiento cross-tenant", () => {
@@ -155,5 +158,44 @@ describe("requireAccess() — una persona en DOS organizaciones (multi-organizac
     dbMock.finca.findUnique.mockResolvedValue({ organizacionId: "org-c" });
 
     await esperarAuthzError(requireAccess(SESSION, "lote", "read", { fincaId: "finca-c1" }));
+  });
+});
+
+describe("requireAccess() — modo lectura (trial vencido)", () => {
+  const trialVencido = { esTrial: true, trialFinEn: new Date(Date.now() - 24 * 3600 * 1000), estadoPlan: "EN_TRIAL", trialMaxAsociados: 5, limiteAsociadosPlan: null };
+  const trialVigente = { ...trialVencido, trialFinEn: new Date(Date.now() + 10 * 24 * 3600 * 1000) };
+
+  it("con el trial vencido bloquea escrituras incluso al DUEÑO, con un mensaje claro", async () => {
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    dbMock.membresia.findUnique.mockResolvedValue({ rol: "OWNER", aceptada: true, activa: true });
+    dbMock.organizacion.findUnique.mockResolvedValue(trialVencido);
+
+    for (const accion of ["create", "update", "delete"] as const) {
+      const error = await esperarAuthzError(requireAccess(SESSION, "gasto", accion, { fincaId: FINCA_A1 }));
+      expect(error.message).toMatch(/modo lectura/i);
+    }
+  });
+
+  it("con el trial vencido las LECTURAS siguen pasando", async () => {
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    dbMock.membresia.findUnique.mockResolvedValue({ rol: "OWNER", aceptada: true, activa: true });
+    dbMock.organizacion.findUnique.mockResolvedValue(trialVencido);
+
+    await expect(requireAccess(SESSION, "gasto", "read", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
+  });
+
+  it("con el trial vigente escribe normal", async () => {
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    dbMock.membresia.findUnique.mockResolvedValue({ rol: "OWNER", aceptada: true, activa: true });
+    dbMock.organizacion.findUnique.mockResolvedValue(trialVigente);
+
+    await expect(requireAccess(SESSION, "gasto", "create", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
+  });
+
+  it("el Super Admin no queda bloqueado por el modo lectura de una organización", async () => {
+    dbMock.user.findUnique.mockResolvedValue({ esSuperAdmin: true });
+    dbMock.organizacion.findUnique.mockResolvedValue(trialVencido);
+
+    await expect(requireAccess(SESSION, "gasto", "delete", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
   });
 });

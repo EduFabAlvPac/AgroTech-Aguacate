@@ -6,7 +6,7 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { resolverModoApp } from "@/lib/modo-app";
-import { getConfiguracionResumen, getOrganizacionPropia } from "@/lib/data/configuracion";
+import { getConfiguracionResumen, getOrganizacionPropia, getPlanOrganizacion } from "@/lib/data/configuracion";
 import { getFincas } from "@/lib/data/fincas";
 import { tieneModulo } from "@/lib/modulos";
 import { PerfilSimpleClient } from "@/components/modo-simple/PerfilSimpleClient";
@@ -19,10 +19,11 @@ export default async function ConfiguracionPage() {
   if (!session?.user?.id) redirect("/login");
 
   const { fincaActivaId } = await resolverFincaActiva(session);
-  const [{ user, prefs }, fincas, organizacion] = await Promise.all([
+  const [{ user, prefs }, fincas, organizacion, plan] = await Promise.all([
     getConfiguracionResumen(session.user.id),
     getFincas(session),
     getOrganizacionPropia(session.user.id),
+    getPlanOrganizacion(session.user.id),
   ]);
 
   // Fase 3 de ADR-006 — bifurcación real (ver checkpoint). Configuración es
@@ -71,6 +72,7 @@ export default async function ConfiguracionPage() {
           fincaActivaId={fincaActivaId}
           puedeCrearFinca={ctx.esOwner}
           organizacion={organizacion}
+          plan={plan}
         />
       </main>
     </>

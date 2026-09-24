@@ -19,7 +19,7 @@ import { FincasTab } from "@/components/configuracion/FincasTab";
 import { OrganizacionTab } from "@/components/configuracion/OrganizacionTab";
 import { SeguridadTab } from "@/components/configuracion/SeguridadTab";
 import type { FincaResumen } from "@/lib/data/fincas";
-import type { OrganizacionResumen } from "@/lib/data/configuracion";
+import type { OrganizacionResumen, PlanResumen } from "@/lib/data/configuracion";
 
 interface ConfigClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida?: VistaPreferida; mfaHabilitado?: boolean };
@@ -34,12 +34,13 @@ interface ConfigClientProps {
   // ADR-011 Sprint 3 — solo el OWNER la recibe (ver page.tsx); null para
   // cualquier otro rol, y en ese caso la pestaña ni se ofrece.
   organizacion: OrganizacionResumen | null;
+  plan: PlanResumen | null;
 }
 
 type Tab = "profile" | "finca" | "organizacion" | "seguridad" | "alertas" | "privacidad";
 const TABS_VALIDOS: Tab[] = ["profile", "finca", "organizacion", "seguridad", "alertas", "privacidad"];
 
-export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca, organizacion }: ConfigClientProps) {
+export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFinca, organizacion, plan }: ConfigClientProps) {
   // ?tab= — aditivo, para que SalidaModoCompleto.tsx (Fase 5, ADR-006)
   // pueda aterrizar en la sección exacta (ej. "alertas" o "privacidad") en
   // vez de siempre "profile". Sin el parámetro, comportamiento idéntico al
@@ -306,7 +307,7 @@ export function ConfigClient({ user, prefs, fincas, fincaActivaId, puedeCrearFin
       )}
 
       {/* ── Organización (ADR-011 Sprint 3) ────────────────────────────────── */}
-      {tab === "organizacion" && organizacion && <OrganizacionTab organizacion={organizacion} />}
+      {tab === "organizacion" && organizacion && <OrganizacionTab organizacion={organizacion} plan={plan} />}
 
       {/* ── Seguridad (ADR-011 Sprint 6) ─────────────────────────────────── */}
       {tab === "seguridad" && <SeguridadTab mfaHabilitado={!!user?.mfaHabilitado} />}

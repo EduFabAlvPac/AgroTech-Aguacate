@@ -14,6 +14,7 @@
  * `tokenHash` es lo único que se guarda, el token crudo solo viaja por el
  * correo.
  */
+import { motivoBloqueoEscritura } from "@/lib/plan-guard";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -50,6 +51,9 @@ export async function invitarMiembroPorCorreo(_prev: InvitarMiembroState, formDa
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede invitar colaboradores" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
 
   const parsed = invitarMiembroSchema.safeParse({
     email: formData.get("email"),

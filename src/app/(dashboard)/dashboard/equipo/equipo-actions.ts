@@ -11,6 +11,7 @@
  *
  * Qué revalida: revalidatePath("/dashboard/equipo") en las cuatro.
  */
+import { motivoBloqueoEscritura } from "@/lib/plan-guard";
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { getServerSession } from "next-auth";
@@ -38,6 +39,9 @@ export async function agregarMiembro(_prev: MiembroActionState, formData: FormDa
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede agregar colaboradores" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
 
   const nombre = (formData.get("nombre") as string) || undefined;
   const email = (formData.get("email") as string) || undefined;
@@ -138,6 +142,9 @@ export async function editarMiembro(
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede editar colaboradores" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
 
   const rolFinca = formData.get("rolFinca") as string;
   const fincaId = formData.get("fincaId") as string;
@@ -288,6 +295,9 @@ export async function guardarPlantillaRol(rol: "ADMIN" | "OPERARIO" | "LECTURA",
 
   const propia = await membresiaOwner(session.user.id);
   if (!propia) return { error: "Solo el dueño de la organización puede editar esto" };
+  // Modo lectura (trial vencido): no se agregan/editan cosas de la organización.
+  const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+  if (bloqueo) return { error: bloqueo };
 
   const modulosFinal = modulosValidos(modulos);
   if (!modulosFinal) return { error: "modulos inválido" };

@@ -1,3 +1,4 @@
+import { motivoBloqueoEscrituraDeDueno } from "@/lib/plan-guard";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -18,6 +19,8 @@ export async function PUT(
     const { id: inversionistaId, inversionId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const bloqueo = await motivoBloqueoEscrituraDeDueno(session.user.id);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 });
 
     const owned = await verifyOwnership(inversionistaId, inversionId, session.user.id);
     if (!owned) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
