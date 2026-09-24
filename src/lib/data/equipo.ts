@@ -34,6 +34,10 @@ export interface CuentaCampesinoData {
   nombre: string | null;
   telefono: string | null;
   createdAt: Date;
+  // Login Campesino seguro — ver campesino-vinculacion.ts. `requiereVinculacion`
+  // false = cuenta anterior a la protección (sigue entrando solo con el número).
+  requiereVinculacion: boolean;
+  dispositivosActivos: number;
 }
 
 export interface EquipoResumen {
@@ -57,9 +61,18 @@ export async function getEquipoResumen(organizacionId: string, ownerId: string):
     // organizacionId, para no listar cuentas Campesino de otros tenants.
     db.user.findMany({
       where: { experiencia: "CAMPESINO", creadoPorId: ownerId },
-      select: { id: true, name: true, telefono: true, createdAt: true },
+      select: {
+        id: true, name: true, telefono: true, createdAt: true, requiereVinculacion: true,
+        _count: { select: { dispositivosConfianza: { where: { revocadoEn: null, expiraEn: { gt: new Date() } } } } },
+      },
       orderBy: { createdAt: "desc" },
-    }).then((rows) => rows.map((r) => ({ id: r.id, nombre: r.name, telefono: r.telefono, createdAt: r.createdAt }))),
+    }).then((rows) =>
+      rows.map((r) => ({
+        id: r.id, nombre: r.name, telefono: r.telefono, createdAt: r.createdAt,
+        requiereVinculacion: r.requiereVinculacion,
+        dispositivosActivos: r._count.dispositivosConfianza,
+      }))
+    ),
   ]);
 
   const accesos = await db.fincaAcceso.findMany({

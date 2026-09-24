@@ -14,7 +14,8 @@ export { MENSAJE_RATE_LIMIT };
  *    complementa contra ataques distribuidos por IP probando muchos emails
  *    distintos, que el lockout por cuenta no frena. El proveedor de celular
  *    (modo Campesino) NO tiene ningún lockout equivalente — para ese, este
- *    módulo es la ÚNICA defensa contra fuerza bruta, no un complemento.
+ *    módulo es la PRIMERA defensa contra fuerza bruta (la segunda es el
+ *    dispositivo de confianza — ver campesino-vinculacion.ts).
  * 2. Endpoints de IA: capa extra sobre la cuota diaria (`consumirCuotaIA`,
  *    ia-cuota.ts) — esa limita el total del día, esta frena una ráfaga
  *    concentrada en pocos minutos antes de llegar a ese techo.
@@ -56,6 +57,17 @@ export const CONFIGS_LIMITE = {
   // agregando su equipo) y frena una cuenta comprometida bombardeando
   // correos de invitación.
   invitarMiembro: { ventana: "1 h", maximo: 20 },
+  // ADR-011 Sprint 6 — el segundo paso del login (código TOTP de 6 dígitos o
+  // código de respaldo) YA pasó el chequeo de contraseña en este punto, pero
+  // igual necesita su propio límite: un código de 6 dígitos es fuerza-bruteable
+  // en un número de intentos manejable si no hubiera ningún freno acá. Mismo
+  // criterio que loginPassword (por IP+email, no solo por IP).
+  mfaVerificacion: { ventana: "15 m", maximo: 8 },
+  // Login Campesino seguro — intentos de canjear un código de vinculación,
+  // por IP+teléfono (mismo criterio que loginTelefono: no bloquear a otros
+  // campesinos detrás del mismo router/NAT rural). Además hay un tope por
+  // código en BD (MAX_INTENTOS) que este límite no reemplaza.
+  vincularCodigo: { ventana: "15 m", maximo: 8 },
 } as const;
 
 export type CasoLimite = keyof typeof CONFIGS_LIMITE;

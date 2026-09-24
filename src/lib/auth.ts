@@ -8,7 +8,15 @@ import { modulosPorDefecto } from "./modulos";
 import { registrarAuditoria } from "./audit";
 import { normalizarTelefono } from "./telefono";
 import { verificarLimite } from "./rate-limit";
-import { MENSAJE_EMAIL_NO_VERIFICADO } from "./auth-shared";
+import {
+  MENSAJE_EMAIL_NO_VERIFICADO,
+  MENSAJE_MFA_REQUERIDO,
+  MENSAJE_MFA_CODIGO_INVALIDO,
+  MENSAJE_CAMPESINO_REQUIERE_CODIGO,
+} from "./auth-shared";
+import { leerCookieDispositivo, DISPOSITIVO_VIGENCIA_DIAS } from "./campesino-vinculacion";
+import { hashToken } from "./tokens";
+import { desencriptarSecreto, verificarCodigoTOTP, verificarYConsumirCodigoRespaldo } from "./mfa";
 import {
   crearSesion,
   sesionEsValida,
@@ -84,6 +92,11 @@ async function resolverClaimsSesion(user: PrismaUser) {
     esOwner: !!esOwner,
     modulosPermitidos,
     membresias,
+    // ADR-011 Sprint 6 — para el aviso "activa MFA" en el shell del
+    // dashboard (Super Admin sin MFA todavía). No es la fuente de verdad de
+    // si el login LO EXIGIÓ (eso ya se resolvió en authorize() antes de
+    // llegar acá) — es solo el estado actual de la cuenta, para la UI.
+    mfaHabilitado: user.mfaHabilitado,
   };
 }
 
@@ -124,6 +137,10 @@ export const authOptions: NextAuthOptions = {
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Contraseña", type: "password" },
+        // ADR-011 Sprint 6 — opcional: solo lo manda el formulario en el
+        // segundo submit, después de que este mismo authorize() ya rechazó
+        // el primero con MENSAJE_MFA_REQUERIDO (ver LoginEstandarForm.tsx).
+        codigoMfa: { label: "Código de verificación", type: "text" },
       },
       async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) return null;
@@ -187,6 +204,44 @@ export const authOptions: NextAuthOptions = {
           throw new Error(MENSAJE_EMAIL_NO_VERIFICADO);
         }
 
+        // ADR-011 Sprint 6 — MFA obligatorio SOLO para quien ya lo activó
+        // (una vez encendido, siempre se exige). Para Super Admin sin MFA
+        // todavía, decisión explícita de producto: "aviso primero, bloqueo
+        // después" — no se bloquea el login acá, se avisa en el dashboard
+        // (ver mfaHabilitado en resolverClaimsSesion()). Google/Campesino no
+        // pasan por este challenge (ver docs/ADR-011-notas-de-implementacion.md).
+        if (user.mfaHabilitado) {
+          // Defensa en profundidad — hallazgo de QA real (2026-09-23):
+          // next-auth serializa un `undefined` en el body de signIn() como
+          // el STRING "undefined", no como ausente (ver el comentario
+          // gemelo en LoginEstandarForm.tsx, ya corregido ahí). Si algún
+          // otro caller repitiera ese error, esto evita que "undefined" se
+          // trate como un código real en vez de "no llegó ninguno".
+          const codigoMfa = credentials.codigoMfa?.trim();
+          if (!codigoMfa || codigoMfa === "undefined") {
+            throw new Error(MENSAJE_MFA_REQUERIDO);
+          }
+
+          // Mismo criterio que loginPassword: frena fuerza bruta contra el
+          // código de 6 dígitos, ya con la contraseña confirmada.
+          await verificarLimite("mfaVerificacion", `${obtenerIp(req?.headers)}:${credentials.email}`);
+
+          let mfaValido = false;
+          if (user.mfaSecret) {
+            mfaValido = await verificarCodigoTOTP(desencriptarSecreto(user.mfaSecret), codigoMfa);
+          }
+          if (!mfaValido) {
+            const { valido, codigosRestantes } = verificarYConsumirCodigoRespaldo(user.mfaBackupCodes, codigoMfa);
+            if (valido) {
+              mfaValido = true;
+              await db.user.update({ where: { id: user.id }, data: { mfaBackupCodes: codigosRestantes } });
+            }
+          }
+          if (!mfaValido) {
+            throw new Error(MENSAJE_MFA_CODIGO_INVALIDO);
+          }
+        }
+
         const claims = await resolverClaimsSesion(user);
         // ADR-011 Sprint 1 — se crea acá (no en jwt()) porque acá SÍ hay
         // `req` con headers reales; el `sid` crudo viaja dentro del objeto
@@ -196,10 +251,12 @@ export const authOptions: NextAuthOptions = {
         return { ...claims, sid };
       },
     }),
-    // Login "modo Campesino" — solo número de celular, sin contraseña, sin
-    // OTP por ahora (decisión explícita de producto para el MVP, documentada
-    // como riesgo aceptado: cualquiera que sepa el celular de un campesino
-    // podría entrar a su cuenta — revisar más adelante). `id` explícito
+    // Login "modo Campesino" — sin contraseña: el campesino escribe su
+    // celular y, si esa cuenta ya requiere vinculación, entra solo desde un
+    // dispositivo de confianza (se vincula UNA vez con un código del dueño,
+    // ver /api/campesino/vincular). Las cuentas anteriores a esa protección
+    // siguen abiertas por número hasta que el dueño les genere un código
+    // (requiereVinculacion = false). `id` explícito
     // porque next-auth asigna "credentials" por defecto al primer provider
     // Credentials, y necesitamos distinguirlos desde el formulario de login.
     CredentialsProvider({
@@ -212,8 +269,8 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.telefono) return null;
 
         // Este provider NO tiene lockout por cuenta (a diferencia del de
-        // arriba) — para el login Campesino, esta es la ÚNICA defensa
-        // contra fuerza bruta, no un complemento.
+        // arriba) — el rate limit por IP+teléfono es la primera defensa; la
+        // segunda es el dispositivo de confianza de más abajo.
         await verificarLimite("loginTelefono", `${obtenerIp(req?.headers)}:${credentials.telefono}`);
 
         // Normalizado a solo dígitos — el celular se guarda normalizado
@@ -226,8 +283,35 @@ export const authOptions: NextAuthOptions = {
 
         // Defensa en profundidad: aunque la UI solo muestre este formulario
         // bajo "Campesino", este provider nunca debe autenticar una cuenta
-        // ESTANDAR aunque alguien adivine su número.
-        if (!user || user.experiencia !== "CAMPESINO") return null;
+        // ESTANDAR aunque alguien adivine su número. Respuesta UNIFORME con
+        // "número desconocido": ambos piden el código (que luego falla con
+        // un mensaje genérico en /api/campesino/vincular) — así este login
+        // no revela qué celulares existen.
+        if (!user || user.experiencia !== "CAMPESINO") {
+          throw new Error(MENSAJE_CAMPESINO_REQUIERE_CODIGO);
+        }
+
+        // Login Campesino seguro — el dueño genera un código de un solo uso
+        // y el celular queda como dispositivo de confianza (cookie
+        // httpOnly, fijada por /api/campesino/vincular: authorize() no puede
+        // fijar cookies, solo leerlas). Las cuentas anteriores a esto
+        // (requiereVinculacion = false) siguen entrando exactamente como
+        // antes hasta que el dueño les genere su primer código.
+        if (user.requiereVinculacion) {
+          const cookie = leerCookieDispositivo((req?.headers as Record<string, string> | undefined)?.cookie);
+          const dispositivo = cookie
+            ? await db.dispositivoConfianza.findUnique({ where: { tokenHash: hashToken(cookie) } })
+            : null;
+          const vigente =
+            dispositivo && dispositivo.userId === user.id && !dispositivo.revocadoEn && dispositivo.expiraEn > new Date();
+          if (!vigente) throw new Error(MENSAJE_CAMPESINO_REQUIERE_CODIGO);
+
+          // Vigencia deslizante: cada entrada renueva los 180 días.
+          await db.dispositivoConfianza.update({
+            where: { id: dispositivo.id },
+            data: { ultimoUsoEn: new Date(), expiraEn: new Date(Date.now() + DISPOSITIVO_VIGENCIA_DIAS * 24 * 60 * 60 * 1000) },
+          });
+        }
 
         const claims = await resolverClaimsSesion(user);
         const { sid } = await crearSesion(user.id, { ip: obtenerIp(req?.headers), userAgent: obtenerUserAgent(req?.headers) });
@@ -283,6 +367,7 @@ export const authOptions: NextAuthOptions = {
         token.esOwner = (user as any).esOwner ?? false;
         token.modulosPermitidos = (user as any).modulosPermitidos ?? "ALL";
         token.membresias = (user as any).membresias ?? [];
+        token.mfaHabilitado = (user as any).mfaHabilitado ?? false;
         // sid ya viene creado desde adentro de authorize() (ahí sí hay
         // headers reales) — acá solo se copia al token, mismo patrón que
         // el resto de los claims de esta rama.
@@ -321,6 +406,7 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).esOwner = token.esOwner ?? false;
         (session.user as any).modulosPermitidos = token.modulosPermitidos ?? "ALL";
         (session.user as any).membresias = token.membresias ?? [];
+        (session.user as any).mfaHabilitado = token.mfaHabilitado ?? false;
       }
       return session;
     },

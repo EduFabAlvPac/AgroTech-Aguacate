@@ -18,5 +18,12 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "equipo.invitacion_aceptada": "✅ Invitación aceptada",
   "campesino.crear_cuenta": "📱 Cuenta Campesino creada",
   "campesino.eliminar_cuenta": "📱 Cuenta Campesino eliminada",
+  "campesino.generar_codigo": "🔑 Código de acceso generado (Campesino)",
+  "campesino.vincular_dispositivo": "📲 Celular vinculado (Campesino)",
+  "campesino.revocar_dispositivos": "🚫 Dispositivos quitados (Campesino)",
   "organizacion.editar": "🏢 Organización editada",
+  "mfa.activar": "🔐 Verificación en dos pasos activada",
+  "mfa.desactivar": "🔓 Verificación en dos pasos desactivada",
+  "mfa.regenerar_codigos": "🔁 Códigos de respaldo regenerados",
+  "sesion.revocar": "🚪 Sesión cerrada desde otro dispositivo",
 };

@@ -14,3 +14,13 @@
  */
 export const MENSAJE_RATE_LIMIT = "Demasiados intentos seguidos. Espera un momento y vuelve a intentar.";
 export const MENSAJE_EMAIL_NO_VERIFICADO = "Verifica tu correo antes de entrar. Revisa tu bandeja de entrada.";
+// ADR-011 Sprint 6 — segundo paso del login cuando la cuenta tiene MFA
+// activo (ver LoginEstandarForm.tsx: revela el input de código y reintenta
+// el mismo signIn() con `codigoMfa` agregado, mismo patrón que el reenvío de
+// verificación de correo de arriba).
+export const MENSAJE_MFA_REQUERIDO = "Ingresa el código de tu app de autenticación.";
+export const MENSAJE_MFA_CODIGO_INVALIDO = "Código incorrecto o vencido. Intenta de nuevo.";
+// Login Campesino seguro — el celular no es un dispositivo de confianza (o el
+// número no existe: la respuesta es la misma a propósito, ver auth.ts).
+// LoginCampesinoForm.tsx muestra entonces el paso "escribe tu código".
+export const MENSAJE_CAMPESINO_REQUIERE_CODIGO = "Escribe el código que te dio tu asesor.";
