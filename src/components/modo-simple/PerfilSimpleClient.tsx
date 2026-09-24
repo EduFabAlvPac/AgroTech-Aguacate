@@ -9,12 +9,16 @@ import type { VistaPreferida } from "@prisma/client";
 import { actualizarPerfil, type ConfigActionState } from "@/app/(dashboard)/dashboard/configuracion/config-actions";
 import { VistaPreferidaSwitch } from "@/components/shared/VistaPreferidaSwitch";
 import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
+import { OrganizacionSelector, type OrganizacionOption } from "@/components/layout/OrganizacionSelector";
 
 interface PerfilSimpleClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
   /** Fase 5 de ADR-006 — qué salidas a modo completo mostrar. Mismos guards
    * que ya usan las páginas reales de cada sección (ver configuracion/page.tsx). */
   accesos?: { esOwner: boolean; esSuperAdmin: boolean; verCompradores: boolean };
+  /** Multi-organización — el selector solo aparece con 2 o más. */
+  organizaciones?: OrganizacionOption[];
+  organizacionActivaId?: string | null;
 }
 
 const initialState: ConfigActionState = {};
@@ -33,7 +37,7 @@ function SubmitButton() {
   );
 }
 
-export function PerfilSimpleClient({ user, accesos }: PerfilSimpleClientProps) {
+export function PerfilSimpleClient({ user, accesos, organizaciones = [], organizacionActivaId = null }: PerfilSimpleClientProps) {
   const [name, setName] = useState(user?.name ?? "");
   const [telefono, setTelefono] = useState(user?.telefono ?? "");
   const [state, formAction] = useActionState(actualizarPerfil, initialState);
@@ -127,6 +131,12 @@ export function PerfilSimpleClient({ user, accesos }: PerfilSimpleClientProps) {
           exportar/eliminar cuenta) + Compradores/Equipo/Fichas técnicas
           (siempre fuera de modo simple). Un único componente reutilizado
           (SalidaModoCompleto) — visita puntual, no cambia vistaPreferida. */}
+      {organizaciones.length > 1 && (
+        <div className="space-y-1 -mx-3">
+          <OrganizacionSelector organizaciones={organizaciones} organizacionActivaId={organizacionActivaId} collapsed={false} />
+        </div>
+      )}
+
       <div className="space-y-2">
         <div className="text-[12px] font-semibold px-1" style={{ color: "var(--text-muted)" }}>
           Más funciones (modo completo)

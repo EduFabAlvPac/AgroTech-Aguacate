@@ -128,3 +128,32 @@ describe("requireAccess() — aislamiento cross-tenant", () => {
     await esperarAuthzError(requireAccess(SESSION, "lote", "delete", { fincaId: FINCA_A1 }));
   });
 });
+
+describe("requireAccess() — una persona en DOS organizaciones (multi-organización)", () => {
+  // Dueña de la organización A y solo colaboradora en la B: cada `ctx` se
+  // autoriza contra SU organización — el rol de una nunca se filtra a la otra.
+  function membresiaPorOrg({ where }: { where: { userId_organizacionId: { organizacionId: string } } }) {
+    const org = where.userId_organizacionId.organizacionId;
+    if (org === ORG_A) return Promise.resolve({ rol: "OWNER", aceptada: true, activa: true });
+    if (org === ORG_B) return Promise.resolve({ rol: "COLABORADOR", aceptada: true, activa: true });
+    return Promise.resolve(null);
+  }
+
+  it("como OWNER de A puede borrar en A, pero el mismo usuario NO puede borrar en B donde es solo colaborador", async () => {
+    dbMock.membresia.findUnique.mockImplementation(membresiaPorOrg);
+
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    await expect(requireAccess(SESSION, "lote", "delete", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
+
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_B });
+    dbMock.fincaAcceso.findUnique.mockResolvedValue({ rol: "OPERARIO" });
+    await esperarAuthzError(requireAccess(SESSION, "lote", "delete", { fincaId: FINCA_B1 }));
+  });
+
+  it("una organización ajena a ambas (C) sigue denegada", async () => {
+    dbMock.membresia.findUnique.mockImplementation(membresiaPorOrg);
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: "org-c" });
+
+    await esperarAuthzError(requireAccess(SESSION, "lote", "read", { fincaId: "finca-c1" }));
+  });
+});

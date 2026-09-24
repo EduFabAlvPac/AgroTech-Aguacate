@@ -5,6 +5,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverModoApp } from "@/lib/modo-app";
 import { getFincas } from "@/lib/data/fincas";
 import { getCultivos } from "@/lib/data/cultivos";
@@ -19,7 +20,9 @@ export default async function AsistentePage({
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
-  if (!tieneModulo(session.user.modulosPermitidos, "asistente")) redirect("/dashboard");
+  // Módulos de la organización ACTIVA (el claim del JWT es global).
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  if (!tieneModulo(ctx.modulosPermitidos, "asistente")) redirect("/dashboard");
 
   // Fase 3 de ADR-006 — bifurcación real (ver checkpoint).
   const modo = await resolverModoApp(session.user.id);

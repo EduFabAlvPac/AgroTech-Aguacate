@@ -26,6 +26,7 @@ import { clsx } from "clsx";
 import { useSidebar } from "@/components/providers/SidebarProvider";
 import type { ModuloKey } from "@/lib/modulos";
 import { FincaSelector, type FincaOption } from "@/components/layout/FincaSelector";
+import { OrganizacionSelector, type OrganizacionOption } from "@/components/layout/OrganizacionSelector";
 
 interface NavItem {
   href: string;
@@ -49,9 +50,16 @@ const navItems: NavItem[] = [
 interface SidebarProps {
   fincas: FincaOption[];
   fincaActivaId: string | null;
+  // Multi-organización: `esOwner`/`modulosPermitidos` de la organización ACTIVA,
+  // calculados en el servidor (los del JWT son globales). Opcionales para no
+  // romper otros montajes: sin ellos se usan los del JWT como antes.
+  esOwner?: boolean;
+  modulosPermitidos?: string[] | "ALL";
+  organizaciones?: OrganizacionOption[];
+  organizacionActivaId?: string | null;
 }
 
-export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
+export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPermitidos: modulosProp, organizaciones = [], organizacionActivaId = null }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { sidebarOpen, setSidebarOpen, collapsed, toggleCollapsed } = useSidebar();
@@ -66,7 +74,8 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
   // de navegación adicional al RBAC por recurso. "ALL" para dueño/Super
   // Admin. Viene del JWT, así que un cambio solo se refleja tras cerrar y
   // volver a iniciar sesión (mismo patrón que esOwner/esSuperAdmin).
-  const modulosPermitidos = session?.user?.modulosPermitidos ?? "ALL";
+  const modulosPermitidos = modulosProp ?? session?.user?.modulosPermitidos ?? "ALL";
+  const esOwner = esOwnerProp ?? !!session?.user?.esOwner;
   let items: NavItem[] = navItems.filter(
     (item) => !item.modulo || modulosPermitidos === "ALL" || modulosPermitidos.includes(item.modulo)
   );
@@ -74,7 +83,7 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
   // Inversionistas: decisión de producto explícita (Fase 3), no delegable a
   // colaboradores todavía — no pasa por el sistema de módulos, se gatea
   // directo por esOwner igual que Equipo (ver src/lib/modulos.ts).
-  if (session?.user?.esOwner || session?.user?.esSuperAdmin) {
+  if (esOwner || session?.user?.esSuperAdmin) {
     const idx = items.findIndex((i) => i.href === "/dashboard/finanzas");
     const inversionistas: NavItem = { href: "/dashboard/inversionistas", icon: Wallet, label: "Inversionistas" };
     items = [...items.slice(0, idx + 1), inversionistas, ...items.slice(idx + 1)];
@@ -83,7 +92,7 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
   // Panel de administración de fichas técnicas — solo Super Admin; Equipo —
   // solo dueños de organización (ver CLAUDE.md §2.3). Ambos flags vienen del
   // JWT, así que un cambio solo se refleja tras cerrar y volver a iniciar sesión.
-  if (session?.user?.esOwner) {
+  if (esOwner) {
     items = [...items, { href: "/dashboard/equipo", icon: UserPlus, label: "Equipo" }];
   }
   if (session?.user?.esSuperAdmin) {
@@ -135,11 +144,20 @@ export function Sidebar({ fincas, fincaActivaId }: SidebarProps) {
         )}
       </div>
 
+      {/* Selector de organización — solo con 2 o más (multi-organización) */}
+      {organizaciones.length > 1 && (
+        <OrganizacionSelector
+          organizaciones={organizaciones}
+          organizacionActivaId={organizacionActivaId}
+          collapsed={collapsed}
+        />
+      )}
+
       {/* Selector de finca activa — funcionalidad de fincas (multi-finca real) */}
       <FincaSelector
         fincas={fincas}
         fincaActivaId={fincaActivaId}
-        puedeCrear={!!session?.user?.esOwner}
+        puedeCrear={esOwner}
         collapsed={collapsed}
       />
 

@@ -15,6 +15,7 @@ import { obtenerExperienciaUsuario } from "@/lib/experiencia";
 import { getAlertas } from "@/lib/data/alertas";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
 import { VolverModoSimple } from "@/components/shared/VolverModoSimple";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { MfaAvisoSuperAdmin } from "@/components/layout/MfaAvisoSuperAdmin";
 
 export default async function DashboardLayout({
@@ -117,6 +118,15 @@ export default async function DashboardLayout({
     );
   }
 
+  const contexto = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  const organizaciones = contexto.organizaciones.map((o) => ({
+    id: o.organizacionId,
+    nombre: o.organizacion.nombre,
+    tipo: o.organizacion.tipo,
+    esTrial: o.organizacion.esTrial,
+    rol: o.rol,
+  }));
+
   const fincas = await db.finca.findMany({
     where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
     select: { id: true, nombre: true, municipio: true, departamento: true, areaTotal: true, lat: true, lng: true, altitud: true },
@@ -131,7 +141,14 @@ export default async function DashboardLayout({
           {session.user.esSuperAdmin && !session.user.mfaHabilitado && <MfaAvisoSuperAdmin />}
           {visitaPuntual && <VolverModoSimple />}
           <div className="app-shell flex-1 min-h-0">
-            <Sidebar fincas={fincas} fincaActivaId={fincaActivaId} />
+            <Sidebar
+              fincas={fincas}
+              fincaActivaId={fincaActivaId}
+              esOwner={contexto.esOwner}
+              modulosPermitidos={contexto.modulosPermitidos}
+              organizaciones={organizaciones}
+              organizacionActivaId={contexto.activa?.organizacionId ?? null}
+            />
             {/* Overlay closes sidebar when tapping outside on mobile */}
             <SidebarOverlay />
             <DashboardContent>{children}</DashboardContent>

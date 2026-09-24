@@ -2,6 +2,7 @@
  * Capa de datos de Configuración — Fase 1 (ADR-006). Reemplaza las 3
  * queries que vivían inline en configuracion/page.tsx.
  */
+import { membresiaOwner } from "@/lib/equipo";
 import { db } from "@/lib/db";
 import type { VistaPreferida } from "@prisma/client";
 
@@ -56,16 +57,14 @@ export interface OrganizacionResumen {
  * null para cualquier otro rol: la pestaña ni siquiera se muestra.
  */
 export async function getOrganizacionPropia(userId: string): Promise<OrganizacionResumen | null> {
-  const propia = await db.membresia.findFirst({
-    where: { userId, rol: "OWNER", aceptada: true, activa: true },
+  // Organización ACTIVA (multi-organización) — null si en ese contexto no es dueño.
+  const propia = await membresiaOwner(userId);
+  if (!propia) return null;
+  return db.organizacion.findUnique({
+    where: { id: propia.organizacionId },
     select: {
-      organizacion: {
-        select: {
-          id: true, nombre: true, tipo: true, plan: true,
-          nit: true, ciudad: true, departamento: true, emailContacto: true, celularContacto: true,
-        },
-      },
+      id: true, nombre: true, tipo: true, plan: true,
+      nit: true, ciudad: true, departamento: true, emailContacto: true, celularContacto: true,
     },
   });
-  return propia?.organizacion ?? null;
 }

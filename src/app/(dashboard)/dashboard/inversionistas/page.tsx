@@ -1,3 +1,4 @@
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { Header } from "@/components/layout/Header";
 import { InversionistasClient } from "@/components/inversionistas/InversionistasClient";
 import { db } from "@/lib/db";
@@ -15,7 +16,8 @@ export default async function InversionistasPage() {
   // inversionistas, todavía no hay delegación a ADMIN_FINCA/COLABORADOR ni
   // login de inversionista — no pasa por el sistema de módulos genérico
   // (ver src/lib/modulos.ts). esSuperAdmin también puede entrar (soporte).
-  if (!session.user.esOwner && !session.user.esSuperAdmin) redirect("/dashboard");
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  if (!ctx.esOwner && !session.user.esSuperAdmin) redirect("/dashboard");
 
   const [inversionistas, cultivos] = await Promise.all([
     db.inversionista.findMany({

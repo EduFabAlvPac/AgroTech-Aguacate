@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 import { getCompradoresResumen } from "@/lib/data/compradores";
 
@@ -13,7 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function CompradoresPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
-  if (!tieneModulo(session.user.modulosPermitidos, "compradores")) redirect("/dashboard");
+  // Módulos de la organización ACTIVA (el claim del JWT es global).
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  if (!tieneModulo(ctx.modulosPermitidos, "compradores")) redirect("/dashboard");
 
   const { fincaActivaId } = await resolverFincaActiva(session);
   const { compradores, especiesDisponibles } = await getCompradoresResumen(fincaActivaId, SIN_FINCA_SENTINEL);

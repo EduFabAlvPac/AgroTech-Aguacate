@@ -1,3 +1,4 @@
+import { membresiaOwner } from "@/lib/equipo";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -41,10 +42,7 @@ export async function POST(req: Request) {
     // Solo el OWNER de una organización puede crear fincas nuevas (la matriz
     // de authz.ts no le da "create" sobre "finca" a ADMIN_FINCA/COLABORADOR
     // — son roles scoped a fincas ya existentes, ver CLAUDE.md §2.3).
-    const propia = await db.membresia.findFirst({
-      where: { userId: session.user.id, rol: "OWNER", aceptada: true, activa: true },
-      select: { organizacionId: true },
-    });
+    const propia = await membresiaOwner(session.user.id);
     if (!propia) {
       return NextResponse.json({ error: "Solo el dueño de la organización puede crear fincas" }, { status: 403 });
     }

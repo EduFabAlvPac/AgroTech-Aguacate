@@ -63,6 +63,13 @@ model User {
   // el dueño les genere un código (migración no disruptiva); las nuevas nacen
   // en true desde crearCuentaCampesino().
   requiereVinculacion      Boolean        @default(false)
+  // Organización en la que se creó esta cuenta Campesino — permite contar los
+  // asociados POR organización (límite del trial de una cooperativa) cuando un
+  // mismo dueño tiene más de una. Null en las cuentas anteriores: se atribuyen
+  // al dueño que las creó (todos los dueños de entonces tenían una sola
+  // organización). Sin FK a propósito: es un dato de contexto, no una relación
+  // que deba bloquear/arrastrar borrados.
+  creadoEnOrganizacionId   String?
   // "Mis cultivos" (modo Campesino, /campesino/cultivos) — qué especies dice
   // manejar, guardado con un toque (sin formulario de Finca/Lote/fecha de
   // siembra, decisión de producto ya tomada). Valores = slug de
