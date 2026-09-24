@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import QRCode from "qrcode";
-import { ShieldCheck, ShieldOff, KeyRound, RefreshCw, Copy, Check } from "lucide-react";
+import { ShieldCheck, ShieldOff, KeyRound, RefreshCw, Copy, Check, Laptop, LogOut } from "lucide-react";
 import toast from "react-hot-toast";
 import { Button, Input, Modal } from "@/components/ui";
 import {
@@ -11,6 +11,13 @@ import {
   desactivarMfa,
   regenerarCodigosRespaldo,
 } from "@/app/(dashboard)/dashboard/configuracion/mfa-actions";
+import {
+  obtenerMisSesiones,
+  cerrarSesionEspecifica,
+  cerrarOtrasSesiones,
+} from "@/app/(dashboard)/dashboard/configuracion/sesiones-actions";
+import type { SesionResumen } from "@/lib/sesiones";
+import { describirDispositivo } from "@/lib/dispositivo-legible";
 
 /**
  * Pestaña "Seguridad" de Configuración (ADR-011 Sprint 6) — verificación en
@@ -46,6 +53,59 @@ export function SeguridadTab({ mfaHabilitado }: SeguridadTabProps) {
   const [showDesactivar, setShowDesactivar] = useState(false);
   const [showRegenerar, setShowRegenerar] = useState(false);
   const [passwordConfirmar, setPasswordConfirmar] = useState("");
+
+  // ADR-011 Sprint 6 — sesiones activas de esta cuenta.
+  const [sesiones, setSesiones] = useState<SesionResumen[] | null>(null);
+  const [cerrandoId, setCerrandoId] = useState<string | null>(null);
+  const [cerrandoOtras, setCerrandoOtras] = useState(false);
+
+  const cargarSesiones = async () => {
+    const result = await obtenerMisSesiones();
+    if (result.error) {
+      toast.error(result.error);
+      setSesiones([]);
+      return;
+    }
+    setSesiones(result.sesiones ?? []);
+  };
+
+  useEffect(() => {
+    cargarSesiones();
+  }, []);
+
+  const cerrarUna = (id: string) => {
+    setCerrandoId(id);
+    startTransition(async () => {
+      try {
+        const result = await cerrarSesionEspecifica(id);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Sesión cerrada");
+        await cargarSesiones();
+      } finally {
+        setCerrandoId(null);
+      }
+    });
+  };
+
+  const cerrarLasDemas = () => {
+    setCerrandoOtras(true);
+    startTransition(async () => {
+      try {
+        const result = await cerrarOtrasSesiones();
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(result.cerradas ? `${result.cerradas} sesión(es) cerrada(s)` : "No había otras sesiones abiertas");
+        await cargarSesiones();
+      } finally {
+        setCerrandoOtras(false);
+      }
+    });
+  };
 
   const iniciarActivacion = () => {
     setCargando(true);
@@ -259,6 +319,58 @@ export function SeguridadTab({ mfaHabilitado }: SeguridadTabProps) {
               Desactivar
             </Button>
           </div>
+        )}
+      </div>
+
+      <div className="card p-6 space-y-4">
+        <div className="flex items-start gap-3">
+          <Laptop size={20} className="text-agro-600 shrink-0 mt-0.5" />
+          <div>
+            <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">Sesiones activas</h2>
+            <p className="text-[12px] text-[var(--text-muted)]">
+              Los dispositivos donde tu cuenta tiene la sesión abierta. Si ves uno que no reconoces, ciérralo — el
+              cierre puede tardar hasta 5 minutos en aplicarse en ese dispositivo.
+            </p>
+          </div>
+        </div>
+
+        {sesiones === null ? (
+          <p className="text-[12px] text-[var(--text-muted)]">Cargando…</p>
+        ) : sesiones.length === 0 ? (
+          <p className="text-[12px] text-[var(--text-muted)]">No hay sesiones para mostrar.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--border-subtle)]">
+            {sesiones.map((s) => (
+              <li key={s.id} className="py-3 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[13px] font-medium text-[var(--text-primary)]">
+                    {describirDispositivo(s.userAgent)}
+                    {s.actual && (
+                      <span className="ml-2 text-[10px] font-semibold text-agro-600 bg-agro-50 border border-agro-100 rounded-full px-2 py-0.5">
+                        Esta sesión
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
+                    {s.ipAddress ?? "IP desconocida"} · iniciada{" "}
+                    {new Date(s.createdAt).toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })}
+                  </p>
+                </div>
+                {!s.actual && (
+                  <Button variant="secondary" size="sm" loading={cerrandoId === s.id} onClick={() => cerrarUna(s.id)}>
+                    Cerrar
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {sesiones !== null && sesiones.filter((s) => !s.actual).length > 0 && (
+          <Button variant="danger" onClick={cerrarLasDemas} loading={cerrandoOtras} className="w-full">
+            <LogOut size={15} />
+            Cerrar todas las demás sesiones
+          </Button>
         )}
       </div>
 

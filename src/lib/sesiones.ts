@@ -84,3 +84,50 @@ export async function revocarSesionesDeUsuario(userId: string): Promise<void> {
     data: { revocadaEn: new Date() },
   });
 }
+
+// ─── Gestión de sesiones desde Configuración → Seguridad (Sprint 6) ─────────
+
+export interface SesionResumen {
+  id: string;
+  userAgent: string | null;
+  ipAddress: string | null;
+  createdAt: Date;
+  expiraEn: Date;
+  /** Es la sesión desde la que se está mirando la lista. */
+  actual: boolean;
+}
+
+/** Sesiones vivas del usuario (no revocadas ni vencidas), más recientes
+ * primero. `hashActual` es el hash del `sid` de la sesión en curso (ver
+ * `sesionHash` en la sesión de NextAuth, src/lib/auth.ts) — se compara acá
+ * en el servidor para marcar cuál es "esta"; el hash nunca sale en el
+ * resultado. */
+export async function listarSesionesDeUsuario(userId: string, hashActual?: string): Promise<SesionResumen[]> {
+  const filas = await db.sesion.findMany({
+    where: { userId, revocadaEn: null, expiraEn: { gt: new Date() } },
+    orderBy: { createdAt: "desc" },
+    select: { id: true, tokenHash: true, userAgent: true, ipAddress: true, createdAt: true, expiraEn: true },
+  });
+  return filas.map(({ tokenHash, ...resto }) => ({ ...resto, actual: !!hashActual && tokenHash === hashActual }));
+}
+
+/** Revoca UNA sesión por su id de fila — siempre acotada al `userId` de quien
+ * pide, así que adivinar el id de la sesión de otra persona no sirve de nada.
+ * Devuelve false si no existía / no era suya / ya estaba revocada. */
+export async function revocarSesionPorId(sesionId: string, userId: string): Promise<boolean> {
+  const r = await db.sesion.updateMany({
+    where: { id: sesionId, userId, revocadaEn: null },
+    data: { revocadaEn: new Date() },
+  });
+  return r.count === 1;
+}
+
+/** "Cerrar todas las demás": revoca todo salvo la sesión en curso. Devuelve
+ * cuántas cerró. */
+export async function revocarOtrasSesiones(userId: string, hashActual: string): Promise<number> {
+  const r = await db.sesion.updateMany({
+    where: { userId, revocadaEn: null, tokenHash: { not: hashActual } },
+    data: { revocadaEn: new Date() },
+  });
+  return r.count;
+}

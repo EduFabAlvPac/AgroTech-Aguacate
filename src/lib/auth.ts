@@ -407,6 +407,10 @@ export const authOptions: NextAuthOptions = {
         (session.user as any).modulosPermitidos = token.modulosPermitidos ?? "ALL";
         (session.user as any).membresias = token.membresias ?? [];
         (session.user as any).mfaHabilitado = token.mfaHabilitado ?? false;
+        // Hash (no el sid crudo) de la sesión en curso — solo para que
+        // Configuración → Seguridad marque "esta sesión" en la lista y no
+        // deje cerrarla por error. Tokens viejos sin sid → undefined.
+        (session.user as any).sesionHash = token.sid ? hashToken(token.sid as string) : undefined;
       }
       return session;
     },
