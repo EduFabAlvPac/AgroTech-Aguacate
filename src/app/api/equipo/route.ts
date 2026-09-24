@@ -1,3 +1,4 @@
+import { motivoBloqueoEscritura } from "@/lib/plan-guard";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import bcrypt from "bcryptjs";
@@ -73,6 +74,9 @@ export async function POST(req: Request) {
 
     const propia = await membresiaOwner(session.user.id);
     if (!propia) return NextResponse.json({ error: "Solo el dueño de la organización puede agregar colaboradores" }, { status: 403 });
+
+    const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 });
 
     const body = await req.json();
     const { nombre, email, password, rolFinca, fincaId, modulos } = body;

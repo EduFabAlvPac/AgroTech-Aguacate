@@ -1,3 +1,4 @@
+import { motivoBloqueoEscrituraDeDueno } from "@/lib/plan-guard";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -12,6 +13,8 @@ export async function POST(
     const { id: inversionistaId, inversionId } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+    const bloqueo = await motivoBloqueoEscrituraDeDueno(session.user.id);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 });
 
     const inversion = await db.inversionCultivo.findFirst({
       where: { id: inversionId, inversionistaId, inversionista: { userId: session.user.id } },

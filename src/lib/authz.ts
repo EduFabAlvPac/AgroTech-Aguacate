@@ -23,6 +23,7 @@ import type { RolFinca, RolOrganizacion } from "@prisma/client";
 import { db } from "./db";
 import { can, rolLegacyARolIam, type MembresiaContexto } from "./authz/policies";
 import type { Recurso, Accion, Permiso } from "./authz/permissions";
+import { motivoBloqueoEscritura } from "./plan-guard";
 
 export type { Recurso, Accion };
 
@@ -194,6 +195,14 @@ export async function requireAccess(
   }
   if (!membresia.activa) {
     throw new AuthzError("Tu acceso a esta organización fue desactivado por el dueño");
+  }
+
+  // Modo lectura (trial vencido / plan suspendido): las escrituras se bloquean
+  // para TODOS los roles de la organización, dueño incluido. Los GET pasan.
+  // Super Admin ya salió más arriba.
+  if (accion !== "read") {
+    const bloqueo = await motivoBloqueoEscritura(organizacionId);
+    if (bloqueo) throw new AuthzError(bloqueo);
   }
 
   if (membresia.rol === "OWNER") return; // acceso total dentro de su organización

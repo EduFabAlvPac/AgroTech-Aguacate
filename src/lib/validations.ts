@@ -229,6 +229,20 @@ export const registroSchema = z.object({
 });
 export type RegistroFormDataInput = z.infer<typeof registroSchema>;
 
+// ── Colectivo/Cooperativa — registro de la organización (ADR-011 §6.1) ──────
+
+export const organizacionColectivoSchema = z.object({
+  nombreOrganizacion: z.string().trim().min(2, "El nombre de la cooperativa es requerido").max(120, "Máximo 120 caracteres"),
+  nit: z.string().trim().min(5, "Ingresa el NIT").max(20, "NIT demasiado largo"),
+  celularContacto: z.string().trim().min(7, "Ingresa un celular de contacto").max(20),
+  ciudad: z.string().trim().max(80).optional(),
+  departamento: z.string().trim().max(80).optional(),
+});
+export type OrganizacionColectivoInput = z.infer<typeof organizacionColectivoSchema>;
+
+// Registro completo: la persona (coordinador) + su organización.
+export const registroColectivoSchema = registroSchema.merge(organizacionColectivoSchema);
+
 export const recuperarSchema = z.object({
   email: z.string().email("Correo inválido"),
 });

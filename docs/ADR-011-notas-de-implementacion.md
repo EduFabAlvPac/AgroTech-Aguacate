@@ -177,6 +177,20 @@ El schema ya traía todas las columnas para esto desde el PR #50 (`AuditLog.hash
 
 **Limitación conocida (deliberada):** el **Super Admin** sigue viendo *todas* las fincas de todas las organizaciones (`fincaIdsAccesibles` devuelve `"ALL"` antes de aplicar el contexto): es un operador de plataforma, no un miembro. El selector le cambia el contexto de Equipo/Configuración/Organización, no el listado de fincas.
 
+## 5novies. Colectivo/Cooperativa (2/3) — registro, trial de 30 días, límite de asociados y modo lectura
+
+**Registro.** `/registrarse-colectivo` (página propia, como pide el ADR §6.1, para no tocar el registro individual en producción): persona nueva → `POST /api/auth/registro-colectivo` crea `User` + `Organizacion(tipo COOPERATIVA, plan COLECTIVO, estadoPlan EN_TRIAL, esTrial, trialFinEn +30 d, trialMaxAsociados 5)` + `Membresia(OWNER, rolesIam [ORG_OWNER], esRolPrimario)` + `TokenAuth VERIFY_EMAIL`, con auditoría `organizacion.crear`. Persona **con sesión** → la misma página pide solo los datos de la cooperativa y la suma como **segunda organización** (`POST /api/organizaciones/colectivo`; conserva su organización primaria y activa la nueva) — así el selector del PR A se puede probar de punta a punta. NIT normalizado (`900.123.456-7` ≡ `9001234567`) y duplicado → 409 (`nit` es `@unique`).
+
+**El estado del trial se calcula de las fechas, no del cron** (`src/lib/plan.ts`, puro y testeado): `estadoEfectivoOrg` → `ACTIVA | EN_TRIAL | TRIAL_VENCIDO | SUSPENDIDA`. Un día sin cron no deja a nadie escribiendo de más. Las organizaciones existentes (sin trial, `estadoPlan ACTIVA`) **no cambian de comportamiento**. Al activar el plan (`esTrial = false`) el bloqueo se libera aunque `trialFinEn` siga en el pasado.
+
+**Modo lectura.** `requireAccess()` (`src/lib/authz.ts`) rechaza `create/update/delete` de **todos** los roles de la organización, dueño incluido, con un mensaje claro; los GET nunca; Super Admin exento. Los caminos que saltan `requireAccess` (Equipo: agregar/invitar/editar/plantillas, Campesino: crear/generar código, Inversionistas, `vincular-especie`) llaman a `motivoBloqueoEscritura*` (`src/lib/plan-guard.ts`). **Exentas a propósito:** acciones personales (configuración, MFA, sesiones, chat, cuenta) y las que **reducen** acceso (quitar un colaborador/asociado o un dispositivo) — un dueño con la prueba vencida debe poder seguir protegiendo su organización.
+
+**Límite de asociados.** Asociado = cuenta Campesino de la organización (`creadoEnOrganizacionId`, con fallback legacy). El 6º recibe el CTA "Contacta a GermIA para activar el plan Colectivo" (ADR §6.2). Solo aplica con trial (5) o si el plan define `limiteAsociadosPlan`; `null` = sin límite (organizaciones actuales).
+
+**Avisos.** Banner `TrialAviso` (solo con ≤ 7 días o vencido; no se puede cerrar), bloque "Tu plan" en Configuración → Organización (días, asociados `x de 5`) y cron diario `/api/cron/trial-avisos` (`CRON_SECRET`, cabe en Hobby): correo a 7/3/1 días y el día que vence, **idempotente** (`Organizacion.configuracion.trialAvisos`; si el cron se saltó días manda UN correo y marca todos los umbrales cruzados) y marca `SUSPENDIDA_PAGO` al vencer para el Super Admin. Los datos se conservan; la retención de 90 días del ADR §9 **no se automatiza** todavía (sin borrado).
+
+**Supuesto documentado:** los Campesinos de una cooperativa vencida **siguen usando** su app (diagnóstico/consultas son personales); el bloqueo es a la administración de la organización. Se puede endurecer.
+
 ## 6. Mapa de sprints → código real
 
 | Sprint | Alcance del ADR | Qué implica en ESTE código | Bloqueos |

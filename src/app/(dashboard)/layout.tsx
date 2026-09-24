@@ -16,6 +16,8 @@ import { getAlertas } from "@/lib/data/alertas";
 import { ModoSimpleShell } from "@/components/modo-simple/ModoSimpleShell";
 import { VolverModoSimple } from "@/components/shared/VolverModoSimple";
 import { getContextoUsuario } from "@/lib/organizacion-activa";
+import { TrialAviso } from "@/components/layout/TrialAviso";
+import { estadoEfectivoOrg, diasRestantesTrial } from "@/lib/plan";
 import { MfaAvisoSuperAdmin } from "@/components/layout/MfaAvisoSuperAdmin";
 
 export default async function DashboardLayout({
@@ -127,6 +129,19 @@ export default async function DashboardLayout({
     rol: o.rol,
   }));
 
+  // Trial de la organización ACTIVA (si lo es): días restantes o modo lectura.
+  const orgActiva = contexto.activa?.organizacion;
+  const trial = orgActiva?.esTrial
+    ? (() => {
+        const info = { esTrial: true, trialFinEn: orgActiva.trialFinEn, estadoPlan: orgActiva.estadoPlan, trialMaxAsociados: null, limiteAsociadosPlan: null };
+        return {
+          nombre: orgActiva.nombre,
+          dias: diasRestantesTrial(info),
+          vencido: estadoEfectivoOrg(info) === "TRIAL_VENCIDO",
+        };
+      })()
+    : null;
+
   const fincas = await db.finca.findMany({
     where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
     select: { id: true, nombre: true, municipio: true, departamento: true, areaTotal: true, lat: true, lng: true, altitud: true },
@@ -139,6 +154,7 @@ export default async function DashboardLayout({
         <div className="flex flex-col h-screen">
           <OfflineBanner />
           {session.user.esSuperAdmin && !session.user.mfaHabilitado && <MfaAvisoSuperAdmin />}
+          {trial && <TrialAviso nombre={trial.nombre} dias={trial.dias} vencido={trial.vencido} esOwner={contexto.esOwner} />}
           {visitaPuntual && <VolverModoSimple />}
           <div className="app-shell flex-1 min-h-0">
             <Sidebar

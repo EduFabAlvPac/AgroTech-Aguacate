@@ -128,3 +128,25 @@ export async function enviarEmailInvitacionAceptadaAlDueno(
     "notificación de invitación aceptada (dueño)"
   );
 }
+
+/** Aviso de vencimiento del trial de una organización Colectivo (ADR-011 §9:
+ * 7, 3 y 1 días antes, y el día que vence). `dias` = días que quedan (0 = hoy). */
+export async function enviarEmailTrialPorVencer(email: string, nombre: string | null, organizacionNombre: string, dias: number): Promise<void> {
+  const enlace = `${baseUrl()}/dashboard/configuracion?tab=organizacion`;
+  const asunto =
+    dias <= 0
+      ? `La prueba de ${organizacionNombre} terminó — GermIA`
+      : `La prueba de ${organizacionNombre} termina en ${dias} ${dias === 1 ? "día" : "días"} — GermIA`;
+  const cuerpo =
+    dias <= 0
+      ? `<p>La prueba gratuita de <strong>${organizacionNombre}</strong> terminó. Tu organización quedó en <strong>modo lectura</strong>: puedes seguir viendo toda tu información, pero no agregar ni editar. Tus datos se conservan.</p>
+         <p>Para seguir trabajando, escríbenos y activamos el plan Colectivo.</p>`
+      : `<p>La prueba gratuita de <strong>${organizacionNombre}</strong> termina en <strong>${dias} ${dias === 1 ? "día" : "días"}</strong>. Al terminar, la organización pasa a <strong>modo lectura</strong> (verás todo, sin poder agregar ni editar).</p>
+         <p>Para continuar sin interrupciones, escríbenos y activamos el plan Colectivo.</p>`;
+  await enviar(
+    email,
+    asunto,
+    `<p>Hola ${nombre ?? ""},</p>${cuerpo}<p><a href="${enlace}">Ver el estado de mi plan</a></p>`,
+    `aviso de trial (${dias} días)`
+  );
+}

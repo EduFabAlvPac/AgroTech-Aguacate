@@ -21,6 +21,7 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "campesino.generar_codigo": "🔑 Código de acceso generado (Campesino)",
   "campesino.vincular_dispositivo": "📲 Celular vinculado (Campesino)",
   "campesino.revocar_dispositivos": "🚫 Dispositivos quitados (Campesino)",
+  "organizacion.crear": "🏢 Organización creada",
   "organizacion.editar": "🏢 Organización editada",
   "mfa.activar": "🔐 Verificación en dos pasos activada",
   "mfa.desactivar": "🔓 Verificación en dos pasos desactivada",

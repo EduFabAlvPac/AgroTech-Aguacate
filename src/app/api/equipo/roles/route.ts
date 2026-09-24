@@ -1,3 +1,4 @@
+import { motivoBloqueoEscritura } from "@/lib/plan-guard";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -43,6 +44,9 @@ export async function PUT(req: Request) {
 
     const propia = await membresiaOwner(session.user.id);
     if (!propia) return NextResponse.json({ error: "Solo el dueño de la organización puede editar esto" }, { status: 403 });
+
+    const bloqueo = await motivoBloqueoEscritura(propia.organizacionId);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 403 });
 
     const body = await req.json();
     const { rol, modulos } = body;
