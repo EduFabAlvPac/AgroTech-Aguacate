@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { getMapaFinca } from "@/lib/data/mapa";
 
@@ -13,7 +14,9 @@ export const dynamic = "force-dynamic";
 export default async function MapaPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
-  if (!tieneModulo(session.user.modulosPermitidos, "mapa")) redirect("/dashboard");
+  // Módulos de la organización ACTIVA (el claim del JWT es global).
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  if (!tieneModulo(ctx.modulosPermitidos, "mapa")) redirect("/dashboard");
 
   // Antes filtraba por userId literal — scopeado a la finca activa
   // (funcionalidad de fincas, ver src/lib/finca-activa.ts).

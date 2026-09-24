@@ -10,6 +10,7 @@
  * de fincas aparece en el selector del sidebar en cada página del
  * dashboard, no solo en "Mis fincas".
  */
+import { membresiaOwner } from "@/lib/equipo";
 import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -41,10 +42,7 @@ export async function crearFinca(_prev: FincaActionState, formData: FormData): P
     // matriz de authz.ts no le da "create" sobre "finca" a
     // ADMIN_FINCA/COLABORADOR (roles scoped a fincas ya existentes, ver
     // CLAUDE.md §2.3).
-    const propia = await db.membresia.findFirst({
-      where: { userId: session.user.id, rol: "OWNER", aceptada: true, activa: true },
-      select: { organizacionId: true },
-    });
+    const propia = await membresiaOwner(session.user.id);
     if (!propia) return { error: "Solo el dueño de la organización puede crear fincas" };
     await requireAccess(session, "finca", "create", { organizacionId: propia.organizacionId });
 

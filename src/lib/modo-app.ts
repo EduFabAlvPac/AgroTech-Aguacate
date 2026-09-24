@@ -1,3 +1,4 @@
+import { elegirOrganizacionActiva, leerCookieOrgActiva } from "./organizacion-activa";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { db } from "./db";
@@ -100,17 +101,16 @@ export async function anchoEsMovil(): Promise<boolean> {
  *   ellos de todas formas.
  */
 async function resolverRolAutoDefault(userId: string): Promise<RolAutoDefault> {
-  const [esOwner, membresia] = await Promise.all([
-    db.membresia.findFirst({
-      where: { userId, rol: "OWNER", aceptada: true, activa: true },
-      select: { id: true },
-    }),
-    db.membresia.findFirst({
-      where: { userId, aceptada: true, activa: true },
-      select: { rol: true },
-      orderBy: { createdAt: "asc" },
-    }),
-  ]);
+  // Rol en la organización ACTIVA (multi-organización, ver
+  // src/lib/organizacion-activa.ts): con una sola organización equivale a la
+  // consulta anterior (OWNER en cualquiera / primera membresía).
+  const membresias = await db.membresia.findMany({
+    where: { userId, aceptada: true, activa: true },
+    select: { organizacionId: true, rol: true, esRolPrimario: true, createdAt: true },
+  });
+  const activa = elegirOrganizacionActiva(membresias, await leerCookieOrgActiva());
+  const esOwner = activa?.rol === "OWNER";
+  const membresia = activa;
 
   if (esOwner) return "completa";
   if (membresia?.rol === "ADMIN_FINCA") return "completa";

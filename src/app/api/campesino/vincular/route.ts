@@ -6,7 +6,7 @@ import { normalizarTelefono } from "@/lib/telefono";
 import { vincularCampesinoSchema } from "@/lib/validations";
 import { generarToken, hashToken } from "@/lib/tokens";
 import { registrarAuditoria } from "@/lib/audit";
-import { membresiaOwner } from "@/lib/equipo";
+import { membresiaOwnerSinContexto } from "@/lib/equipo";
 import {
   COOKIE_DISPOSITIVO,
   DISPOSITIVO_VIGENCIA_DIAS,
@@ -44,7 +44,7 @@ export async function POST(req: Request) {
 
     const user = await db.user.findUnique({
       where: { telefono: telefonoNormalizado },
-      select: { id: true, name: true, experiencia: true, creadoPorId: true },
+      select: { id: true, name: true, experiencia: true, creadoPorId: true, creadoEnOrganizacionId: true },
     });
     if (!user || user.experiencia !== "CAMPESINO") return falla();
 
@@ -87,7 +87,11 @@ export async function POST(req: Request) {
       },
     });
 
-    const owner = user.creadoPorId ? await membresiaOwner(user.creadoPorId) : null;
+    // Organización en la que se creó la cuenta; sin ese dato (cuentas anteriores)
+    // la del dueño que la creó. Sin cookie de contexto: acá no hay sesión.
+    const owner = user.creadoEnOrganizacionId
+      ? { organizacionId: user.creadoEnOrganizacionId }
+      : user.creadoPorId ? await membresiaOwnerSinContexto(user.creadoPorId) : null;
     await registrarAuditoria({
       actorId: user.id,
       actorEmail: null,

@@ -165,6 +165,18 @@ El schema ya traía todas las columnas para esto desde el PR #50 (`AuditLog.hash
 
 **Limitaciones conocidas:** una cookie = un campesino por celular (vincular a otro en el mismo teléfono sobrescribe); si el dueño no está disponible y el campesino pierde el celular, espera un código nuevo hasta que exista la recuperación autónoma por WhatsApp (Sprint 4).
 
+## 5octies. Colectivo/Cooperativa (1/3) — contexto de organización (multi-organización)
+
+**Hallazgo que acota el trabajo.** `Membresia @@unique([userId, organizacionId])` **ya permite** que una persona esté en dos organizaciones *distintas* (solo prohíbe dos roles en la *misma*), así que **no se toca el índice único** (sigue diferido: nada lo necesita). Lo que faltaba era el *contexto*: unos 47 usos en ~20 archivos elegían "la" organización con `findFirst OWNER` sin `orderBy` (arbitrario con dos). `requireAccess()` y `cuenta-datos.ts` ya autorizaban bien por recurso.
+
+**Diseño (espejo de la "finca activa"):** cookie `germia_org_activa` (httpOnly, 1 año), revalidada contra las membresías en cada lectura; `elegirOrganizacionActiva()` es una función **pura** (cookie válida → esa; si no, la marcada primaria, luego la de OWNER más antigua, luego la más antigua; determinístico, una cookie ajena se ignora). `membresiaOwner()` pasó a leer la cookie internamente → **los ~22 call sites de Equipo/Configuración/Fincas no cambiaron**; con una sola organización se comporta idéntico a antes. `membresiaOwnerSinContexto()` queda para flujos sin sesión (canje del código Campesino). `fincaIdsAccesibles()` restringe a la organización activa **solo con 2+ organizaciones**. `esOwner`/`modulosPermitidos` del JWT son globales y quedan cacheados hasta el próximo login: el layout y las páginas los recalculan **para la organización activa, en el servidor** (`getContextoUsuario`, memoizado por request).
+
+**UI:** `OrganizacionSelector` (sidebar y Perfil en modo simple) **solo aparece con 2+ organizaciones** → cero cambio visual para los usuarios actuales. `POST /api/organizaciones/activa` rechaza (403) una organización de la que la persona no es miembro.
+
+**Asociados por organización:** nueva columna `User.creadoEnOrganizacionId` (nullable; sin FK a propósito) para contar los asociados Campesino por organización (límite del trial). Las cuentas anteriores (null) se atribuyen al dueño que las creó — todos los dueños de entonces tenían una sola organización.
+
+**Limitación conocida (deliberada):** el **Super Admin** sigue viendo *todas* las fincas de todas las organizaciones (`fincaIdsAccesibles` devuelve `"ALL"` antes de aplicar el contexto): es un operador de plataforma, no un miembro. El selector le cambia el contexto de Equipo/Configuración/Organización, no el listado de fincas.
+
 ## 6. Mapa de sprints → código real
 
 | Sprint | Alcance del ADR | Qué implica en ESTE código | Bloqueos |

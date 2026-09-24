@@ -18,6 +18,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 import type { AuthzSession } from "@/lib/authz";
+import { elegirOrganizacionActiva, leerCookieOrgActiva } from "@/lib/organizacion-activa";
 
 /**
  * IDs de Finca a las que `session.user` tiene acceso de lectura como mínimo.
@@ -33,12 +34,19 @@ export async function fincaIdsAccesibles(session: AuthzSession | null | undefine
 
   const membresias = await db.membresia.findMany({
     where: { userId, aceptada: true, activa: true },
-    select: { organizacionId: true, rol: true },
+    select: { organizacionId: true, rol: true, esRolPrimario: true, createdAt: true },
   });
   if (membresias.length === 0) return [];
 
-  const orgIdsComoOwner = membresias.filter((m) => m.rol === "OWNER").map((m) => m.organizacionId);
-  const orgIdsOtros = membresias.filter((m) => m.rol !== "OWNER").map((m) => m.organizacionId);
+  // Multi-organización: con 2+ organizaciones se restringe a la ACTIVA (ver
+  // src/lib/organizacion-activa.ts), para que el selector de fincas y los
+  // listados no mezclen las de una cooperativa con las propias. Con una sola,
+  // no cambia nada.
+  const activa = membresias.length > 1 ? elegirOrganizacionActiva(membresias, await leerCookieOrgActiva()) : null;
+  const enContexto = activa ? membresias.filter((m) => m.organizacionId === activa.organizacionId) : membresias;
+
+  const orgIdsComoOwner = enContexto.filter((m) => m.rol === "OWNER").map((m) => m.organizacionId);
+  const orgIdsOtros = enContexto.filter((m) => m.rol !== "OWNER").map((m) => m.organizacionId);
 
   const [fincasComoOwner, accesos] = await Promise.all([
     orgIdsComoOwner.length > 0

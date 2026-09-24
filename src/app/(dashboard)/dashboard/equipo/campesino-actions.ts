@@ -67,6 +67,7 @@ export async function crearCuentaCampesino(_prev: CampesinoActionState, formData
         experiencia: "CAMPESINO",
         role: "PRODUCER",
         creadoPorId: session.user.id,
+        creadoEnOrganizacionId: propia.organizacionId,
         // Las cuentas nuevas nacen protegidas: el celular solo entra desde un
         // dispositivo vinculado con un código del dueño.
         requiereVinculacion: true,

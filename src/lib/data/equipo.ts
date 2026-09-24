@@ -60,7 +60,15 @@ export async function getEquipoResumen(organizacionId: string, ownerId: string):
     // scopea por creadoPorId (el OWNER que las dio de alta) en vez de
     // organizacionId, para no listar cuentas Campesino de otros tenants.
     db.user.findMany({
-      where: { experiencia: "CAMPESINO", creadoPorId: ownerId },
+      // Por organización: las creadas en esta, más las anteriores al campo
+      // (null) que creó este dueño — todos tenían una sola organización.
+      where: {
+        experiencia: "CAMPESINO",
+        OR: [
+          { creadoEnOrganizacionId: organizacionId },
+          { creadoEnOrganizacionId: null, creadoPorId: ownerId },
+        ],
+      },
       select: {
         id: true, name: true, telefono: true, createdAt: true, requiereVinculacion: true,
         _count: { select: { dispositivosConfianza: { where: { revocadoEn: null, expiraEn: { gt: new Date() } } } } },

@@ -1,3 +1,4 @@
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { Header } from "@/components/layout/Header";
 import { ConfigClient } from "@/components/configuracion/ConfigClient";
 import { getServerSession } from "next-auth";
@@ -31,6 +32,7 @@ export default async function ConfiguracionPage() {
   // notas"). El switch de vista vive dentro de ambos componentes
   // (VistaPreferidaSwitch, ver ConfigClient.tsx/PerfilSimpleClient.tsx).
   const modo = await resolverModoApp(session.user.id);
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
 
   if (modo === "simple") {
     // Fase 5 de ADR-006 — qué salidas a modo completo mostrar en "Más
@@ -38,11 +40,21 @@ export default async function ConfiguracionPage() {
     // para todos: mismos guards que ya usan las páginas reales de Equipo
     // (esOwner), Fichas técnicas (esSuperAdmin) y Compradores (tieneModulo).
     const accesos = {
-      esOwner: !!session.user.esOwner,
+      esOwner: ctx.esOwner,
       esSuperAdmin: !!session.user.esSuperAdmin,
-      verCompradores: tieneModulo(session.user.modulosPermitidos, "compradores"),
+      verCompradores: tieneModulo(ctx.modulosPermitidos, "compradores"),
     };
-    return <PerfilSimpleClient user={user} accesos={accesos} />;
+    const organizaciones = ctx.organizaciones.map((o) => ({
+      id: o.organizacionId, nombre: o.organizacion.nombre, tipo: o.organizacion.tipo, esTrial: o.organizacion.esTrial, rol: o.rol,
+    }));
+    return (
+      <PerfilSimpleClient
+        user={user}
+        accesos={accesos}
+        organizaciones={organizaciones}
+        organizacionActivaId={ctx.activa?.organizacionId ?? null}
+      />
+    );
   }
 
   return (
@@ -57,7 +69,7 @@ export default async function ConfiguracionPage() {
           prefs={prefs}
           fincas={fincas}
           fincaActivaId={fincaActivaId}
-          puedeCrearFinca={!!session.user.esOwner}
+          puedeCrearFinca={ctx.esOwner}
           organizacion={organizacion}
         />
       </main>

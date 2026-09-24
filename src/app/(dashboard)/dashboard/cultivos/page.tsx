@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { tieneModulo } from "@/lib/modulos";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { resolverModoApp } from "@/lib/modo-app";
 import { getFincas } from "@/lib/data/fincas";
@@ -21,7 +22,9 @@ export default async function CultivosPage({
 }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) redirect("/login");
-  if (!tieneModulo(session.user.modulosPermitidos, "cultivos")) redirect("/dashboard");
+  // Módulos de la organización ACTIVA (el claim del JWT es global).
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  if (!tieneModulo(ctx.modulosPermitidos, "cultivos")) redirect("/dashboard");
 
   // Antes filtraba por userId literal (ni siquiera fincaIdsAccesibles) — un
   // ADMIN_FINCA/COLABORADOR no veía nada. Ahora se scopea a la finca activa
