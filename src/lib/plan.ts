@@ -68,6 +68,14 @@ export function finDeTrial(desde: Date = new Date()): Date {
   return new Date(desde.getTime() + TRIAL_DIAS * DIA_MS);
 }
 
+/** Nuevo fin de trial al extenderlo `dias` días: se suma desde el fin actual
+ * si todavía no venció, o desde hoy si ya venció (un trial vencido hace un mes
+ * y "extendido 15 días" no puede quedar vencido de nuevo). */
+export function nuevoFinTrial(trialFinEn: Date | null, dias: number, ahora: Date = new Date()): Date {
+  const base = trialFinEn && trialFinEn.getTime() > ahora.getTime() ? trialFinEn : ahora;
+  return new Date(base.getTime() + dias * DIA_MS);
+}
+
 export const MENSAJE_MODO_LECTURA =
   "Tu prueba terminó — tu organización está en modo lectura. Contacta a GermIA para activar el plan Colectivo.";
 export const MENSAJE_LIMITE_ASOCIADOS =

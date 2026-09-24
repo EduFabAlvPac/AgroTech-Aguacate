@@ -191,6 +191,17 @@ El schema ya traía todas las columnas para esto desde el PR #50 (`AuditLog.hash
 
 **Supuesto documentado:** los Campesinos de una cooperativa vencida **siguen usando** su app (diagnóstico/consultas son personales); el bloqueo es a la administración de la organización. Se puede endurecer.
 
+## 5decies. Colectivo/Cooperativa (3/3) — panel Super Admin y conversión manual
+
+`/dashboard/admin/organizaciones` (solo Super Admin, chequeo fresco contra BD; enlace "Organizaciones" en el sidebar de admin): lista todas las organizaciones con tipo, NIT, dueño(s), estado efectivo (`plan.ts`), días de prueba, asociados `x / límite` y fincas. Dos acciones, ambas auditadas **en la cadena de la organización afectada** (`organizacion.extender_trial`, `organizacion.activar_plan`):
+
+- **Extender prueba** (1–90 días): se suma desde el fin actual si sigue vigente o **desde hoy si ya venció** (`nuevoFinTrial`, testeado: una prueba vencida hace un mes y "extendida 15 días" no puede quedar vencida de nuevo); pasa a `EN_TRIAL` y **reinicia los avisos por correo** (`trialAvisos = []`).
+- **Activar plan Colectivo:** `esTrial = false`, `estadoPlan = ACTIVA`, `plan = COLECTIVO`, `limiteAsociadosPlan` (vacío = ilimitado) y `planVigenteHasta` opcional (fecha futura). Libera el modo lectura al instante (el estado se calcula, no depende del cron). También sirve para **cambiar** el límite/vigencia de un plan ya activo.
+
+**Conversión a pago MANUAL, a propósito:** sin pasarela ni precios oficiales (el ADR-012 sigue sin existir); el cobro se gestiona por fuera y el Super Admin activa. Con esto quedan completos los tres PRs de Colectivo y el trial del ADR §10/S6.
+
+**Sigue fuera de alcance:** borrado automático de datos a los 90 días de vencida la prueba (hoy solo se conservan), pasarela de pagos, MFA obligatorio para ORG_OWNER de cooperativas, y el cambio del índice único de `Membresia` (nada lo necesita).
+
 ## 6. Mapa de sprints → código real
 
 | Sprint | Alcance del ADR | Qué implica en ESTE código | Bloqueos |
@@ -200,7 +211,7 @@ El schema ya traía todas las columnas para esto desde el PR #50 (`AuditLog.hash
 | **S3** 🟡 acotado | UI Equipo/orgs | **Hecho**: pestaña Organización, invitaciones por correo + correos de confirmación, botón WhatsApp puente para Campesino (ver §5quater). **Diferido**: cambio del unique de `Membresia` (§4, solo 4 referencias reales, no ~13) · selector de contexto · registro de org Colectivo · unificar `FincaAcceso` | Sin bloqueo técnico — diferido por elección del usuario (sin consumidor real todavía) |
 | **S4** | Magic Link WhatsApp | Emisor enchufable con fallback a log (mismo patrón que `src/lib/email.ts` y `rate-limit.ts`) · normalizar `telefono` a E.164 · requiere cuenta Meta WhatsApp Business + plantillas aprobadas | **Firma** (canal único) + cuenta Meta |
 | **S5** ✅ | Auditoría | Hash-chain SHA-256 por organización, transacción serializable + reintento (ver §5quinquies) · `organizacionId`/`recurso`/`recursoId` poblados en 14 llamadas reales · panel "Auditoría" para el dueño (Equipo) + CSV últimos 30 días · panel de Super Admin con etiquetas completas | — |
-| **S6** ✅ | MFA + trial | TOTP (`otplib` 13, API async — ver §5sexies) · `mfaSecret` cifrado AES-256-GCM (`MFA_ENCRYPTION_KEY`) · códigos de respaldo hasheados · challenge en el login de credenciales, "aviso primero, bloqueo después" para Super Admin · gestión desde pestaña "Seguridad" · **trial NO entregado** (§5sexies: sin Colectivo/Cooperativa no hay org en trial que expire) | — |
+| **S6** ✅ | MFA + trial | TOTP (`otplib` 13, API async — ver §5sexies) · `mfaSecret` cifrado AES-256-GCM (`MFA_ENCRYPTION_KEY`) · códigos de respaldo hasheados · challenge en el login de credenciales, "aviso primero, bloqueo después" para Super Admin · gestión desde pestaña "Seguridad" · **trial entregado después** con Colectivo/Cooperativa (§5octies–§5decies: registro, 30 días/5 asociados, modo lectura, avisos y panel Super Admin) | — |
 | **S7** | Impersonación | Usa `Impersonacion` (ya creada, sin uso) | **Firma** (mecanismo de consentimiento) |
 
 ## 7. Aplicar a producción (Neon)
