@@ -8,7 +8,14 @@ import { modulosPorDefecto } from "./modulos";
 import { registrarAuditoria } from "./audit";
 import { normalizarTelefono } from "./telefono";
 import { verificarLimite } from "./rate-limit";
-import { MENSAJE_EMAIL_NO_VERIFICADO, MENSAJE_MFA_REQUERIDO, MENSAJE_MFA_CODIGO_INVALIDO } from "./auth-shared";
+import {
+  MENSAJE_EMAIL_NO_VERIFICADO,
+  MENSAJE_MFA_REQUERIDO,
+  MENSAJE_MFA_CODIGO_INVALIDO,
+  MENSAJE_CAMPESINO_REQUIERE_CODIGO,
+} from "./auth-shared";
+import { leerCookieDispositivo, DISPOSITIVO_VIGENCIA_DIAS } from "./campesino-vinculacion";
+import { hashToken } from "./tokens";
 import { desencriptarSecreto, verificarCodigoTOTP, verificarYConsumirCodigoRespaldo } from "./mfa";
 import {
   crearSesion,
@@ -244,10 +251,12 @@ export const authOptions: NextAuthOptions = {
         return { ...claims, sid };
       },
     }),
-    // Login "modo Campesino" — solo número de celular, sin contraseña, sin
-    // OTP por ahora (decisión explícita de producto para el MVP, documentada
-    // como riesgo aceptado: cualquiera que sepa el celular de un campesino
-    // podría entrar a su cuenta — revisar más adelante). `id` explícito
+    // Login "modo Campesino" — sin contraseña: el campesino escribe su
+    // celular y, si esa cuenta ya requiere vinculación, entra solo desde un
+    // dispositivo de confianza (se vincula UNA vez con un código del dueño,
+    // ver /api/campesino/vincular). Las cuentas anteriores a esa protección
+    // siguen abiertas por número hasta que el dueño les genere un código
+    // (requiereVinculacion = false). `id` explícito
     // porque next-auth asigna "credentials" por defecto al primer provider
     // Credentials, y necesitamos distinguirlos desde el formulario de login.
     CredentialsProvider({
@@ -260,8 +269,8 @@ export const authOptions: NextAuthOptions = {
         if (!credentials?.telefono) return null;
 
         // Este provider NO tiene lockout por cuenta (a diferencia del de
-        // arriba) — para el login Campesino, esta es la ÚNICA defensa
-        // contra fuerza bruta, no un complemento.
+        // arriba) — el rate limit por IP+teléfono es la primera defensa; la
+        // segunda es el dispositivo de confianza de más abajo.
         await verificarLimite("loginTelefono", `${obtenerIp(req?.headers)}:${credentials.telefono}`);
 
         // Normalizado a solo dígitos — el celular se guarda normalizado
@@ -274,8 +283,35 @@ export const authOptions: NextAuthOptions = {
 
         // Defensa en profundidad: aunque la UI solo muestre este formulario
         // bajo "Campesino", este provider nunca debe autenticar una cuenta
-        // ESTANDAR aunque alguien adivine su número.
-        if (!user || user.experiencia !== "CAMPESINO") return null;
+        // ESTANDAR aunque alguien adivine su número. Respuesta UNIFORME con
+        // "número desconocido": ambos piden el código (que luego falla con
+        // un mensaje genérico en /api/campesino/vincular) — así este login
+        // no revela qué celulares existen.
+        if (!user || user.experiencia !== "CAMPESINO") {
+          throw new Error(MENSAJE_CAMPESINO_REQUIERE_CODIGO);
+        }
+
+        // Login Campesino seguro — el dueño genera un código de un solo uso
+        // y el celular queda como dispositivo de confianza (cookie
+        // httpOnly, fijada por /api/campesino/vincular: authorize() no puede
+        // fijar cookies, solo leerlas). Las cuentas anteriores a esto
+        // (requiereVinculacion = false) siguen entrando exactamente como
+        // antes hasta que el dueño les genere su primer código.
+        if (user.requiereVinculacion) {
+          const cookie = leerCookieDispositivo((req?.headers as Record<string, string> | undefined)?.cookie);
+          const dispositivo = cookie
+            ? await db.dispositivoConfianza.findUnique({ where: { tokenHash: hashToken(cookie) } })
+            : null;
+          const vigente =
+            dispositivo && dispositivo.userId === user.id && !dispositivo.revocadoEn && dispositivo.expiraEn > new Date();
+          if (!vigente) throw new Error(MENSAJE_CAMPESINO_REQUIERE_CODIGO);
+
+          // Vigencia deslizante: cada entrada renueva los 180 días.
+          await db.dispositivoConfianza.update({
+            where: { id: dispositivo.id },
+            data: { ultimoUsoEn: new Date(), expiraEn: new Date(Date.now() + DISPOSITIVO_VIGENCIA_DIAS * 24 * 60 * 60 * 1000) },
+          });
+        }
 
         const claims = await resolverClaimsSesion(user);
         const { sid } = await crearSesion(user.id, { ip: obtenerIp(req?.headers), userAgent: obtenerUserAgent(req?.headers) });

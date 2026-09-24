@@ -277,3 +277,11 @@ export const aceptarInvitacionNuevoUsuarioSchema = z.object({
   password: passwordSchema,
 });
 export type AceptarInvitacionNuevoUsuarioData = z.infer<typeof aceptarInvitacionNuevoUsuarioSchema>;
+
+// Login Campesino seguro — canje del código de vinculación (público, sin
+// sesión). El código se normaliza a dígitos en el servidor
+// (campesino-vinculacion.ts), acá solo se exige que traiga al menos 6.
+export const vincularCampesinoSchema = z.object({
+  telefono: z.string().trim().min(7, "Escribe tu número de celular").max(20),
+  codigo: z.string().trim().min(6, "El código tiene 6 números").max(12),
+});

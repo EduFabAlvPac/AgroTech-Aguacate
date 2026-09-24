@@ -56,6 +56,13 @@ model User {
   // Equipo tendría que listar TODAS las cuentas Campesino de la plataforma
   // (fuga cross-tenant — ver CLAUDE.md §7). Null para cuentas no-Campesino.
   creadoPorId              String?
+  // Login Campesino seguro — true = este celular solo entra desde un
+  // dispositivo vinculado con un código que generó el dueño (ver
+  // DispositivoConfianza/CodigoVinculacion). Default false a propósito: las
+  // cuentas Campesino que ya existían siguen entrando como siempre hasta que
+  // el dueño les genere un código (migración no disruptiva); las nuevas nacen
+  // en true desde crearCuentaCampesino().
+  requiereVinculacion      Boolean        @default(false)
   // "Mis cultivos" (modo Campesino, /campesino/cultivos) — qué especies dice
   // manejar, guardado con un toque (sin formulario de Finca/Lote/fecha de
   // siembra, decisión de producto ya tomada). Valores = slug de
@@ -159,6 +166,8 @@ model User {
   // ADR-011 (IAM)
   sesiones               Sesion[]
   tokensAuth             TokenAuth[]
+  codigosVinculacion     CodigoVinculacion[]
+  dispositivosConfianza  DispositivoConfianza[]
   invitacionesEnviadas   Invitacion[]                   @relation("InvitacionesEnviadas")
   impersonacionesSoporte Impersonacion[]                @relation("ImpersonacionSoporte")
   impersonacionesTarget  Impersonacion[]                @relation("ImpersonacionTarget")
@@ -1481,6 +1490,49 @@ model TokenAuth {
   @@index([userId, tipo])
   @@index([expiraEn])
   @@map("tokens_auth")
+}
+
+// Login Campesino seguro — código de un solo uso que el DUEÑO genera para que
+// un campesino vincule su celular. Modelo propio (no TokenAuth): el código es
+// de 6 dígitos, así que un `tokenHash @unique` global colisionaría entre
+// usuarios. Se guarda como HMAC(secreto del servidor, userId:codigo); la
+// defensa real contra fuerza bruta es el tope de intentosFallidos (5) y el
+// rate limit por IP+teléfono, no el hash.
+model CodigoVinculacion {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codigoHash       String
+  creadoPorId      String? // dueño que lo generó (auditoría)
+  expiraEn         DateTime
+  usadoEn          DateTime?
+  invalidadoEn     DateTime?
+  intentosFallidos Int       @default(0)
+  createdAt        DateTime  @default(now())
+
+  @@index([userId, usadoEn])
+  @@map("codigos_vinculacion")
+}
+
+// Celular de un campesino ya vinculado. La cookie `germia_dispositivo`
+// (httpOnly) lleva el token en claro; acá solo su SHA-256. Se mantiene
+// aparte de `Sesion` a propósito: Sesion es una lista de revocación de JWT
+// (30 días), esto es una confianza de larga duración que evita volver a
+// pedir el código cada vez que vence la sesión.
+model DispositivoConfianza {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash   String    @unique
+  userAgent   String?
+  ipAddress   String?
+  ultimoUsoEn DateTime  @default(now())
+  expiraEn    DateTime
+  revocadoEn  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([userId, revocadoEn])
+  @@map("dispositivos_confianza")
 }
 
 enum CanalInvitacion {

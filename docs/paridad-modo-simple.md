@@ -104,7 +104,7 @@ Por eso no encaja en la tabla de paridad de arriba (no hay "versión completa" d
 - `PhotoCapture`/`compressImage` (`src/components/ui/PhotoCapture.tsx`), patrones de UI kit (`Button`, `Input`, `Select`, `Modal`).
 
 **100% nuevo:**
-- Login sin contraseña (provider `telefono-campesino` en `src/lib/auth.ts`) y login con Google (`Otro rol`).
+- Login sin contraseña (provider `telefono-campesino` en `src/lib/auth.ts`) y login con Google (`Otro rol`). **Login Campesino seguro**: el dueño genera desde Equipo (modo completo) un código de 6 dígitos de un solo uso (`generarCodigoVinculacion`) y el celular del campesino queda como dispositivo de confianza (`/api/campesino/vincular`, cookie `germia_dispositivo`). Es una función de **gestión del dueño en Equipo**, que no existe en modo simple (Equipo entero es "exclusión con salida" desde `PerfilSimpleClient`): sigue esa misma clasificación, sin cambios en la tabla de arriba.
 - `ExperienciaApp` (campo de perfil de experiencia, ortogonal a `vistaPreferida`).
 - Tienda (`ProductoTienda`), Precios de mercado (`PrecioMercado`), fase lunar (`src/lib/fase-lunar.ts`) y consejo del día (`src/lib/consejo-del-dia.ts`) — nada de esto existía antes.
 - Texto-a-voz (`speechSynthesis`) — primer uso en el repo.
