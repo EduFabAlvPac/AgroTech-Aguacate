@@ -114,6 +114,22 @@ Se agregó `Membresia.rolesIam Rol[] @default([])` (columna nueva, aditiva) y `r
 
 **Trial (`Organizacion.esTrial`/`trialFinEn`/etc.) — fuera de alcance, no solo diferido.** No existe hoy ninguna forma de crear una organización en trial: el flujo de registro Colectivo/Cooperativa que la produciría sigue diferido desde el Sprint 3 (§5quater, en el PR #61 aún no mergeado al momento de este sprint). Construir el cron de expiración y su enforcement ahora sería infraestructura sin ningún caso real que la dispare — mismo criterio ya aplicado repetidamente en este ADR. Se retoma junto con (o después de) el registro Colectivo.
 
+## 5septies. Login Campesino seguro — código del dueño + dispositivo de confianza
+
+**Problema.** El login `telefono-campesino` entraba solo con el número de celular; su única defensa era el rate limit (riesgo aceptado y documentado en Sprint 1): cualquiera que supiera un número podía entrar a esa cuenta.
+
+**Solución (decidida con el usuario, sin costo de SMS/WhatsApp Business — Sprint 4 sigue bloqueado por la cuenta de Meta).** El dueño genera desde Equipo un **código de 6 dígitos de un solo uso (24 h)** y se lo pasa por WhatsApp (`wa.me`, ya existente) o llamada. El campesino lo escribe **una vez**; su celular queda como **dispositivo de confianza** (cookie httpOnly `germia_dispositivo`, 180 días deslizantes) y no vuelve a pedir nada. Celular nuevo o "Quitar dispositivos" → otro código.
+
+**Piezas y por qué así:**
+- **Cookie propia + tabla `DispositivoConfianza`, no la sesión JWT.** NextAuth no deja fijar cookies desde `authorize()`; el código se canjea en un Route Handler propio (`POST /api/campesino/vincular`) que fija la cookie, y `authorize()` solo la lee. `Sesion` (30 días, lista de revocación) obligaría a re-vincular cada mes.
+- **Tablas nuevas (`CodigoVinculacion`, `DispositivoConfianza`) en vez de `TokenAuth`:** su `tokenHash` es `@unique` global y un código de 6 dígitos colisionaría entre usuarios; además evita tocar el enum `TipoToken`. 100 % aditivo (`prisma/sql/2026-09-campesino-vinculacion.sql`, generado con `migrate diff`).
+- **Defensa de un código corto = tope de intentos, no el hash:** 5 fallos por código lo invalidan + rate limit `vincularCodigo` por IP+teléfono. Guardado como HMAC-SHA256(`NEXTAUTH_SECRET`, `userId:código`); comparación en tiempo constante; consumo atómico (`updateMany ... usadoEn: null`, `count === 1`).
+- **Migración no disruptiva:** `User.requiereVinculacion` (default `false`). Las cuentas Campesino **existentes** siguen entrando por número hasta que el dueño les genere un código (la tarjeta muestra "Sin protección"); las **nuevas** nacen protegidas y al crearlas se genera el primer código de una vez.
+- **Respuesta uniforme:** un número desconocido recibe el mismo paso "escribe tu código" que uno real y solo falla al canjear, con un mensaje genérico — el login no revela qué celulares existen (para cuentas que aún no requieren vinculación, sí es distinguible: es el costo de la transición).
+- El código nunca se escribe en la auditoría (`campesino.generar_codigo`/`vincular_dispositivo`/`revocar_dispositivos`).
+
+**Limitaciones conocidas:** una cookie = un campesino por celular (vincular a otro en el mismo teléfono sobrescribe); si el dueño no está disponible y el campesino pierde el celular, espera un código nuevo hasta que exista la recuperación autónoma por WhatsApp (Sprint 4).
+
 ## 6. Mapa de sprints → código real
 
 | Sprint | Alcance del ADR | Qué implica en ESTE código | Bloqueos |

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone, MessageCircle, History, Download } from "lucide-react";
+import { Plus, User, Trash2, ShieldCheck, Wrench, Eye, Pencil, Power, PowerOff, Save, Users as UsersIcon, SlidersHorizontal, Smartphone, MessageCircle, History, Download, KeyRound, ShieldOff, Copy, Check } from "lucide-react";
 import { Button, Modal, Input, Select, EmptyState } from "@/components/ui";
 import toast from "react-hot-toast";
 import type { RolOrganizacion } from "@prisma/client";
@@ -13,7 +13,12 @@ import {
   eliminarMiembro,
   guardarPlantillaRol,
 } from "@/app/(dashboard)/dashboard/equipo/equipo-actions";
-import { crearCuentaCampesino, eliminarCuentaCampesino } from "@/app/(dashboard)/dashboard/equipo/campesino-actions";
+import {
+  crearCuentaCampesino,
+  eliminarCuentaCampesino,
+  generarCodigoVinculacion,
+  revocarDispositivosCampesino,
+} from "@/app/(dashboard)/dashboard/equipo/campesino-actions";
 import { invitarMiembroPorCorreo } from "@/app/(dashboard)/dashboard/equipo/invitacion-actions";
 import { exportarAuditoriaCSV } from "@/app/(dashboard)/dashboard/equipo/auditoria-actions";
 import { ETIQUETAS_ACCION } from "@/lib/auditoria-labels";
@@ -47,6 +52,18 @@ interface CuentaCampesinoData {
   nombre: string | null;
   telefono: string | null;
   createdAt: Date;
+  requiereVinculacion: boolean;
+  dispositivosActivos: number;
+}
+
+// Código de acceso recién generado — se muestra UNA vez (en la BD solo queda
+// su HMAC), por eso vive solo en el estado del modal.
+interface CodigoGenerado {
+  campesinoId: string;
+  nombre: string | null;
+  telefono: string | null;
+  codigo: string;
+  expiraEn: Date;
 }
 
 // El rol que de verdad importa para "qué puede hacer/ver" es el de finca
@@ -111,9 +128,9 @@ const emptyInviteForm = { email: "", rolFinca: "OPERARIO" as "ADMIN" | "OPERARIO
  * antepone el indicativo de Colombia porque hoy toda la app es solo
  * Colombia (paisIso @default("CO")).
  */
-function enlaceWhatsAppCampesino(nombre: string | null, telefono: string): string {
+function enlaceWhatsAppCampesino(nombre: string | null, telefono: string, codigo: string): string {
   const numero = `57${telefono}`;
-  const mensaje = `Hola ${nombre ?? ""}, ya tienes acceso a GermIA. Abre este enlace y entra con tu número de celular (sin contraseña): ${window.location.origin}/login`;
+  const mensaje = `Hola ${nombre ?? ""}, ya tienes acceso a GermIA. Entra a ${window.location.origin}/login, elige "Campesino", escribe tu número de celular y, cuando te lo pida, este código: ${codigo}. Solo lo escribes esta vez, y sirve por 24 horas.`;
   return `https://wa.me/${numero}?text=${encodeURIComponent(mensaje)}`;
 }
 
@@ -138,6 +155,10 @@ export function EquipoClient({
   const [miembros, setMiembros] = useState(initial);
   const [cuentasCampesino, setCuentasCampesino] = useState(cuentasCampesinoIniciales);
   const [eliminandoCampesinoId, setEliminandoCampesinoId] = useState<string | null>(null);
+  const [generandoCodigoId, setGenerandoCodigoId] = useState<string | null>(null);
+  const [revocandoId, setRevocandoId] = useState<string | null>(null);
+  const [codigoGenerado, setCodigoGenerado] = useState<CodigoGenerado | null>(null);
+  const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [plantillas, setPlantillas] = useState(plantillasIniciales);
   const [showModal, setShowModal] = useState(false);
   // ADR-011 Sprint 3 — dos formas de sumar un colaborador: crear la cuenta
@@ -185,15 +206,75 @@ export function EquipoClient({
           toast.error(result.error || "Error al crear la cuenta");
           return;
         }
-        toast.success(`Cuenta creada — ${result.cuenta.nombre} ya puede entrar con su celular (${result.cuenta.telefono}).`);
         setCuentasCampesino((prev) => [
-          { id: result.cuenta!.id, nombre: result.cuenta!.nombre, telefono: result.cuenta!.telefono, createdAt: new Date() },
+          {
+            id: result.cuenta!.id, nombre: result.cuenta!.nombre, telefono: result.cuenta!.telefono,
+            createdAt: new Date(), requiereVinculacion: true, dispositivosActivos: 0,
+          },
           ...prev,
         ]);
         setShowCampesinoModal(false);
         setCampesinoForm({ nombre: "", telefono: "" });
+        toast.success("Cuenta creada — ahora entrégale su código de acceso");
+        // Sin el código la cuenta nueva no puede entrar — se genera de una vez.
+        await abrirCodigo({
+          id: result.cuenta!.id, nombre: result.cuenta!.nombre, telefono: result.cuenta!.telefono,
+        });
       } finally {
         setCampesinoLoading(false);
+      }
+    });
+  };
+
+  /** Genera un código nuevo y abre el modal para mostrarlo. Se usa desde el
+   * botón "Código de acceso" de la tarjeta y justo después de crear la cuenta. */
+  const abrirCodigo = async (c: { id: string; nombre: string | null; telefono: string | null }) => {
+    setGenerandoCodigoId(c.id);
+    try {
+      const result = await generarCodigoVinculacion({}, c.id);
+      if (result.error || !result.codigo || !result.expiraEn) {
+        toast.error(result.error || "No se pudo generar el código");
+        return;
+      }
+      setCodigoCopiado(false);
+      setCodigoGenerado({ campesinoId: c.id, nombre: c.nombre, telefono: c.telefono, codigo: result.codigo, expiraEn: result.expiraEn });
+      // La cuenta ya queda protegida (requiereVinculacion) aunque fuera anterior.
+      setCuentasCampesino((prev) => prev.map((x) => (x.id === c.id ? { ...x, requiereVinculacion: true } : x)));
+    } finally {
+      setGenerandoCodigoId(null);
+    }
+  };
+
+  const handleCodigoAcceso = (c: CuentaCampesinoData) => {
+    startTransition(async () => {
+      await abrirCodigo(c);
+    });
+  };
+
+  const copiarCodigoGenerado = async () => {
+    if (!codigoGenerado) return;
+    try {
+      await navigator.clipboard.writeText(codigoGenerado.codigo);
+      setCodigoCopiado(true);
+      setTimeout(() => setCodigoCopiado(false), 2000);
+    } catch {
+      toast.error("No se pudo copiar — anótalo a mano");
+    }
+  };
+
+  const handleQuitarDispositivos = (c: CuentaCampesinoData) => {
+    setRevocandoId(c.id);
+    startTransition(async () => {
+      try {
+        const result = await revocarDispositivosCampesino({}, c.id);
+        if (result.error) {
+          toast.error(result.error);
+          return;
+        }
+        setCuentasCampesino((prev) => prev.map((x) => (x.id === c.id ? { ...x, dispositivosActivos: 0 } : x)));
+        toast.success("Dispositivos quitados — para volver a entrar necesitará un código nuevo");
+      } finally {
+        setRevocandoId(null);
       }
     });
   };
@@ -584,22 +665,37 @@ export function EquipoClient({
                 <div>
                   <span className="text-[13px] font-medium text-[var(--text-primary)]">{c.nombre ?? "Sin nombre"}</span>
                   <p className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Entra con su celular: {c.telefono} · sin acceso a tus fincas ni datos
+                    Celular: {c.telefono} · sin acceso a tus fincas ni datos
+                  </p>
+                  <p className={`text-[11px] font-medium mt-0.5 ${c.requiereVinculacion ? "text-agro-600" : "text-amber-600"}`}>
+                    {c.requiereVinculacion
+                      ? c.dispositivosActivos > 0
+                        ? `Protegida · ${c.dispositivosActivos} celular${c.dispositivosActivos === 1 ? "" : "es"} vinculado${c.dispositivosActivos === 1 ? "" : "s"}`
+                        : "Protegida · aún sin celular vinculado"
+                      : "Sin protección — entra solo con el número. Genera un código para protegerla"}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0">
-                {c.telefono && (
-                  <a
-                    href={enlaceWhatsAppCampesino(c.nombre, c.telefono)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-agro-50 transition-colors"
-                    aria-label="Avisarle por WhatsApp"
-                    title="Avisarle por WhatsApp que ya tiene acceso"
+                <button
+                  onClick={() => handleCodigoAcceso(c)}
+                  disabled={generandoCodigoId === c.id}
+                  className="h-8 px-2.5 flex items-center gap-1.5 rounded-[var(--radius-md)] text-[12px] font-medium text-agro-600 hover:bg-agro-50 transition-colors disabled:opacity-50"
+                  aria-label="Generar código de acceso"
+                  title="Generar código de acceso"
+                >
+                  <KeyRound size={14} /> Código de acceso
+                </button>
+                {c.dispositivosActivos > 0 && (
+                  <button
+                    onClick={() => handleQuitarDispositivos(c)}
+                    disabled={revocandoId === c.id}
+                    className="w-8 h-8 flex items-center justify-center rounded-[var(--radius-md)] hover:bg-negative-50 transition-colors disabled:opacity-50"
+                    aria-label="Quitar dispositivos vinculados"
+                    title="Quitar dispositivos (cierra sus sesiones)"
                   >
-                    <MessageCircle size={14} className="text-[var(--text-muted)] hover:text-agro-600" />
-                  </a>
+                    <ShieldOff size={14} className="text-[var(--text-muted)] hover:text-negative-400" />
+                  </button>
                 )}
                 <button
                   onClick={() => handleEliminarCampesino(c.id)}
@@ -852,8 +948,9 @@ export function EquipoClient({
       <Modal isOpen={showCampesinoModal} onClose={() => setShowCampesinoModal(false)} title="Agregar Campesino" size="sm">
         <div className="space-y-3">
           <p className="text-[12px] text-[var(--text-muted)] -mt-1">
-            Cuenta de la experiencia simplificada (modo Campesino): entra solo con su número de celular, sin
-            contraseña. No tiene acceso a esta finca ni a tus datos — solo a diagnóstico, tienda, precios y clima.
+            Cuenta de la experiencia simplificada (modo Campesino): sin contraseña. Al crearla te damos un código de
+            6 números para que lo escriba una sola vez en su celular. No tiene acceso a esta finca ni a tus datos —
+            solo a diagnóstico, tienda, precios y clima.
           </p>
           <Input
             label="Nombre *"
@@ -873,6 +970,46 @@ export function EquipoClient({
             <Button loading={campesinoLoading} onClick={handleAgregarCampesino}>Agregar</Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal: código de acceso Campesino — se muestra UNA vez */}
+      <Modal isOpen={!!codigoGenerado} onClose={() => setCodigoGenerado(null)} title="Código de acceso" size="sm">
+        {codigoGenerado && (
+          <div className="space-y-4">
+            <p className="text-[13px] text-[var(--text-secondary)]">
+              Entrégale este código a <strong>{codigoGenerado.nombre ?? "tu campesino"}</strong> (por WhatsApp o por
+              llamada). Lo escribe una sola vez en su celular, después de su número.
+            </p>
+            <div className="text-center bg-[var(--surface-page)] border border-[var(--border-default)] rounded-[var(--radius-md)] py-4">
+              <span className="font-mono text-[32px] font-bold tracking-[0.3em] text-[var(--text-primary)]">
+                {codigoGenerado.codigo}
+              </span>
+              <p className="text-[11px] text-[var(--text-muted)] mt-1">
+                Vence el {codigoGenerado.expiraEn.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" })} · un solo uso
+              </p>
+            </div>
+            <p className="text-[11px] text-[var(--text-muted)]">
+              Esta es la única vez que se muestra. Si lo pierdes, genera uno nuevo.
+            </p>
+            <div className="flex flex-col gap-2">
+              {codigoGenerado.telefono && (
+                <a
+                  href={enlaceWhatsAppCampesino(codigoGenerado.nombre, codigoGenerado.telefono, codigoGenerado.codigo)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-9 inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] bg-agro-600 hover:bg-agro-800 text-white text-[13px] font-medium transition-colors"
+                >
+                  <MessageCircle size={15} /> Enviar por WhatsApp
+                </a>
+              )}
+              <Button variant="secondary" onClick={copiarCodigoGenerado}>
+                {codigoCopiado ? <Check size={15} /> : <Copy size={15} />}
+                {codigoCopiado ? "Copiado" : "Copiar código"}
+              </Button>
+              <Button variant="ghost" onClick={() => setCodigoGenerado(null)}>Listo</Button>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* Modal: consultar / editar colaborador */}
