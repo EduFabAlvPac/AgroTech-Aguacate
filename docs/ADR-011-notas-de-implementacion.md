@@ -210,6 +210,8 @@ El schema ya traía todas las columnas para esto desde el PR #50 (`AuditLog.hash
 
 **Refactor:** la verificación TOTP/respaldo se extrajo a `verificarSegundoFactor()` y la usan tanto el login con contraseña como el de Google (regresión probada). Cuentas **sin** MFA y Campesino no cambian.
 
+**Hallazgo posterior (2026-09-24): el botón "Continuar con Google" no hacía nada en producción.** Causa: `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` no estaban configuradas (o estaban mal pegadas) en Vercel, pero el provider se registraba igual con `clientId ""`: el botón se mostraba, NextAuth fallaba con `OAuthSignin`, redirigía a `/login?error=OAuthSignin` y la pantalla ignoraba el error → silencio total. Fix: (1) el provider **solo se registra si hay credenciales** (tolerando comillas y el prefijo `NOMBRE=` pegado por error — `src/lib/env-limpia.ts`); (2) el botón solo se ofrece si `getProviders()` incluye a Google; (3) la pantalla de login **muestra** los errores de NextAuth (`?error=`), incluido `AccessDenied` (cuenta de Google no registrada, que tampoco se explicaba). Para habilitarlo hay que crear el cliente OAuth en Google Cloud Console y cargar las dos variables en Vercel (ver `.env.example`).
+
 **Límite de la verificación:** el redirect real de Google (callback `signIn` devolviendo la URL dentro del flujo OAuth) solo se puede validar en producción con una cuenta Google real; en local se probó la función del callback directamente y todo el provider/pantalla de punta a punta con pruebas firmadas.
 
 ## 6. Mapa de sprints → código real
