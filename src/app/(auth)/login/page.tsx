@@ -77,18 +77,6 @@ export default function LoginPage() {
           {rol === "campesino" && <LoginCampesinoForm />}
           {rol === "otro" && !pruebaGoogle && <LoginEstandarForm />}
           {rol === "otro" && pruebaGoogle && <LoginGoogleMfaForm pendiente={pruebaGoogle} onVolver={volverDeGoogle} />}
-
-          {rol === "otro" && !pruebaGoogle && (
-            <div className="mt-4 p-3 bg-agro-50 rounded-[var(--radius-md)] border border-agro-100">
-              <p className="text-[11px] font-semibold text-agro-600 mb-1">
-                Credenciales de demo
-              </p>
-              <p className="text-[11px] text-agro-400">
-                Email: info@fincaalvarezpacheco.co
-              </p>
-              <p className="text-[11px] text-agro-400">Contraseña: agro2026</p>
-            </div>
-          )}
         </div>
 
         <p className="text-center text-[12px] text-[var(--text-muted)] mt-6">
