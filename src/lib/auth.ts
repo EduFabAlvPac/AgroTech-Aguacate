@@ -13,7 +13,9 @@ import {
   MENSAJE_MFA_REQUERIDO,
   MENSAJE_MFA_CODIGO_INVALIDO,
   MENSAJE_CAMPESINO_REQUIERE_CODIGO,
+  MENSAJE_GOOGLE_MFA_EXPIRADO,
 } from "./auth-shared";
+import { firmarPruebaGoogle, verificarPruebaGoogle } from "./google-mfa";
 import { leerCookieDispositivo, DISPOSITIVO_VIGENCIA_DIAS } from "./campesino-vinculacion";
 import { hashToken } from "./tokens";
 import { desencriptarSecreto, verificarCodigoTOTP, verificarYConsumirCodigoRespaldo } from "./mfa";
@@ -98,6 +100,19 @@ async function resolverClaimsSesion(user: PrismaUser) {
     // llegar acá) — es solo el estado actual de la cuenta, para la UI.
     mfaHabilitado: user.mfaHabilitado,
   };
+}
+
+/**
+ * Segundo factor (ADR-011 Sprint 6): código TOTP de la app o, si no, un código
+ * de respaldo de un solo uso (se CONSUME al aceptarse). Compartido por el
+ * login con contraseña y por el paso de MFA del login con Google.
+ */
+async function verificarSegundoFactor(user: PrismaUser, codigo: string): Promise<boolean> {
+  if (user.mfaSecret && (await verificarCodigoTOTP(desencriptarSecreto(user.mfaSecret), codigo))) return true;
+  const { valido, codigosRestantes } = verificarYConsumirCodigoRespaldo(user.mfaBackupCodes, codigo);
+  if (!valido) return false;
+  await db.user.update({ where: { id: user.id }, data: { mfaBackupCodes: codigosRestantes } });
+  return true;
 }
 
 /** IP real del cliente detrás del proxy de Vercel — `x-forwarded-for` trae
@@ -208,8 +223,9 @@ export const authOptions: NextAuthOptions = {
         // (una vez encendido, siempre se exige). Para Super Admin sin MFA
         // todavía, decisión explícita de producto: "aviso primero, bloqueo
         // después" — no se bloquea el login acá, se avisa en el dashboard
-        // (ver mfaHabilitado en resolverClaimsSesion()). Google/Campesino no
-        // pasan por este challenge (ver docs/ADR-011-notas-de-implementacion.md).
+        // (ver mfaHabilitado en resolverClaimsSesion()). El login con Google
+        // pasa por el mismo segundo factor vía el provider "google-mfa"; el de
+        // Campesino no aplica (usa dispositivo de confianza).
         if (user.mfaHabilitado) {
           // Defensa en profundidad — hallazgo de QA real (2026-09-23):
           // next-auth serializa un `undefined` en el body de signIn() como
@@ -226,17 +242,7 @@ export const authOptions: NextAuthOptions = {
           // código de 6 dígitos, ya con la contraseña confirmada.
           await verificarLimite("mfaVerificacion", `${obtenerIp(req?.headers)}:${credentials.email}`);
 
-          let mfaValido = false;
-          if (user.mfaSecret) {
-            mfaValido = await verificarCodigoTOTP(desencriptarSecreto(user.mfaSecret), codigoMfa);
-          }
-          if (!mfaValido) {
-            const { valido, codigosRestantes } = verificarYConsumirCodigoRespaldo(user.mfaBackupCodes, codigoMfa);
-            if (valido) {
-              mfaValido = true;
-              await db.user.update({ where: { id: user.id }, data: { mfaBackupCodes: codigosRestantes } });
-            }
-          }
+          const mfaValido = await verificarSegundoFactor(user, codigoMfa);
           if (!mfaValido) {
             throw new Error(MENSAJE_MFA_CODIGO_INVALIDO);
           }
@@ -318,6 +324,34 @@ export const authOptions: NextAuthOptions = {
         return { ...claims, sid };
       },
     }),
+    // ADR-011 Sprint 6 — segundo paso del login con Google para cuentas con
+    // MFA activo (ver src/lib/google-mfa.ts). Solo vale con la prueba firmada
+    // que emite el callback signIn de más abajo + un código válido; sin ambos
+    // no crea ninguna sesión. Nunca autentica una cuenta sin MFA ni Campesino.
+    CredentialsProvider({
+      id: "google-mfa",
+      name: "Google + verificación",
+      credentials: {
+        pendiente: { label: "Prueba de Google", type: "text" },
+        codigoMfa: { label: "Código de verificación", type: "text" },
+      },
+      async authorize(credentials, req) {
+        const userId = verificarPruebaGoogle(credentials?.pendiente);
+        if (!userId) throw new Error(MENSAJE_GOOGLE_MFA_EXPIRADO);
+        const codigoMfa = credentials?.codigoMfa?.trim();
+        if (!codigoMfa || codigoMfa === "undefined") throw new Error(MENSAJE_MFA_REQUERIDO);
+
+        await verificarLimite("mfaVerificacion", `${obtenerIp(req?.headers)}:${userId}`);
+
+        const user = await db.user.findUnique({ where: { id: userId } });
+        if (!user || !user.mfaHabilitado || user.experiencia === "CAMPESINO") throw new Error(MENSAJE_GOOGLE_MFA_EXPIRADO);
+        if (!(await verificarSegundoFactor(user, codigoMfa))) throw new Error(MENSAJE_MFA_CODIGO_INVALIDO);
+
+        const claims = await resolverClaimsSesion(user);
+        const { sid } = await crearSesion(user.id, { ip: obtenerIp(req?.headers), userAgent: obtenerUserAgent(req?.headers) });
+        return { ...claims, sid };
+      },
+    }),
     // Exclusivo del perfil "Otro rol" — el Campesino nunca ve este botón.
     // Sin PrismaAdapter (sesión 100% JWT, sin tablas Account/Session): el
     // signIn()/jwt() de abajo interceptan manualmente para (a) prohibir
@@ -338,6 +372,14 @@ export const authOptions: NextAuthOptions = {
       // Google jamás autentica una cuenta Campesino, aunque no se le muestre
       // el botón.
       if (!existente || existente.experiencia === "CAMPESINO") return false;
+
+      // MFA activo: Google ya autenticó, pero NO se crea sesión todavía —
+      // NextAuth redirige (devolver un string en signIn() es un redirect) a
+      // la pantalla del código, con una prueba firmada de 5 min que se canjea
+      // en el provider "google-mfa". Antes esta rama se saltaba el MFA.
+      if (existente.mfaHabilitado) {
+        return `/login?mfa=google&p=${encodeURIComponent(firmarPruebaGoogle(existente.id))}`;
+      }
 
       return true;
     },

@@ -24,3 +24,7 @@ export const MENSAJE_MFA_CODIGO_INVALIDO = "Código incorrecto o vencido. Intent
 // número no existe: la respuesta es la misma a propósito, ver auth.ts).
 // LoginCampesinoForm.tsx muestra entonces el paso "escribe tu código".
 export const MENSAJE_CAMPESINO_REQUIERE_CODIGO = "Escribe el código que te dio tu asesor.";
+// Login con Google + MFA — la prueba firmada que emite el callback signIn
+// venció (5 min), es inválida, o la cuenta ya no exige MFA. La pantalla pide
+// volver a empezar con Google.
+export const MENSAJE_GOOGLE_MFA_EXPIRADO = "Tu verificación con Google venció. Vuelve a entrar con Google.";
