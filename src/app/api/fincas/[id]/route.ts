@@ -1,3 +1,5 @@
+import { evaluarBorradoFinca, mensajeErrorBorrado } from "@/lib/finca-borrado";
+import { registrarAuditoria } from "@/lib/audit";
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
@@ -43,44 +45,41 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
-// DELETE /api/fincas/[id] — eliminar una finca (solo OWNER, nunca la última de la organización)
+// DELETE /api/fincas/[id] — eliminar una finca. Las reglas viven en
+// src/lib/finca-borrado.ts (compartidas con la Server Action): bloquea con un
+// mensaje claro si tiene lotes/gastos/presupuestos y protege la última finca
+// de un dueño (el Super Admin queda exento de esa última regla).
 export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const finca = await db.finca.findUnique({
-      where: { id },
-      select: { id: true, organizacionId: true, _count: { select: { lotes: true } } },
-    });
-    if (!finca) return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
+    const existe = await db.finca.findUnique({ where: { id }, select: { id: true } });
+    if (!existe) return NextResponse.json({ error: "Finca no encontrada" }, { status: 404 });
     await requireAccess(session, "finca", "delete", { fincaId: id });
 
-    // No dejar la organización sin ninguna finca.
-    if (finca.organizacionId) {
-      const totalFincas = await db.finca.count({ where: { organizacionId: finca.organizacionId } });
-      if (totalFincas <= 1) {
-        return NextResponse.json({ error: "No puedes eliminar tu única finca" }, { status: 409 });
-      }
-    }
-
-    // Protección: no eliminar una finca con lotes (mismo criterio que ya
-    // existe para Lote — "no se puede eliminar si tiene cultivos activos",
-    // ver src/__tests__/properties/lote-delete-protection.property.test.ts).
-    if (finca._count.lotes > 0) {
-      return NextResponse.json(
-        { error: `Esta finca tiene ${finca._count.lotes} lote(s) registrados. Elimínalos primero desde Cultivos/Mapa.` },
-        { status: 409 }
-      );
-    }
+    const esSuperAdmin = !!(await db.user.findUnique({ where: { id: session.user.id }, select: { esSuperAdmin: true } }))?.esSuperAdmin;
+    const evaluacion = await evaluarBorradoFinca(id, esSuperAdmin);
+    if (!evaluacion.permitido) return NextResponse.json({ error: evaluacion.mensaje }, { status: 409 });
 
     await db.finca.delete({ where: { id } });
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      accion: "finca.eliminar",
+      detalle: { nombre: evaluacion.nombre },
+      organizacionId: evaluacion.organizacionId,
+      recurso: "Finca",
+      recursoId: id,
+    });
 
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
+    const humano = mensajeErrorBorrado(error);
+    if (humano) return NextResponse.json({ error: humano }, { status: 409 });
     console.error("[DELETE /api/fincas/[id]]", error);
-    return NextResponse.json({ error: "Error interno" }, { status: 500 });
+    return NextResponse.json({ error: "No se pudo eliminar la finca. Intenta de nuevo." }, { status: 500 });
   }
 }
