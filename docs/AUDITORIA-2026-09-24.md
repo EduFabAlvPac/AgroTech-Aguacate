@@ -1,0 +1,31 @@
+# Auditoría de calidad, seguridad y coherencia — 2026-09-24
+
+Cuatro roles revisaron el código en solo lectura (QA funcional, ciberseguridad,
+UX/UI, calidad + arquitectura + datos). Este archivo es el registro vivo del
+plan; se marca cada punto al entregarse su PR. Detalle de cada hallazgo:
+informes de la sesión (no versionados); los cambios quedan explicados en cada PR.
+
+## Ola 1 — confianza en los datos y aislamiento
+| # | Tema | Estado |
+|---|---|---|
+| 1 | **Alertas**: "marcar todas como leídas" persiste; sin pronóstico inventado en producción; dedupe por finca y por asunto; errores mudos | ✅ este PR |
+| 1b | Alertas: caducidad y purga (cron de retención) + índices | pendiente |
+| 2 | **Borrados**: mensajes claros al eliminar finca/lote/cultivo (bloquear con explicación), eliminar cuenta con gastos y cuentas Google, auditar cada borrado | pendiente |
+| 3 | **Aislamiento**: IDOR en gastos/jornales (ids de otra finca), `iniciarActivacionMfa` con MFA activo, ingreso sin `requireAccess` | pendiente |
+
+## Ola 2 — seguridad transversal y producto
+Cabeceras de seguridad · rate limit por IP en login y normalizar correo · política
+de contraseña y revocar sesiones al cambiarla · escapar HTML de correos ·
+campesinos antiguos con `requiereVinculacion` · panel de Organizaciones completo
+(detalle, editar, suspender/reactivar, eliminar lógico con enforcement) ·
+UX (confirmaciones, insignia "1" falsa, glosario Campesino/Asociado, sidebar por
+secciones, objetivos táctiles y a11y del Modal).
+
+## Ola 3 — base sólida
+Tests de alert-engine/borrados/cuenta · `lint` y `build` en CI · Sentry ·
+validación y límites en endpoints de IA · portal público de compradores.
+
+## Decisiones tomadas con el usuario
+- Orden: Ola 1 completa (alertas → borrados → aislamiento).
+- Eliminar finca con gastos/presupuestos/jornales: **bloquear con un mensaje
+  claro** (qué la bloquea y qué hacer), no borrar en cascada.

@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { getForecast, groupForecastByDay, type DailyForecast } from "./weather";
+import { getForecast, groupForecastByDay, type DailyForecast, type WeatherForecast } from "./weather";
 import type { UmbralAlertaPlaga } from "./fichas-tecnicas";
 import type { TipoAlerta, Severidad } from "@prisma/client";
 
@@ -50,30 +50,70 @@ function getVulnerabilityText(cropName: string, stage: string): string {
 }
 
 // ── Shared: dedupe + persist ────────────────────────────────────────────────────
-// Un mismo tipo+fecha(+cultivo) no se vuelve a crear si ya se generó en las
-// últimas 24h — evita duplicar alertas cada vez que se dispara la generación.
+// Un mismo tipo+fecha NO se vuelve a crear si ya se generó en las últimas 24h
+// PARA LA MISMA FINCA, el MISMO cultivo y el MISMO "asunto" (qué plaga / qué
+// actividad) — evita duplicar alertas cada vez que se dispara la generación.
+//
+// Antes (hallazgo de la auditoría de calidad, 2026-09-24) el chequeo miraba las
+// alertas de TODAS las fincas y comparaba solo tipo + cultivoId + fecha:
+//  - una helada de la finca A (cultivoId null) suprimía la helada de la finca B;
+//  - dos plagas distintas del mismo cultivo, o dos actividades distintas, eran
+//    "duplicadas" entre sí y la segunda se perdía;
+//  - dentro de una misma corrida no se actualizaba la lista, así que sí se
+//    creaban repetidas.
+
+/** Fuente honesta del pronóstico: "SIMULADO" solo puede ocurrir en desarrollo. */
+export function fuenteClima(forecast: WeatherForecast): string {
+  return forecast.simulado ? "SIMULADO" : "OpenWeather";
+}
+
+export interface AlertaComparable {
+  tipo: TipoAlerta;
+  fincaId?: string | null;
+  cultivoId?: string | null;
+  fechaInicio: Date;
+  titulo?: string | null;
+  datos?: unknown;
+}
+
+/** Qué distingue dos alertas del mismo tipo y cultivo: la plaga concreta, o la
+ * actividad concreta (su título). Para clima no hay asunto extra. */
+export function asuntoAlerta(a: Pick<AlertaComparable, "tipo" | "titulo" | "datos">): string {
+  const datos = (a.datos && typeof a.datos === "object" ? a.datos : {}) as Record<string, unknown>;
+  if (a.tipo === "PLAGA") return String(datos.plagaId ?? a.titulo ?? "");
+  if (a.tipo === "ACTIVIDAD") return String(a.titulo ?? "");
+  return "";
+}
+
+const UNA_DIA_MS = 86400000;
+
+export function esDuplicada(alerta: AlertaComparable, existentes: AlertaComparable[]): boolean {
+  const asunto = asuntoAlerta(alerta);
+  return existentes.some(
+    (r) =>
+      r.tipo === alerta.tipo &&
+      (r.fincaId ?? null) === (alerta.fincaId ?? null) &&
+      (r.cultivoId ?? null) === (alerta.cultivoId ?? null) &&
+      asuntoAlerta(r) === asunto &&
+      Math.abs(r.fechaInicio.getTime() - alerta.fechaInicio.getTime()) < UNA_DIA_MS
+  );
+}
 
 async function persistAlerts(potentialAlerts: GeneratedAlert[]): Promise<{ created: number; skipped: number }> {
   if (potentialAlerts.length === 0) return { created: 0, skipped: 0 };
 
-  const recentAlerts = await db.alertaClimatica.findMany({
-    where: { createdAt: { gte: new Date(Date.now() - 24 * 3600000) } },
-    select: { tipo: true, fechaInicio: true, cultivoId: true },
+  // Solo las alertas recientes de las fincas de ESTE lote (no de todo el sistema).
+  const fincaIds = [...new Set(potentialAlerts.map((a) => a.fincaId).filter((id): id is string => !!id))];
+  const recientes: AlertaComparable[] = await db.alertaClimatica.findMany({
+    where: { createdAt: { gte: new Date(Date.now() - 24 * 3600000) }, fincaId: { in: fincaIds } },
+    select: { tipo: true, fincaId: true, fechaInicio: true, cultivoId: true, titulo: true, datos: true },
   });
-
-  const isDuplicate = (alert: GeneratedAlert) =>
-    recentAlerts.some(
-      (r) =>
-        r.tipo === alert.tipo &&
-        r.cultivoId === (alert.cultivoId ?? null) &&
-        Math.abs(r.fechaInicio.getTime() - alert.fechaInicio.getTime()) < 86400000
-    );
 
   let created = 0;
   let skipped = 0;
 
   for (const alert of potentialAlerts) {
-    if (isDuplicate(alert)) {
+    if (esDuplicada(alert, recientes)) {
       skipped++;
       continue;
     }
@@ -94,6 +134,8 @@ async function persistAlerts(potentialAlerts: GeneratedAlert[]): Promise<{ creat
         cultivoId: alert.cultivoId,
       },
     });
+    // También cuenta para el resto de ESTA corrida (antes no se registraba).
+    recientes.push(alert);
     created++;
   }
 
@@ -134,7 +176,7 @@ export async function generateWeatherAlerts(
         severidad: isCritical ? "CRITICA" : "ALTA",
         fechaInicio: fecha,
         fechaFin: new Date(fecha.getTime() + 8 * 3600000),
-        datos: { tempMin: day.tempMin, tempMax: day.tempMax, dia: dateStr, fuente: "OpenWeather" },
+        datos: { tempMin: day.tempMin, tempMax: day.tempMax, dia: dateStr, fuente: fuenteClima(forecast) },
         municipio,
         fincaId,
       });
@@ -148,7 +190,7 @@ export async function generateWeatherAlerts(
         descripcion: `Se proyecta temperatura máxima de ${day.tempMax}°C en ${municipio}. ${cropName} puede sufrir estrés calórico. Aumente la frecuencia de riego y verifique coberturas del suelo.`,
         severidad: day.tempMax >= 35 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
-        datos: { tempMax: day.tempMax, fuente: "OpenWeather" },
+        datos: { tempMax: day.tempMax, fuente: fuenteClima(forecast) },
         municipio,
         fincaId,
       });
@@ -162,7 +204,7 @@ export async function generateWeatherAlerts(
         descripcion: `Se pronostican ${day.rainMm} mm de lluvia en ${municipio}. Riesgo de encharcamiento y enfermedades radiculares en ${cropName}. Verifique drenajes y suspenda riego.`,
         severidad: day.rainMm >= 60 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
-        datos: { rainMm: day.rainMm, pop: day.popMax, fuente: "OpenWeather" },
+        datos: { rainMm: day.rainMm, pop: day.popMax, fuente: fuenteClima(forecast) },
         municipio,
         fincaId,
       });
@@ -176,7 +218,7 @@ export async function generateWeatherAlerts(
         descripcion: `Se esperan vientos de ${day.windSpeed} km/h en ${municipio}. ${vulnText} Revise tutores y estacas de soporte.`,
         severidad: day.windSpeed >= 60 ? "ALTA" : "MEDIA",
         fechaInicio: fecha,
-        datos: { windSpeed: day.windSpeed, fuente: "OpenWeather" },
+        datos: { windSpeed: day.windSpeed, fuente: fuenteClima(forecast) },
         municipio,
         fincaId,
       });
@@ -192,7 +234,7 @@ export async function generateWeatherAlerts(
       descripcion: `El pronóstico muestra ${dryDays} días consecutivos sin lluvia significativa en ${municipio}. Para ${cropName} en ${cropStage.toLowerCase()}, aumente la frecuencia de riego y aplique mulching alrededor de las plantas.`,
       severidad: dryDays >= 8 ? "ALTA" : "MEDIA",
       fechaInicio: new Date(),
-      datos: { dryDays, fuente: "OpenWeather" },
+      datos: { dryDays, fuente: fuenteClima(forecast) },
       municipio,
       fincaId,
     });
@@ -274,7 +316,7 @@ export async function generatePlagaAlerts(
         tempMax: diaRiesgo.tempMax,
         rainMm: diaRiesgo.rainMm,
         umbral,
-        fuente: "OpenWeather + FichaTecnica",
+        fuente: `${fuenteClima(forecast)} + FichaTecnica`,
       },
       municipio,
       fincaId,
