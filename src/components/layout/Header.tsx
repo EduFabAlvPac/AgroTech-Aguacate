@@ -16,7 +16,14 @@ interface HeaderProps {
 export function Header({ title, subtitle }: HeaderProps) {
   const { data: session } = useSession();
   const { toggleSidebar, sidebarDisponible } = useSidebar();
-  const today = format(new Date(), "EEEE d 'de' MMMM yyyy", { locale: es });
+  // La fecha se calcula DESPUÉS de montar, en el navegador. Antes se calculaba
+  // durante el render: el servidor (UTC) y el navegador (Colombia, UTC-5)
+  // discrepaban entre las 7 p. m. y la medianoche (el servidor ya iba en el día
+  // siguiente) y React lanzaba el error de hidratación #418 en la consola.
+  const [today, setToday] = useState("");
+  useEffect(() => {
+    setToday(format(new Date(), "EEEE d 'de' MMMM yyyy", { locale: es }));
+  }, []);
 
   // Punto rojo de la campana: antes se mostraba siempre, sin importar si
   // había alertas reales sin leer. GET /api/alertas ya devuelve
