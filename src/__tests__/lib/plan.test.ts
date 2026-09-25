@@ -27,6 +27,17 @@ describe("estadoEfectivoOrg / puedeEscribir", () => {
     expect(estadoEfectivoOrg(org({ esTrial: true, trialFinEn: dias(-3), estadoPlan: "EN_TRIAL" }), AHORA)).toBe("TRIAL_VENCIDO");
   });
 
+  it("una organización EN PRUEBA VIGENTE puede suspenderse a mano (modo lectura); al reactivarla vuelve a escribir", () => {
+    const suspendida = org({ esTrial: true, trialFinEn: dias(10), estadoPlan: "SUSPENDIDA_PAGO" });
+    expect(estadoEfectivoOrg(suspendida, AHORA)).toBe("SUSPENDIDA");
+    expect(puedeEscribir(suspendida, AHORA)).toBe(false);
+    expect(puedeEscribir({ ...suspendida, estadoPlan: "EN_TRIAL" }, AHORA)).toBe(true);
+  });
+
+  it("prueba vencida gana sobre suspendida en la etiqueta (ambas son solo lectura)", () => {
+    expect(estadoEfectivoOrg(org({ esTrial: true, trialFinEn: dias(-2), estadoPlan: "SUSPENDIDA_PAGO" }), AHORA)).toBe("TRIAL_VENCIDO");
+  });
+
   it("trial sin fecha de fin (dato incompleto) no bloquea", () => {
     expect(puedeEscribir(org({ esTrial: true, trialFinEn: null }), AHORA)).toBe(true);
   });

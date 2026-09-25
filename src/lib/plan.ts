@@ -28,16 +28,14 @@ export interface OrgPlanInfo {
 export type EstadoEfectivo = "ACTIVA" | "EN_TRIAL" | "TRIAL_VENCIDO" | "SUSPENDIDA";
 
 export function estadoEfectivoOrg(org: OrgPlanInfo, ahora: Date = new Date()): EstadoEfectivo {
-  if (org.esTrial) {
-    // Sin fecha de fin (dato incompleto) no se bloquea nada: ante la duda, no
-    // dejar a una organización sin poder trabajar por un dato faltante.
-    return org.trialFinEn && org.trialFinEn.getTime() < ahora.getTime() ? "TRIAL_VENCIDO" : "EN_TRIAL";
-  }
-  // Organización pagada/individual: solo se bloquea si alguien la suspendió
-  // explícitamente. Las organizaciones existentes (estadoPlan ACTIVA, sin
-  // trial) no cambian de comportamiento.
+  // Sin fecha de fin (dato incompleto) no se bloquea nada: ante la duda, no
+  // dejar a una organización sin poder trabajar por un dato faltante.
+  if (org.esTrial && org.trialFinEn && org.trialFinEn.getTime() < ahora.getTime()) return "TRIAL_VENCIDO";
+  // Suspendida/cancelada (a mano por el Super Admin, o por impago) → modo
+  // lectura AUNQUE el trial siga vigente: antes una prueba vigente nunca podía
+  // suspenderse. Las organizaciones existentes (estadoPlan ACTIVA) no cambian.
   if (org.estadoPlan === "SUSPENDIDA_PAGO" || org.estadoPlan === "CANCELADA") return "SUSPENDIDA";
-  return "ACTIVA";
+  return org.esTrial ? "EN_TRIAL" : "ACTIVA";
 }
 
 /** ¿Puede la organización crear/editar/borrar datos? (los GET nunca se bloquean) */
@@ -78,6 +76,8 @@ export function nuevoFinTrial(trialFinEn: Date | null, dias: number, ahora: Date
 
 export const MENSAJE_MODO_LECTURA =
   "Tu prueba terminó — tu organización está en modo lectura. Contacta a GermIA para activar el plan Colectivo.";
+export const MENSAJE_SUSPENDIDA =
+  "Tu organización está suspendida y en modo lectura (puedes ver todo, pero no agregar ni editar). Contacta a GermIA para reactivarla.";
 export const MENSAJE_LIMITE_ASOCIADOS =
   "Llegaste al límite de asociados de tu prueba. Contacta a GermIA para activar el plan Colectivo y agregar más.";
 

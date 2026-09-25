@@ -13,7 +13,7 @@
  */
 import { db } from "./db";
 import { membresiaOwner } from "./equipo";
-import { puedeEscribir, puedeAgregarAsociado, MENSAJE_MODO_LECTURA, MENSAJE_LIMITE_ASOCIADOS } from "./plan";
+import { estadoEfectivoOrg, puedeEscribir, puedeAgregarAsociado, MENSAJE_MODO_LECTURA, MENSAJE_SUSPENDIDA, MENSAJE_LIMITE_ASOCIADOS } from "./plan";
 
 export async function motivoBloqueoEscritura(organizacionId: string): Promise<string | null> {
   const org = await db.organizacion.findUnique({
@@ -23,7 +23,8 @@ export async function motivoBloqueoEscritura(organizacionId: string): Promise<st
   // Sin fila (no debería pasar) no se bloquea: ante la duda, no dejar sin
   // poder trabajar a alguien por un dato que falta.
   if (!org) return null;
-  return puedeEscribir(org) ? null : MENSAJE_MODO_LECTURA;
+  if (puedeEscribir(org)) return null;
+  return estadoEfectivoOrg(org) === "SUSPENDIDA" ? MENSAJE_SUSPENDIDA : MENSAJE_MODO_LECTURA;
 }
 
 /** Igual, para el dueño de la organización ACTIVA de `userId` — para las

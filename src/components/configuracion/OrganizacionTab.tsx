@@ -116,7 +116,8 @@ export function OrganizacionTab({ organizacion: inicial, plan }: OrganizacionTab
       <div>
         <h2 className="text-[15px] font-semibold text-[var(--text-primary)] mb-1">Datos de tu organización</h2>
         <p className="text-[12px] text-[var(--text-muted)]">
-          Esta información identifica a tu organización dentro de GermIA — nombre, NIT y datos de contacto.
+          Esta información identifica a <b>tu</b> organización dentro de GermIA — nombre, NIT y datos de contacto. Solo tú y
+          las personas que invitas la ven.
         </p>
       </div>
 

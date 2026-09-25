@@ -41,7 +41,7 @@ async function resolverClaimsSesion(user: PrismaUser) {
   // panel "Equipo" (Fase 2) — igual que esSuperAdmin, es un hint para
   // el JWT/UI, no la autorización real (esa se re-verifica en la API).
   const esOwner = await db.membresia.findFirst({
-    where: { userId: user.id, rol: "OWNER", aceptada: true, activa: true },
+    where: { userId: user.id, rol: "OWNER", aceptada: true, activa: true, organizacion: { eliminadoEn: null } },
     select: { id: true },
   });
 
@@ -55,7 +55,7 @@ async function resolverClaimsSesion(user: PrismaUser) {
   // usuario — normalmente 1, rara vez más de 2-3 — no las de una
   // organización entera).
   const membresiasActivas = await db.membresia.findMany({
-    where: { userId: user.id, aceptada: true, activa: true },
+    where: { userId: user.id, aceptada: true, activa: true, organizacion: { eliminadoEn: null } },
     select: { organizacionId: true, rol: true, organizacion: { select: { tipo: true } } },
   });
   const membresias = membresiasActivas.flatMap((m) =>

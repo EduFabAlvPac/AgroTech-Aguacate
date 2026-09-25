@@ -65,7 +65,7 @@ describe("requireAccess() — aislamiento cross-tenant", () => {
     expect(error.message).toMatch(/no perteneces a la organización/i);
     expect(dbMock.membresia.findUnique).toHaveBeenCalledWith({
       where: { userId_organizacionId: { userId: USER, organizacionId: ORG_B } },
-      select: { rol: true, aceptada: true, activa: true },
+      select: { rol: true, aceptada: true, activa: true, organizacion: { select: { eliminadoEn: true } } },
     });
   });
 
@@ -197,5 +197,24 @@ describe("requireAccess() — modo lectura (trial vencido)", () => {
     dbMock.organizacion.findUnique.mockResolvedValue(trialVencido);
 
     await expect(requireAccess(SESSION, "gasto", "delete", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
+  });
+});
+
+describe("requireAccess() — organización eliminada (soft-delete del Super Admin)", () => {
+  it("nadie de una organización eliminada opera, ni siquiera su dueño, ni para leer", async () => {
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    dbMock.membresia.findUnique.mockResolvedValue({
+      rol: "OWNER", aceptada: true, activa: true, organizacion: { eliminadoEn: new Date() },
+    });
+    const error = await esperarAuthzError(requireAccess(SESSION, "gasto", "read", { fincaId: FINCA_A1 }));
+    expect(error.message).toMatch(/fue eliminada/i);
+  });
+
+  it("una organización no eliminada (eliminadoEn null) sigue igual", async () => {
+    dbMock.finca.findUnique.mockResolvedValue({ organizacionId: ORG_A });
+    dbMock.membresia.findUnique.mockResolvedValue({
+      rol: "OWNER", aceptada: true, activa: true, organizacion: { eliminadoEn: null },
+    });
+    await expect(requireAccess(SESSION, "gasto", "read", { fincaId: FINCA_A1 })).resolves.toBeUndefined();
   });
 });
