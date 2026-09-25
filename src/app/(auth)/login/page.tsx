@@ -4,7 +4,16 @@ import { useEffect, useState } from "react";
 import { RoleSelector, type RolLogin } from "@/components/auth/RoleSelector";
 import { LoginCampesinoForm } from "@/components/auth/LoginCampesinoForm";
 import { LoginEstandarForm } from "@/components/auth/LoginEstandarForm";
+import toast from "react-hot-toast";
 import { LoginGoogleMfaForm } from "@/components/auth/LoginGoogleMfaForm";
+
+const ERRORES_LOGIN: Record<string, string> = {
+  AccessDenied: "Esa cuenta de Google no está registrada en GermIA. Pídele acceso a quien administra tu organización o entra con tu correo y contraseña.",
+  OAuthSignin: "No pudimos iniciar con Google. Intenta de nuevo o entra con tu correo y contraseña.",
+  OAuthCallback: "No pudimos completar el ingreso con Google. Intenta de nuevo o entra con tu correo y contraseña.",
+  Configuration: "El ingreso con Google no está disponible en este momento. Entra con tu correo y contraseña.",
+  default: "No pudimos iniciar sesión. Intenta de nuevo o entra con tu correo y contraseña.",
+};
 
 export default function LoginPage() {
   // Sin selección por defecto (hallazgo del usuario, 2026-08-26): antes
@@ -17,6 +26,14 @@ export default function LoginPage() {
   const [pruebaGoogle, setPruebaGoogle] = useState<string | null>(null);
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
+    // NextAuth devuelve acá cualquier fallo del login social como `?error=`;
+    // antes la pantalla lo ignoraba y "no pasaba nada".
+    const error = q.get("error");
+    if (error) {
+      toast.error(ERRORES_LOGIN[error] ?? ERRORES_LOGIN.default);
+      setRol("otro");
+      window.history.replaceState(null, "", "/login");
+    }
     const p = q.get("p");
     if (q.get("mfa") === "google" && p) {
       setPruebaGoogle(p);

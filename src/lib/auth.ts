@@ -18,6 +18,7 @@ import {
 import { firmarPruebaGoogle, verificarPruebaGoogle } from "./google-mfa";
 import { leerCookieDispositivo, DISPOSITIVO_VIGENCIA_DIAS } from "./campesino-vinculacion";
 import { hashToken } from "./tokens";
+import { limpiarValorEnv } from "./env-limpia";
 import { desencriptarSecreto, verificarCodigoTOTP, verificarYConsumirCodigoRespaldo } from "./mfa";
 import {
   crearSesion,
@@ -100,6 +101,17 @@ async function resolverClaimsSesion(user: PrismaUser) {
     // llegar acá) — es solo el estado actual de la cuenta, para la UI.
     mfaHabilitado: user.mfaHabilitado,
   };
+}
+
+const GOOGLE_CLIENT_ID = limpiarValorEnv("GOOGLE_CLIENT_ID", process.env.GOOGLE_CLIENT_ID);
+const GOOGLE_CLIENT_SECRET = limpiarValorEnv("GOOGLE_CLIENT_SECRET", process.env.GOOGLE_CLIENT_SECRET);
+/** Sin credenciales NO se registra el provider: antes se registraba con
+ * clientId "" y el botón "Continuar con Google" se mostraba pero fallaba en
+ * silencio (NextAuth redirigía a /login?error=OAuthSignin y la pantalla no
+ * decía nada) — el login le "hacía clic y no pasaba nada". */
+export const googleConfigurado = !!(GOOGLE_CLIENT_ID && GOOGLE_CLIENT_SECRET);
+if (!googleConfigurado) {
+  console.warn("[auth] GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET no configuradas — el login con Google queda deshabilitado.");
 }
 
 /**
@@ -357,10 +369,7 @@ export const authOptions: NextAuthOptions = {
     // signIn()/jwt() de abajo interceptan manualmente para (a) prohibir
     // autoregistro y (b) inyectar los mismos claims custom que ya produce
     // resolverClaimsSesion().
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    }),
+    ...(googleConfigurado ? [GoogleProvider({ clientId: GOOGLE_CLIENT_ID, clientSecret: GOOGLE_CLIENT_SECRET })] : []),
   ],
   callbacks: {
     async signIn({ user, account }) {
