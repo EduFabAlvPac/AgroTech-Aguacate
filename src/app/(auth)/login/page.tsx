@@ -66,7 +66,7 @@ export default function LoginPage() {
       </aside>
 
       <main className="flex flex-col min-h-screen">
-        <div className="flex-1 flex flex-col justify-center w-full max-w-md mx-auto px-5 sm:px-8 py-6">
+        <div className="flex-1 flex flex-col justify-start w-full max-w-md mx-auto px-5 sm:px-8 pt-6 lg:pt-8 pb-6">
           {/* Logo — lockup completo (ícono + wordmark): la imagen ya trae
               "GermIA" escrito, un <h1> aparte repitiendo el nombre quedaría
               redundante. Más chico que antes: en celular ocupaba ~40% de la
@@ -90,16 +90,21 @@ export default function LoginPage() {
 
           <RoleSelector value={rol} onChange={setRol} />
 
-          {rol === null && (
-            <p className="text-center text-[13px] text-[var(--text-secondary)] -mt-1 mb-2">
-              Toca una de las dos opciones para continuar
-            </p>
-          )}
-          {rol === "campesino" && <LoginCampesinoForm />}
-          {rol === "otro" && !pruebaGoogle && <LoginEstandarForm />}
-          {rol === "otro" && pruebaGoogle && <LoginGoogleMfaForm pendiente={pruebaGoogle} onVolver={volverDeGoogle} />}
+          {/* Alto mínimo = el del formulario más alto (correo + contraseña): así el
+              logo, las tarjetas y el pie NO se mueven al cambiar entre opciones
+              (antes el bloque estaba centrado en vertical y "saltaba"). */}
+          <div className="min-h-[21rem]">
+            {rol === null && (
+              <p className="text-center text-[13px] text-[var(--text-secondary)] -mt-1 mb-2">
+                Toca una de las dos opciones para continuar
+              </p>
+            )}
+            {rol === "campesino" && <LoginCampesinoForm />}
+            {rol === "otro" && !pruebaGoogle && <LoginEstandarForm />}
+            {rol === "otro" && pruebaGoogle && <LoginGoogleMfaForm pendiente={pruebaGoogle} onVolver={volverDeGoogle} />}
+          </div>
 
-          <div className="mt-8 pt-4 border-t border-[var(--border-subtle)] text-center">
+          <div className="mt-4 pt-4 border-t border-[var(--border-subtle)] text-center">
             <p className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-agro-600">
               <ShieldCheck size={15} /> Datos seguros y privados
             </p>
