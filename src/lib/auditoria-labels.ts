@@ -26,6 +26,7 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "organizacion.reactivar": "▶️ Organización reactivada",
   "organizacion.eliminar": "🗑️ Organización eliminada",
   "organizacion.restaurar": "♻️ Organización restaurada",
+  "finca.eliminar": "🗑️ Finca eliminada",
   "organizacion.crear": "🏢 Organización creada",
   "organizacion.extender_trial": "⏳ Prueba extendida (Super Admin)",
   "organizacion.activar_plan": "✅ Plan Colectivo activado (Super Admin)",

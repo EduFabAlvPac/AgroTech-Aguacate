@@ -10,7 +10,9 @@ informes de la sesión (no versionados); los cambios quedan explicados en cada P
 |---|---|---|
 | 1 | **Alertas**: "marcar todas como leídas" persiste; sin pronóstico inventado en producción; dedupe por finca y por asunto; errores mudos | ✅ este PR |
 | 1b | Alertas: caducidad y purga (cron de retención) + índices | pendiente |
-| 2 | **Borrados**: mensajes claros al eliminar finca/lote/cultivo (bloquear con explicación), eliminar cuenta con gastos y cuentas Google, auditar cada borrado | pendiente |
+| 2a | **Eliminar finca**: bloquea con mensaje que dice qué la bloquea (lotes/cultivos/gastos/ingresos/jornales/presupuestos), reglas únicas para acción y API, Super Admin exento de "única finca", auditado | ✅ |
+| 2b | Eliminar lote/cultivo/gasto/comprador con mensajes claros; eliminar cuenta con gastos y cuentas Google | pendiente |
+| 2c | Error de hidratación #418 (fecha del Header calculada en el servidor en UTC) | ✅ |
 | 3 | **Aislamiento**: IDOR en gastos/jornales (ids de otra finca), `iniciarActivacionMfa` con MFA activo, ingreso sin `requireAccess` | pendiente |
 
 ## Ola 2 — seguridad transversal y producto

@@ -303,8 +303,9 @@ export function FincasTab({ fincas, fincaActivaId, puedeCrear }: FincasTabProps)
         {eliminando && (
           <div className="space-y-4">
             <p className="text-[13px] text-[var(--text-secondary)]">
-              ¿Eliminar <strong>{eliminando.nombre}</strong>? Esta acción no se puede deshacer. Si la finca tiene
-              lotes registrados, primero debes eliminarlos desde Cultivos o el Mapa.
+              ¿Eliminar <strong>{eliminando.nombre}</strong>? Esta acción no se puede deshacer. Solo se puede eliminar
+              una finca que ya no tenga lotes, cultivos, gastos, ingresos ni presupuestos; si los tiene, te diremos
+              cuáles son.
             </p>
             <div className="flex gap-3 justify-end pt-2">
               <Button variant="secondary" onClick={() => setEliminando(null)}>

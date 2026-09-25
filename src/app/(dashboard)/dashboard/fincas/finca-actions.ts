@@ -15,6 +15,8 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { evaluarBorradoFinca, mensajeErrorBorrado } from "@/lib/finca-borrado";
+import { registrarAuditoria } from "@/lib/audit";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import type { Finca } from "@prisma/client";
 
@@ -124,31 +126,34 @@ export async function eliminarFinca(_prev: EliminarFincaState, fincaId: string):
   if (!session?.user?.id) return { error: "No autorizado" };
 
   try {
-    const finca = await db.finca.findUnique({
-      where: { id: fincaId },
-      select: { id: true, organizacionId: true, _count: { select: { lotes: true } } },
-    });
-    if (!finca) return { error: "Finca no encontrada" };
+    const existe = await db.finca.findUnique({ where: { id: fincaId }, select: { id: true } });
+    if (!existe) return { error: "Finca no encontrada" };
     await requireAccess(session, "finca", "delete", { fincaId });
 
-    // No dejar la organización sin ninguna finca.
-    if (finca.organizacionId) {
-      const totalFincas = await db.finca.count({ where: { organizacionId: finca.organizacionId } });
-      if (totalFincas <= 1) return { error: "No puedes eliminar tu única finca" };
-    }
-
-    // Protección: no eliminar una finca con lotes (mismo criterio que ya
-    // existe para Lote — "no se puede eliminar si tiene cultivos activos").
-    if (finca._count.lotes > 0) {
-      return { error: `Esta finca tiene ${finca._count.lotes} lote(s) registrados. Elimínalos primero desde Cultivos/Mapa.` };
-    }
+    // Una sola fuente de reglas (src/lib/finca-borrado.ts): bloquea con un
+    // mensaje que dice QUÉ la bloquea. El Super Admin queda exento de la regla
+    // "no dejar a la organización sin ninguna finca".
+    const esSuperAdmin = !!(await db.user.findUnique({ where: { id: session.user.id }, select: { esSuperAdmin: true } }))?.esSuperAdmin;
+    const evaluacion = await evaluarBorradoFinca(fincaId, esSuperAdmin);
+    if (!evaluacion.permitido) return { error: evaluacion.mensaje };
 
     await db.finca.delete({ where: { id: fincaId } });
+    await registrarAuditoria({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      accion: "finca.eliminar",
+      detalle: { nombre: evaluacion.nombre },
+      organizacionId: evaluacion.organizacionId,
+      recurso: "Finca",
+      recursoId: fincaId,
+    });
     revalidatePath("/dashboard");
+    revalidatePath("/dashboard/configuracion");
+    revalidatePath("/dashboard/fincas");
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarFinca]", error);
-    return { error: "Error al eliminar la finca" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar la finca. Intenta de nuevo; si sigue igual, contáctanos." };
   }
 }
