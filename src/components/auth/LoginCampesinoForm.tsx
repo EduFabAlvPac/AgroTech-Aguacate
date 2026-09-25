@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Phone } from "lucide-react";
 import toast from "react-hot-toast";
 import { MENSAJE_RATE_LIMIT, MENSAJE_CAMPESINO_REQUIERE_CODIGO } from "@/lib/auth-shared";
 
@@ -124,20 +123,27 @@ export function LoginCampesinoForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
-          Número de celular
+        <label htmlFor="telefono-campesino" className="block text-[14px] font-medium text-[var(--text-primary)] mb-1.5">
+          Tu número de celular
         </label>
-        <div className="relative">
-          <Phone size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
+        <div className="flex items-stretch border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus-within:ring-2 focus-within:ring-agro-200 focus-within:border-agro-400 transition-all overflow-hidden">
+          {/* Prefijo de Colombia — solo visual: el celular se guarda y se busca
+              normalizado sin indicativo (src/lib/telefono.ts), así que lo que se
+              envía sigue siendo únicamente lo que la persona escribe. */}
+          <span className="flex items-center gap-2 px-3 bg-[var(--surface-page)] border-r border-[var(--border-default)] text-[16px] font-medium text-[var(--text-primary)] shrink-0">
+            <span aria-hidden="true" className="inline-block w-6 h-4 rounded-[2px] overflow-hidden" style={{ background: "linear-gradient(#FCD116 50%, #003893 50% 75%, #CE1126 75%)" }} />
+            +57
+          </span>
           <input
+            id="telefono-campesino"
             type="tel"
             inputMode="numeric"
-            autoComplete="tel"
+            autoComplete="tel-national"
             value={telefono}
             onChange={(e) => setTelefono(e.target.value)}
             placeholder="300 123 4567"
             required
-            className="w-full pl-9 pr-4 py-3 text-[15px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
+            className="flex-1 min-w-0 px-3 py-3.5 text-[18px] bg-transparent focus:outline-none"
           />
         </div>
       </div>
@@ -145,9 +151,9 @@ export function LoginCampesinoForm() {
       <button
         type="submit"
         disabled={loading || telefono.trim().length < 7}
-        className="w-full py-3 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[15px] font-semibold rounded-[var(--radius-md)] transition-colors"
+        className="w-full py-3.5 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[16px] font-semibold rounded-[var(--radius-md)] transition-colors"
       >
-        {loading ? "Ingresando..." : "Continuar"}
+        {loading ? "Ingresando..." : "Continuar →"}
       </button>
     </form>
   );

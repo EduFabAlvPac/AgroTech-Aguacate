@@ -126,10 +126,10 @@ export function LoginEstandarForm() {
         className="space-y-4"
       >
         <div>
-          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
+          <label className="block text-[14px] font-medium text-[var(--text-primary)] mb-1.5">
             Código de verificación
           </label>
-          <p className="text-[12px] text-[var(--text-muted)] mb-2">
+          <p className="text-[13px] text-[var(--text-secondary)] mb-2">
             Abre tu app de autenticación (Google Authenticator o similar) e ingresa el código de 6 dígitos, o un
             código de respaldo si no tienes acceso a la app.
           </p>
@@ -148,7 +148,7 @@ export function LoginEstandarForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[14px] font-semibold rounded-[var(--radius-md)] transition-colors"
+          className="w-full py-3 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[15px] font-semibold rounded-[var(--radius-md)] transition-colors"
         >
           {loading ? "Verificando..." : "Verificar e ingresar"}
         </button>
@@ -174,7 +174,7 @@ export function LoginEstandarForm() {
         <button
           type="button"
           onClick={() => signIn("google", { callbackUrl: "/dashboard" })}
-          className="w-full flex items-center justify-center gap-2.5 py-2.5 mb-4 border border-[var(--border-default)] rounded-[var(--radius-md)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-gray)] transition-colors"
+          className="w-full flex items-center justify-center gap-2.5 py-3 mb-4 border border-[var(--border-default)] rounded-[var(--radius-md)] text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--surface-gray)] transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 48 48" aria-hidden="true">
             <path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.1 8 3l6-6C34.5 5.1 29.5 3 24 3 12.4 3 3 12.4 3 24s9.4 21 21 21 21-9.4 21-21c0-1.4-.1-2.7-.4-3.5z" />
@@ -196,7 +196,7 @@ export function LoginEstandarForm() {
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* Email */}
         <div>
-          <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">
+          <label className="block text-[14px] font-medium text-[var(--text-primary)] mb-1.5">
             Correo electrónico
           </label>
           <div className="relative">
@@ -207,7 +207,7 @@ export function LoginEstandarForm() {
               onChange={(e) => setForm({ ...form, email: e.target.value })}
               placeholder="tu@email.com"
               required
-              className="w-full pl-9 pr-4 py-2.5 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
+              className="w-full pl-9 pr-4 py-3 text-[16px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
             />
           </div>
         </div>
@@ -216,7 +216,7 @@ export function LoginEstandarForm() {
         <div>
           <div className="flex items-center justify-between mb-1.5">
             <label className="text-[13px] font-medium text-[var(--text-secondary)]">Contraseña</label>
-            <Link href="/recuperar" className="text-[12px] font-medium text-agro-600 hover:text-agro-800">
+            <Link href="/recuperar" className="text-[13px] font-medium text-agro-600 hover:text-agro-800">
               ¿Olvidaste tu contraseña?
             </Link>
           </div>
@@ -228,7 +228,7 @@ export function LoginEstandarForm() {
               onChange={(e) => setForm({ ...form, password: e.target.value })}
               placeholder="••••••••"
               required
-              className="w-full pl-9 pr-10 py-2.5 text-[13px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
+              className="w-full pl-9 pr-10 py-3 text-[16px] border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
             />
             <button
               type="button"
@@ -245,7 +245,7 @@ export function LoginEstandarForm() {
             type="button"
             onClick={reenviarVerificacion}
             disabled={reenviando}
-            className="w-full text-[12px] font-medium text-agro-600 hover:text-agro-800 disabled:opacity-60 py-1"
+            className="w-full text-[13px] font-medium text-agro-600 hover:text-agro-800 disabled:opacity-60 py-1"
           >
             {reenviando ? "Reenviando..." : "Reenviar correo de verificación"}
           </button>
@@ -255,21 +255,21 @@ export function LoginEstandarForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full py-2.5 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[14px] font-semibold rounded-[var(--radius-md)] transition-colors mt-2"
+          className="w-full py-3 bg-agro-600 hover:bg-agro-800 disabled:opacity-60 text-white text-[15px] font-semibold rounded-[var(--radius-md)] transition-colors mt-2"
         >
           {loading ? "Ingresando..." : "Ingresar"}
         </button>
       </form>
 
-      <p className="text-center text-[12px] text-[var(--text-muted)] mt-5">
+      <p className="text-center text-[14px] text-[var(--text-secondary)] mt-5">
         ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-semibold text-agro-600 hover:text-agro-800">
+        <Link href="/registro" className="font-semibold text-agro-600 hover:text-agro-800 underline-offset-2 hover:underline">
           Regístrate
         </Link>
       </p>
-      <p className="text-center text-[12px] text-[var(--text-muted)] mt-2">
+      <p className="text-center text-[14px] text-[var(--text-secondary)] mt-2">
         ¿Eres una cooperativa o gremio?{" "}
-        <Link href="/registrarse-colectivo" className="font-semibold text-agro-600 hover:text-agro-800">
+        <Link href="/registrarse-colectivo" className="font-semibold text-agro-600 hover:text-agro-800 underline-offset-2 hover:underline">
           Regístrala aquí
         </Link>
       </p>
