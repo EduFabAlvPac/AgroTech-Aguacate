@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { resolverVariedad } from "@/lib/fichas-tecnicas";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { motivoBloqueoBorradoLote, motivoBloqueoBorradoCultivo, auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 // Ya no filtra por userId — la autorización real la hace requireAccess()
 // contra el fincaId del lote (Fase 2). Sigue sirviendo para saber si existe
@@ -123,7 +125,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     if (!existente) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
     await requireAccess(session, "cultivo", "delete", { fincaId: existente.lote.fincaId });
 
+    const nombre = `${existente.especie} ${existente.variedad}`;
+    const bloqueo = await motivoBloqueoBorradoCultivo(id, nombre);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 409 });
+
     await db.cultivo.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "cultivo.eliminar", recurso: "Cultivo", recursoId: id, fincaId: existente.lote.fincaId, detalle: { nombre } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });

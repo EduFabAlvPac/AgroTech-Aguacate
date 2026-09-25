@@ -33,3 +33,11 @@ validación y límites en endpoints de IA · portal público de compradores.
 - Orden: Ola 1 completa (alertas → borrados → aislamiento).
 - Eliminar finca con gastos/presupuestos/jornales: **bloquear con un mensaje
   claro** (qué la bloquea y qué hacer), no borrar en cascada.
+
+
+## Actualización — borrados (PR «borrados 2b»)
+
+- Lote/cultivo con **ingresos, jornales o inversiones de inversionistas** ya no se borran en silencio (dejaban ingresos/jornales huérfanos e invisibles y borraban en cascada el aporte de inversionistas): se bloquean con mensaje claro (409). Los gastos no bloquean (tienen `fincaId`).
+- Borrar lote, cultivo, gasto, ingreso y comprador ahora deja **auditoría** (`*.eliminar`), y los errores de base de datos se traducen a mensajes humanos (`mensajeErrorBorrado`).
+- Lógica única en `src/lib/borrado-guardas.ts` para las Server Actions y las rutas API gemelas.
+- Pendiente de esta ola: eliminar cuenta (gastos/presupuestos, usuarios solo-Google) y aislamiento (IDOR gastos/jornales).

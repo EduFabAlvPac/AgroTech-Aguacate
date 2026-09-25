@@ -28,6 +28,8 @@ import { resolverFincaActiva } from "@/lib/finca-activa";
 import { loteCreateWithGeoSchema, loteUpdateWithGeoSchema, geoJsonPolygonSchema } from "@/lib/validations";
 import { Prisma } from "@prisma/client";
 import type { Lote } from "@prisma/client";
+import { motivoBloqueoBorradoLote, motivoBloqueoBorradoCultivo, auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 function parseGeoJson(fd: FormData): { present: boolean; value?: Prisma.InputJsonValue | null; error?: string } {
   if (!fd.has("geoJson")) return { present: false };
@@ -142,7 +144,7 @@ export async function actualizarLote(
   if (!parsed.success) return { fieldErrors: fieldErrorsFromZod(parsed.error.issues) };
 
   try {
-    const existente = await db.lote.findUnique({ where: { id: loteId }, select: { id: true, fincaId: true } });
+    const existente = await db.lote.findUnique({ where: { id: loteId }, select: { id: true, fincaId: true, nombre: true } });
     if (!existente) return { error: "Lote no encontrado" };
     await requireAccess(session, "lote", "update", { fincaId: existente.fincaId });
 
@@ -183,7 +185,7 @@ export async function eliminarLote(loteId: string, _prev: EliminarLoteState): Pr
   if (!session?.user?.id) return { error: "No autorizado" };
 
   try {
-    const existente = await db.lote.findUnique({ where: { id: loteId }, select: { id: true, fincaId: true } });
+    const existente = await db.lote.findUnique({ where: { id: loteId }, select: { id: true, fincaId: true, nombre: true } });
     if (!existente) return { error: "Lote no encontrado" };
     await requireAccess(session, "lote", "delete", { fincaId: existente.fincaId });
 
@@ -192,7 +194,11 @@ export async function eliminarLote(loteId: string, _prev: EliminarLoteState): Pr
       return { error: "Existen cultivos activos en este lote. Finaliza o pausa los cultivos antes de eliminar." };
     }
 
+    const bloqueo = await motivoBloqueoBorradoLote(loteId, existente.nombre);
+    if (bloqueo) return { error: bloqueo };
+
     await db.lote.delete({ where: { id: loteId } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "lote.eliminar", recurso: "Lote", recursoId: loteId, fincaId: existente.fincaId, detalle: { nombre: existente.nombre } });
     revalidatePath("/dashboard/cultivos");
     revalidatePath("/dashboard/mapa");
     revalidatePath("/dashboard");
@@ -200,6 +206,6 @@ export async function eliminarLote(loteId: string, _prev: EliminarLoteState): Pr
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarLote]", error);
-    return { error: "Error interno" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar el lote. Inténtalo de nuevo." };
   }
 }

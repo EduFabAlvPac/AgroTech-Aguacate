@@ -20,6 +20,8 @@ import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { ingresoFormSchema } from "@/lib/validations";
 import type { IngresoWithRelations } from "@/types";
+import { auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 const ingresoInclude = { comprador: true, cultivo: { include: { lote: true } } };
 
@@ -146,6 +148,7 @@ export async function eliminarIngreso(_prev: EliminarIngresoState, ingresoId: st
     await requireAccess(session, "ingreso", "delete", fincaId ? { fincaId } : {});
 
     await db.ingreso.delete({ where: { id: ingresoId } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "ingreso.eliminar", recurso: "Ingreso", recursoId: ingresoId, fincaId, detalle: { concepto: existente.concepto, monto: existente.monto } });
 
     revalidatePath("/dashboard/finanzas");
     revalidatePath("/dashboard");
@@ -153,6 +156,6 @@ export async function eliminarIngreso(_prev: EliminarIngresoState, ingresoId: st
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarIngreso]", error);
-    return { error: "Error al eliminar el ingreso" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar el ingreso. Inténtalo de nuevo." };
   }
 }

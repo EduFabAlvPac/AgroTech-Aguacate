@@ -18,6 +18,8 @@ import { requireAccess, AuthzError } from "@/lib/authz";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { compradorFormSchema } from "@/lib/validations";
 import type { Comprador, TipoComprador } from "@prisma/client";
+import { auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 export interface CompradorActionState {
   error?: string;
@@ -190,16 +192,17 @@ export async function eliminarComprador(_prev: EliminarCompradorState, comprador
   if (!session?.user?.id) return { error: "No autorizado" };
 
   try {
-    const existente = await db.comprador.findUnique({ where: { id: compradorId }, select: { fincaId: true } });
+    const existente = await db.comprador.findUnique({ where: { id: compradorId }, select: { fincaId: true, nombre: true } });
     if (!existente || !existente.fincaId) return { error: "No encontrado" };
     await requireAccess(session, "comprador", "delete", { fincaId: existente.fincaId });
 
     await db.comprador.delete({ where: { id: compradorId } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "comprador.eliminar", recurso: "Comprador", recursoId: compradorId, fincaId: existente.fincaId, detalle: { nombre: existente.nombre } });
     revalidatePath("/dashboard/compradores");
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarComprador]", error);
-    return { error: "Error al eliminar el comprador" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar el comprador. Inténtalo de nuevo." };
   }
 }

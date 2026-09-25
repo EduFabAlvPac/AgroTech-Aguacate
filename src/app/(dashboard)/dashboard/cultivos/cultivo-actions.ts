@@ -22,6 +22,8 @@ import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { resolverVariedad } from "@/lib/fichas-tecnicas";
 import type { Cultivo, EtapaCultivo, EstadoCultivo } from "@prisma/client";
+import { motivoBloqueoBorradoLote, motivoBloqueoBorradoCultivo, auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 const cultivoInclude = {
   lote: { include: { finca: true } },
@@ -198,13 +200,18 @@ export async function eliminarCultivo(cultivoId: string, _prev: EliminarCultivoS
     if (!existente) return { error: "No encontrado" };
     await requireAccess(session, "cultivo", "delete", { fincaId: existente.lote.fincaId });
 
+    const nombre = `${existente.especie} ${existente.variedad}`;
+    const bloqueo = await motivoBloqueoBorradoCultivo(cultivoId, nombre);
+    if (bloqueo) return { error: bloqueo };
+
     await db.cultivo.delete({ where: { id: cultivoId } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "cultivo.eliminar", recurso: "Cultivo", recursoId: cultivoId, fincaId: existente.lote.fincaId, detalle: { nombre } });
     revalidatePath("/dashboard/cultivos");
     revalidatePath("/dashboard");
     return { ok: true };
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarCultivo]", error);
-    return { error: "Error interno" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar el cultivo. Inténtalo de nuevo." };
   }
 }

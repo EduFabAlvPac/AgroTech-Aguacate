@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { auditarBorrado } from "@/lib/borrado-guardas";
 
 // Trae el ingreso con el contexto necesario para autorizar: ligado a un
 // cultivo o a un comprador, ambos scopeados por finca/organización (RBAC
@@ -148,6 +149,7 @@ export async function DELETE(
     await verificarAcceso(session as { user: { id: string } }, existing, "delete");
 
     await db.ingreso.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "ingreso.eliminar", recurso: "Ingreso", recursoId: id, fincaId: existing.cultivo?.lote.fincaId ?? existing.comprador?.fincaId, detalle: { concepto: existing.concepto, monto: existing.monto } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });

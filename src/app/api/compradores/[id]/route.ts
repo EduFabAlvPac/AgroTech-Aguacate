@@ -3,11 +3,12 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { auditarBorrado } from "@/lib/borrado-guardas";
 
 // Ya no filtra por userId — la autorización real la hace requireAccess()
 // contra el fincaId del comprador (Fase 2).
 async function fetchCompradorConFinca(id: string) {
-  return db.comprador.findUnique({ where: { id }, select: { id: true, fincaId: true } });
+  return db.comprador.findUnique({ where: { id }, select: { id: true, fincaId: true, nombre: true } });
 }
 
 // GET /api/compradores/[id]
@@ -89,6 +90,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await requireAccess(session, "comprador", "delete", { fincaId: existente.fincaId });
 
     await db.comprador.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "comprador.eliminar", recurso: "Comprador", recursoId: id, fincaId: existente.fincaId, detalle: { nombre: existente.nombre } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
