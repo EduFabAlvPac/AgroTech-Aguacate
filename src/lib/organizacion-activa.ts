@@ -98,7 +98,7 @@ export async function listarOrganizacionesDeUsuario(userId: string): Promise<Org
  */
 export async function membresiaOwnerActiva(userId: string): Promise<{ organizacionId: string } | null> {
   const membresias = await db.membresia.findMany({
-    where: { userId, aceptada: true, activa: true },
+    where: { userId, aceptada: true, activa: true, organizacion: { eliminadoEn: null } },
     select: { organizacionId: true, rol: true, esRolPrimario: true, createdAt: true },
   });
   const activa = elegirOrganizacionActiva(membresias, await leerCookieOrgActiva());
@@ -111,7 +111,7 @@ export async function membresiaOwnerActiva(userId: string): Promise<{ organizaci
  * la organización de OWNER más antigua. */
 export async function membresiaOwnerSinContexto(userId: string): Promise<{ organizacionId: string } | null> {
   const m = await db.membresia.findFirst({
-    where: { userId, rol: "OWNER", aceptada: true, activa: true },
+    where: { userId, rol: "OWNER", aceptada: true, activa: true, organizacion: { eliminadoEn: null } },
     select: { organizacionId: true },
     orderBy: { createdAt: "asc" },
   });

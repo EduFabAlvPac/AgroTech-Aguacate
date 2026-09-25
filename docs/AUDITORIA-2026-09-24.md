@@ -16,7 +16,9 @@ informes de la sesión (no versionados); los cambios quedan explicados en cada P
 | 3 | **Aislamiento**: IDOR en gastos/jornales (ids de otra finca), `iniciarActivacionMfa` con MFA activo, ingreso sin `requireAccess` | pendiente |
 
 ## Ola 2 — seguridad transversal y producto
-Cabeceras de seguridad · rate limit por IP en login y normalizar correo · política
+**Hecho:** panel de Organizaciones completo (consultar, editar, suspender/reactivar, eliminar lógico + restaurar, con enforcement), insignia real de alertas, etiquetas de organización unificadas.
+
+Pendiente de esta ola: cabeceras de seguridad · rate limit por IP en login y normalizar correo · política
 de contraseña y revocar sesiones al cambiarla · escapar HTML de correos ·
 campesinos antiguos con `requiereVinculacion` · panel de Organizaciones completo
 (detalle, editar, suspender/reactivar, eliminar lógico con enforcement) ·

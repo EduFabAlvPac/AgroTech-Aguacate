@@ -58,9 +58,11 @@ interface SidebarProps {
   modulosPermitidos?: string[] | "ALL";
   organizaciones?: OrganizacionOption[];
   organizacionActivaId?: string | null;
+  /** Alertas activas sin leer de la finca activa (badge del menú). */
+  alertasNoLeidas?: number;
 }
 
-export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPermitidos: modulosProp, organizaciones = [], organizacionActivaId = null }: SidebarProps) {
+export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPermitidos: modulosProp, organizaciones = [], organizacionActivaId = null, alertasNoLeidas = 0 }: SidebarProps) {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { sidebarOpen, setSidebarOpen, collapsed, toggleCollapsed } = useSidebar();
@@ -104,7 +106,7 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
       // mismo criterio de acceso que Fichas técnicas.
       { href: "/dashboard/admin/precios-mercado", icon: LineChart, label: "Precios de mercado" },
       { href: "/dashboard/admin/productos-tienda", icon: ShoppingBag, label: "Tienda (insumos)" },
-      { href: "/dashboard/admin/organizaciones", icon: Building2, label: "Organizaciones" },
+      { href: "/dashboard/admin/organizaciones", icon: Building2, label: "Organizaciones (todas)" },
       { href: "/dashboard/admin/auditoria", icon: History, label: "Auditoría" },
     ];
   }
@@ -188,9 +190,11 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
                 )}
               />
               {!collapsed && label}
-              {!collapsed && label === "Alertas" && (
-                <span className="ml-auto w-5 h-5 rounded-full bg-negative-400 text-white text-[10px] flex items-center justify-center font-semibold">
-                  1
+              {/* Conteo REAL de alertas sin leer de la finca activa (antes era un "1"
+                  fijo que nunca cambiaba). Sin alertas sin leer, no se muestra. */}
+              {!collapsed && label === "Alertas" && alertasNoLeidas > 0 && (
+                <span className="ml-auto min-w-5 h-5 px-1 rounded-full bg-negative-400 text-white text-[10px] flex items-center justify-center font-semibold">
+                  {alertasNoLeidas > 99 ? "99+" : alertasNoLeidas}
                 </span>
               )}
             </Link>

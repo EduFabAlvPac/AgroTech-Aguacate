@@ -129,18 +129,25 @@ export default async function DashboardLayout({
     rol: o.rol,
   }));
 
-  // Trial de la organización ACTIVA (si lo es): días restantes o modo lectura.
+  // Estado de la organización ACTIVA: prueba (días / vencida) o suspendida por
+  // el Super Admin — ambas dejan la organización en modo lectura.
   const orgActiva = contexto.activa?.organizacion;
-  const trial = orgActiva?.esTrial
-    ? (() => {
-        const info = { esTrial: true, trialFinEn: orgActiva.trialFinEn, estadoPlan: orgActiva.estadoPlan, trialMaxAsociados: null, limiteAsociadosPlan: null };
-        return {
-          nombre: orgActiva.nombre,
-          dias: diasRestantesTrial(info),
-          vencido: estadoEfectivoOrg(info) === "TRIAL_VENCIDO",
-        };
-      })()
+  const infoOrg = orgActiva
+    ? { esTrial: orgActiva.esTrial, trialFinEn: orgActiva.trialFinEn, estadoPlan: orgActiva.estadoPlan, trialMaxAsociados: null, limiteAsociadosPlan: null }
     : null;
+  const estadoOrg = infoOrg ? estadoEfectivoOrg(infoOrg) : null;
+  const trial = orgActiva && infoOrg && (orgActiva.esTrial || estadoOrg === "SUSPENDIDA")
+    ? {
+        nombre: orgActiva.nombre,
+        dias: orgActiva.esTrial ? diasRestantesTrial(infoOrg) : null,
+        vencido: estadoOrg === "TRIAL_VENCIDO",
+        suspendida: estadoOrg === "SUSPENDIDA",
+      }
+    : null;
+
+  const alertasNoLeidas = fincaActivaId
+    ? await db.alertaClimatica.count({ where: { fincaId: fincaActivaId, activa: true, leida: false } })
+    : 0;
 
   const fincas = await db.finca.findMany({
     where: fincaIds === "ALL" ? undefined : { id: { in: fincaIds } },
@@ -154,7 +161,7 @@ export default async function DashboardLayout({
         <div className="flex flex-col h-screen">
           <OfflineBanner />
           {session.user.esSuperAdmin && !session.user.mfaHabilitado && <MfaAvisoSuperAdmin />}
-          {trial && <TrialAviso nombre={trial.nombre} dias={trial.dias} vencido={trial.vencido} esOwner={contexto.esOwner} />}
+          {trial && <TrialAviso nombre={trial.nombre} dias={trial.dias} vencido={trial.vencido} suspendida={trial.suspendida} esOwner={contexto.esOwner} />}
           {visitaPuntual && <VolverModoSimple />}
           <div className="app-shell flex-1 min-h-0">
             <Sidebar
@@ -164,6 +171,7 @@ export default async function DashboardLayout({
               modulosPermitidos={contexto.modulosPermitidos}
               organizaciones={organizaciones}
               organizacionActivaId={contexto.activa?.organizacionId ?? null}
+              alertasNoLeidas={alertasNoLeidas}
             />
             {/* Overlay closes sidebar when tapping outside on mobile */}
             <SidebarOverlay />

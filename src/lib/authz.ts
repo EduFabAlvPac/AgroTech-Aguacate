@@ -187,8 +187,14 @@ export async function requireAccess(
 
   const membresia = await db.membresia.findUnique({
     where: { userId_organizacionId: { userId, organizacionId } },
-    select: { rol: true, aceptada: true, activa: true },
+    select: { rol: true, aceptada: true, activa: true, organizacion: { select: { eliminadoEn: true } } },
   });
+
+  // Organización eliminada por el Super Admin (soft-delete): ya nadie de ella
+  // opera. El Super Admin sale antes de llegar acá.
+  if (membresia?.organizacion?.eliminadoEn) {
+    throw new AuthzError("Esta organización fue eliminada");
+  }
 
   if (!membresia?.aceptada) {
     throw new AuthzError("No perteneces a la organización de este recurso");

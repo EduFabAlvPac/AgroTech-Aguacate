@@ -23,8 +23,8 @@ export default async function OrganizacionesAdminPage() {
   return (
     <>
       <Header
-        title="Organizaciones"
-        subtitle="Planes y pruebas de cooperativas — activa el plan Colectivo o extiende una prueba"
+        title="Todas las organizaciones"
+        subtitle="Administración de plataforma — consulta, edita, suspende, elimina o cambia el plan"
       />
       <main className="page-scroll">
         <OrganizacionesAdminClient organizaciones={organizaciones} />

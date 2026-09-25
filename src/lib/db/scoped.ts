@@ -33,7 +33,7 @@ export async function fincaIdsAccesibles(session: AuthzSession | null | undefine
   if (user?.esSuperAdmin) return "ALL";
 
   const membresias = await db.membresia.findMany({
-    where: { userId, aceptada: true, activa: true },
+    where: { userId, aceptada: true, activa: true, organizacion: { eliminadoEn: null } },
     select: { organizacionId: true, rol: true, esRolPrimario: true, createdAt: true },
   });
   if (membresias.length === 0) return [];
