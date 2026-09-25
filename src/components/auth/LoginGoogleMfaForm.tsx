@@ -50,8 +50,8 @@ export function LoginGoogleMfaForm({ pendiente, onVolver }: { pendiente: string;
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
-        <label className="block text-[13px] font-medium text-[var(--text-secondary)] mb-1.5">Código de verificación</label>
-        <p className="text-[12px] text-[var(--text-muted)] mb-2">
+        <label className="block text-[14px] font-medium text-[var(--text-primary)] mb-1.5">Código de verificación</label>
+        <p className="text-[13px] text-[var(--text-secondary)] mb-2">
           Google confirmó tu cuenta. Ahora abre tu app de autenticación e ingresa el código de 6 dígitos, o un código de
           respaldo si no tienes acceso a la app.
         </p>
@@ -62,7 +62,7 @@ export function LoginGoogleMfaForm({ pendiente, onVolver }: { pendiente: string;
           placeholder="123456"
           autoFocus
           required
-          className="w-full px-4 py-2.5 text-[15px] tracking-widest text-center border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
+          className="w-full px-4 py-3 text-[16px] tracking-widest text-center border border-[var(--border-default)] rounded-[var(--radius-md)] bg-white focus:outline-none focus:ring-2 focus:ring-agro-200 focus:border-agro-400 transition-all"
         />
       </div>
       <button

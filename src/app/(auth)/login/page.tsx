@@ -5,6 +5,7 @@ import { RoleSelector, type RolLogin } from "@/components/auth/RoleSelector";
 import { LoginCampesinoForm } from "@/components/auth/LoginCampesinoForm";
 import { LoginEstandarForm } from "@/components/auth/LoginEstandarForm";
 import toast from "react-hot-toast";
+import { ShieldCheck, ScanLine, CloudSun, LineChart } from "lucide-react";
 import { LoginGoogleMfaForm } from "@/components/auth/LoginGoogleMfaForm";
 
 const ERRORES_LOGIN: Record<string, string> = {
@@ -46,43 +47,68 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[var(--surface-page)] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-
-        {/* Logo — lockup completo (ícono + wordmark), no ícono + texto por separado:
-            la imagen ya trae "GermIA" escrito, un <h1> aparte repitiendo el nombre
-            quedaría redundante/inconsistente con ella. */}
-        <div className="text-center mb-8">
-          <img
-            src="/images/logos/germia-lockup-login.png"
-            alt="GermIA"
-            className="w-64 mx-auto mb-2"
-          />
-          <p className="text-[14px] text-[var(--text-secondary)] mt-1">
-            Gestión inteligente de tu cultivo
-          </p>
+    <div className="min-h-screen bg-white lg:grid lg:grid-cols-[1.1fr_1fr]">
+      {/* Panel de marca — solo escritorio. Reusa la ilustración de GermIAmigo
+          (public/img-app/bienvenida.jpeg) y el lema del logo; en celular su
+          lugar lo ocupa el banner de más abajo, para no empujar el formulario
+          fuera de la pantalla. */}
+      <aside className="hidden lg:block relative overflow-hidden" aria-hidden="true">
+        <img src="/img-app/bienvenida.jpeg" alt="" className="absolute inset-0 h-full w-full object-cover object-[50%_22%]" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0d2b1a]/95 via-[#0d2b1a]/45 to-transparent" />
+        <div className="absolute bottom-0 left-0 right-0 p-12 text-white">
+          <h2 className="text-[32px] font-semibold leading-tight max-w-2xl">La vida de tus cultivos, en datos.</h2>
+          <ul className="mt-6 space-y-3 text-[15px] text-white/90">
+            <li className="flex items-center gap-3"><ScanLine size={18} className="shrink-0" /> Diagnóstico de plagas y enfermedades con una foto</li>
+            <li className="flex items-center gap-3"><CloudSun size={18} className="shrink-0" /> Clima y alertas para tu finca</li>
+            <li className="flex items-center gap-3"><LineChart size={18} className="shrink-0" /> Costos, cosechas y precios en un solo lugar</li>
+          </ul>
         </div>
+      </aside>
 
-        {/* Card */}
-        <div className="card p-6">
-          <h2 className="text-[16px] font-semibold text-[var(--text-primary)] mb-1">
-            Elija su rol
-          </h2>
-          <p className="text-[12px] text-[var(--text-muted)] mb-4">
-            ¿Cómo vas a usar GermIA?
+      <main className="flex flex-col min-h-screen">
+        <div className="flex-1 flex flex-col justify-center w-full max-w-md mx-auto px-5 sm:px-8 py-6">
+          {/* Logo — lockup completo (ícono + wordmark): la imagen ya trae
+              "GermIA" escrito, un <h1> aparte repitiendo el nombre quedaría
+              redundante. Más chico que antes: en celular ocupaba ~40% de la
+              pantalla antes de poder hacer nada. */}
+          <div className="text-center">
+            <img src="/images/logos/germia-lockup-login.png" alt="GermIA" className="w-36 lg:w-44 mx-auto" />
+          </div>
+
+          {/* Banner de ilustración — solo celular */}
+          <div className="lg:hidden mt-3 mb-5 h-40 rounded-[var(--radius-xl,16px)] overflow-hidden relative">
+            <img src="/img-app/bienvenida.jpeg" alt="" aria-hidden="true" className="h-full w-full object-cover object-[50%_42%]" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#0d2b1a]/35 to-transparent" />
+          </div>
+
+          <h1 className="text-[24px] font-semibold text-[var(--text-primary)] mt-5 lg:mt-8 mb-1 text-center lg:text-left">
+            ¿Quién eres?
+          </h1>
+          <p className="text-[14px] text-[var(--text-secondary)] mb-5 text-center lg:text-left">
+            Elige cómo vas a entrar a GermIA
           </p>
 
           <RoleSelector value={rol} onChange={setRol} />
 
+          {rol === null && (
+            <p className="text-center text-[13px] text-[var(--text-secondary)] -mt-1 mb-2">
+              Toca una de las dos opciones para continuar
+            </p>
+          )}
           {rol === "campesino" && <LoginCampesinoForm />}
           {rol === "otro" && !pruebaGoogle && <LoginEstandarForm />}
           {rol === "otro" && pruebaGoogle && <LoginGoogleMfaForm pendiente={pruebaGoogle} onVolver={volverDeGoogle} />}
-        </div>
 
-        <p className="text-center text-[12px] text-[var(--text-muted)] mt-6">
-          Un desarrollo de CrecIAgro © {new Date().getFullYear()} · Todos los derechos reservados
-        </p>
-      </div>
+          <div className="mt-8 pt-4 border-t border-[var(--border-subtle)] text-center">
+            <p className="flex items-center justify-center gap-1.5 text-[13px] font-medium text-agro-600">
+              <ShieldCheck size={15} /> Datos seguros y privados
+            </p>
+            <p className="text-[12px] text-[var(--text-muted)] mt-2">
+              Un desarrollo de CrecIAgro © {new Date().getFullYear()} · Todos los derechos reservados
+            </p>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
