@@ -1,15 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { RoleSelector, type RolLogin } from "@/components/auth/RoleSelector";
 import { LoginCampesinoForm } from "@/components/auth/LoginCampesinoForm";
 import { LoginEstandarForm } from "@/components/auth/LoginEstandarForm";
+import { LoginGoogleMfaForm } from "@/components/auth/LoginGoogleMfaForm";
 
 export default function LoginPage() {
   // Sin selección por defecto (hallazgo del usuario, 2026-08-26): antes
   // arrancaba en "campesino" premarcado, lo que además revelaba el
   // formulario de celular sin que nadie hubiera elegido nada todavía.
   const [rol, setRol] = useState<RolLogin | null>(null);
+  // Login con Google + MFA (ADR-011 Sprint 6): el callback signIn redirige acá
+  // con `?mfa=google&p=<prueba firmada>` en vez de abrir sesión. Se lee de
+  // window (no useSearchParams) para no exigir un <Suspense> en esta página.
+  const [pruebaGoogle, setPruebaGoogle] = useState<string | null>(null);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const p = q.get("p");
+    if (q.get("mfa") === "google" && p) {
+      setPruebaGoogle(p);
+      setRol("otro");
+    }
+  }, []);
+  const volverDeGoogle = () => {
+    setPruebaGoogle(null);
+    window.history.replaceState(null, "", "/login");
+  };
 
   return (
     <div className="min-h-screen bg-[var(--surface-page)] flex items-center justify-center p-4">
@@ -41,9 +58,10 @@ export default function LoginPage() {
           <RoleSelector value={rol} onChange={setRol} />
 
           {rol === "campesino" && <LoginCampesinoForm />}
-          {rol === "otro" && <LoginEstandarForm />}
+          {rol === "otro" && !pruebaGoogle && <LoginEstandarForm />}
+          {rol === "otro" && pruebaGoogle && <LoginGoogleMfaForm pendiente={pruebaGoogle} onVolver={volverDeGoogle} />}
 
-          {rol === "otro" && (
+          {rol === "otro" && !pruebaGoogle && (
             <div className="mt-4 p-3 bg-agro-50 rounded-[var(--radius-md)] border border-agro-100">
               <p className="text-[11px] font-semibold text-agro-600 mb-1">
                 Credenciales de demo
