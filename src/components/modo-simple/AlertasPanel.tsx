@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { X, AlertTriangle, Info, Check } from "lucide-react";
 import toast from "react-hot-toast";
 import type { AlertaClimatica } from "@prisma/client";
-import { marcarLeida } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
+import { marcarLeida, marcarTodasLeidas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
 import { SalidaModoCompleto } from "@/components/shared/SalidaModoCompleto";
 
 interface AlertasPanelProps {
@@ -46,6 +46,17 @@ export function AlertasPanel({ alertas, onClose }: AlertasPanelProps) {
     });
   };
 
+  const marcarTodas = () => {
+    startTransition(async () => {
+      const result = await marcarTodasLeidas();
+      if (result.error) toast.error(result.error);
+      else {
+        toast.success(result.count ? "Listo: todas marcadas como leídas" : "No había alertas sin leer");
+        router.refresh();
+      }
+    });
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={onClose}>
       <div
@@ -64,6 +75,15 @@ export function AlertasPanel({ alertas, onClose }: AlertasPanelProps) {
           </div>
         ) : (
           <div className="space-y-2">
+            {activas.some((a) => !a.leida) && (
+              <button
+                onClick={marcarTodas}
+                className="w-full py-2.5 rounded-xl text-[13px] font-semibold flex items-center justify-center gap-1.5"
+                style={{ background: "var(--surface-page)", color: "var(--text-primary)", border: "1px solid var(--border-default)" }}
+              >
+                <Check size={14} /> Marcar todas como leídas
+              </button>
+            )}
             {activas.map((a) => {
               const cfg = SEVERIDAD_ICON[a.severidad] ?? SEVERIDAD_ICON.MEDIA;
               const Icon = cfg.icon;
@@ -94,8 +114,8 @@ export function AlertasPanel({ alertas, onClose }: AlertasPanelProps) {
           </div>
         )}
 
-        {/* Fase 5, ADR-006 — este panel es un vistazo (marcar leída nada
-            más); descartar, marcar vencida, generar manualmente y el
+        {/* Fase 5, ADR-006 — este panel es un vistazo (marcar leída,
+            una o todas); descartar, marcar vencida, generar manualmente y el
             historial completo siguen siendo exclusión de modo simple,
             con salida directa aquí. */}
         <SalidaModoCompleto

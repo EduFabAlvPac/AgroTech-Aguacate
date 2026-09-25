@@ -1,6 +1,19 @@
 const OW_BASE = "https://api.openweathermap.org/data/2.5";
 const API_KEY = process.env.OPENWEATHER_API_KEY;
 
+/**
+ * El pronóstico SIMULADO (números aleatorios) solo existe para desarrollo
+ * local sin clave. En producción (incluye los previews de Vercel) jamás se usa:
+ * antes, sin OPENWEATHER_API_KEY o ante un fallo del servicio, el motor de
+ * alertas guardaba alertas de helada/sequía/plaga calculadas con datos
+ * inventados y con `fuente: "OpenWeather"` — un agricultor real podía recibir
+ * avisos falsos sin ninguna marca. Ahora, sin datos reales, no hay pronóstico
+ * (null) y nadie genera nada.
+ */
+export function simuladoPermitido(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
 export type CurrentWeather = {
   temp: number;
   feelsLike: number;
@@ -35,6 +48,8 @@ export type ForecastItem = {
 export type WeatherForecast = {
   city: string;
   list: ForecastItem[];
+  /** true = datos inventados (solo desarrollo local). Nunca en producción. */
+  simulado?: boolean;
 };
 
 // Ocaña, Norte de Santander defaults (Finca El Juncal)
@@ -47,12 +62,12 @@ export async function getCurrentWeather(
   lat = DEFAULT_LAT,
   lng = DEFAULT_LNG
 ): Promise<CurrentWeather | null> {
-  if (!API_KEY) return getMockCurrentWeather();
+  if (!API_KEY) return simuladoPermitido() ? getMockCurrentWeather() : null;
 
   try {
     const url = `${OW_BASE}/weather?lat=${lat}&lon=${lng}&appid=${API_KEY}&units=metric&lang=es`;
     const res = await fetch(url, { next: { revalidate: 1800 } }); // cache 30 min
-    if (!res.ok) return getMockCurrentWeather();
+    if (!res.ok) return simuladoPermitido() ? getMockCurrentWeather() : null;
 
     const d = await res.json();
 
@@ -72,7 +87,7 @@ export async function getCurrentWeather(
       dt: d.dt,
     };
   } catch {
-    return getMockCurrentWeather();
+    return simuladoPermitido() ? getMockCurrentWeather() : null;
   }
 }
 
@@ -82,12 +97,12 @@ export async function getForecast(
   lat = DEFAULT_LAT,
   lng = DEFAULT_LNG
 ): Promise<WeatherForecast | null> {
-  if (!API_KEY) return getMockForecast();
+  if (!API_KEY) return simuladoPermitido() ? getMockForecast() : null;
 
   try {
     const url = `${OW_BASE}/forecast?lat=${lat}&lon=${lng}&appid=${API_KEY}&units=metric&lang=es&cnt=40`;
     const res = await fetch(url, { next: { revalidate: 3600 } }); // cache 1h
-    if (!res.ok) return getMockForecast();
+    if (!res.ok) return simuladoPermitido() ? getMockForecast() : null;
 
     const d = await res.json();
 
@@ -109,7 +124,7 @@ export async function getForecast(
       })),
     };
   } catch {
-    return getMockForecast();
+    return simuladoPermitido() ? getMockForecast() : null;
   }
 }
 
@@ -198,6 +213,7 @@ function getMockForecast(): WeatherForecast {
 
   return {
     city: "Norte de Santander",
+    simulado: true,
     list: Array.from({ length: 40 }, (_, i) => ({
       dt: now + i * 10800,
       temp: 18 + Math.round(Math.random() * 8),

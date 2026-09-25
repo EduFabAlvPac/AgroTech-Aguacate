@@ -7,7 +7,8 @@ import { formatDate } from "@/lib/utils";
 import toast from "react-hot-toast";
 import type { AlertaClimatica, TipoAlerta, Severidad } from "@prisma/client";
 import Link from "next/link";
-import { marcarLeida, marcarVencida, descartarAlerta, generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
+import { useRouter } from "next/navigation";
+import { marcarLeida, marcarVencida, marcarTodasLeidas, descartarAlerta, generarAlertas } from "@/app/(dashboard)/dashboard/alertas/alerta-actions";
 
 const TIPO_ICONS: Record<TipoAlerta, React.ElementType> = {
   HELADA: Thermometer,
@@ -45,6 +46,7 @@ interface AlertasClientProps {
 }
 
 export function AlertasClient({ alertas: initial }: AlertasClientProps) {
+  const router = useRouter();
   const [alertas, setAlertas] = useState(initial);
   const [filter, setFilter] = useState<"todas" | "activas" | "leidas">("todas");
   const [, startTransition] = useTransition();
@@ -69,7 +71,13 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
     // (mismo criterio que las eliminaciones de Finanzas/Mapa): no hay
     // <form> aquí, es un efecto en segundo plano sin UI de pending.
     expired.forEach((a) => {
-      startTransition(() => { marcarVencida(a.id, {}).catch(() => {}); });
+      startTransition(() => {
+        // Silencioso a propósito (es un efecto en segundo plano), pero ya no se
+        // traga el fallo: una Server Action devuelve { error } en vez de lanzar.
+        marcarVencida(a.id, {})
+          .then((r) => { if (r.error) console.error("[AlertasClient] marcarVencida", r.error); })
+          .catch((e) => console.error("[AlertasClient] marcarVencida", e));
+      });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -85,18 +93,29 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
   const markAsRead = (id: string) => {
     startTransition(async () => {
       const result = await marcarLeida(id, {});
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
       if (result.alerta) {
         setAlertas((prev) => prev.map((a) => (a.id === id ? result.alerta! : a)));
       }
     });
   };
 
-  // Nota: preexistente — "Marcar todas como leídas" solo actualiza el
-  // estado local, nunca persistió al servidor (ni con el fetch manual
-  // anterior). Se preserva el comportamiento exacto, no se corrige aquí
-  // (fuera de alcance de este refactor).
+  // Persiste en el servidor TODAS las sin leer de la finca activa (no solo las
+  // que esta pantalla tiene cargadas) y recién ahí actualiza la vista.
   const markAllRead = () => {
-    setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
+    startTransition(async () => {
+      const result = await marcarTodasLeidas();
+      if (result.error) {
+        toast.error(result.error);
+        return;
+      }
+      setAlertas((prev) => prev.map((a) => ({ ...a, leida: true })));
+      toast.success(result.count ? `${result.count} alerta(s) marcadas como leídas` : "No había alertas sin leer");
+      router.refresh();
+    });
   };
 
   // Descartar (eliminar) una alerta — útil para limpiar alertas de prueba o

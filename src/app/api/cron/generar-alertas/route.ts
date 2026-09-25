@@ -22,6 +22,14 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  // Sin clave de clima NO se generan alertas (antes se inventaba un pronóstico
+  // aleatorio y se guardaba como "OpenWeather"): se avisa fuerte en el log y en
+  // la respuesta para que no pase inadvertido.
+  const sinClaveClima = !process.env.OPENWEATHER_API_KEY;
+  if (sinClaveClima && process.env.NODE_ENV === "production") {
+    console.error("[cron/generar-alertas] OPENWEATHER_API_KEY no está configurada — no se generan alertas de clima/plaga.");
+  }
+
   try {
     const fincas = await db.finca.findMany({
       where: { organizacionId: { not: null } },
@@ -54,6 +62,9 @@ export async function GET(req: Request) {
         totalCreated,
         totalSkipped,
         porFinca,
+        ...(sinClaveClima && process.env.NODE_ENV === "production"
+          ? { advertencia: "OPENWEATHER_API_KEY no configurada: no se generaron alertas de clima/plaga" }
+          : {}),
       },
     });
   } catch (error) {

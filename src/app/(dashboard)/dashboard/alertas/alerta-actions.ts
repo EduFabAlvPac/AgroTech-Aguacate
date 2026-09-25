@@ -53,6 +53,41 @@ export async function marcarLeida(alertaId: string, _prev: AlertaActionState): P
   }
 }
 
+export interface MarcarTodasState {
+  error?: string;
+  /** Cuántas alertas pasaron de sin leer a leídas. */
+  count?: number;
+}
+
+/**
+ * "Marcar todas como leídas" de la finca activa — persiste en la BD TODAS las
+ * sin leer de esa finca (no solo las 50 que carga la pantalla). Antes el botón
+ * solo cambiaba el estado de React y nunca llamaba al servidor (hallazgo del
+ * usuario, 2026-09-24): al recargar todo reaparecía sin leer.
+ */
+export async function marcarTodasLeidas(): Promise<MarcarTodasState> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "No autorizado" };
+
+  try {
+    const { fincaActivaId } = await resolverFincaActiva(session);
+    if (!fincaActivaId) return { error: "No hay una finca activa" };
+    await requireAccess(session, "alerta", "update", { fincaId: fincaActivaId });
+
+    const { count } = await db.alertaClimatica.updateMany({
+      where: { fincaId: fincaActivaId, leida: false },
+      data: { leida: true },
+    });
+    revalidatePath("/dashboard/alertas");
+    revalidatePath("/dashboard");
+    return { count };
+  } catch (error) {
+    if (error instanceof AuthzError) return { error: error.message };
+    console.error("[marcarTodasLeidas]", error);
+    return { error: "No se pudieron marcar las alertas como leídas" };
+  }
+}
+
 /**
  * Vence una alerta (activa=false) — usado por el auto-expirado silencioso
  * de AlertasClient cuando fechaFin < ahora. Mismo PUT que hacía el fetch
