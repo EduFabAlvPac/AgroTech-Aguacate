@@ -8,6 +8,7 @@ import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 import { getSegurosResumen } from "@/lib/data/seguros";
 import { puedeEnFinca } from "@/lib/authz";
+import { db } from "@/lib/db";
 
 export const metadata = { title: "Seguros" };
 export const dynamic = "force-dynamic";
@@ -33,6 +34,7 @@ export default async function SegurosPage({ searchParams }: { searchParams: SP }
       ])
     : [false, false, false];
 
+  const fincaNombre = fincaActivaId ? (await db.finca.findUnique({ where: { id: fincaActivaId }, select: { nombre: true } }))?.nombre : undefined;
   const ahora = new Date();
   const accion = sp.accion === "poliza" || sp.accion === "siniestro" ? sp.accion : undefined;
 
@@ -43,6 +45,7 @@ export default async function SegurosPage({ searchParams }: { searchParams: SP }
         <SegurosClient
           resumen={resumen}
           ahoraISO={ahora.toISOString()}
+          fincaNombre={fincaNombre}
           hoy={ahora.toLocaleDateString("en-CA", { timeZone: "America/Bogota" })}
           puedeGestionarPolizas={puedeGestionarPolizas}
           puedeReportarSiniestro={puedeReportarSiniestro}

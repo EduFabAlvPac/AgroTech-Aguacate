@@ -133,8 +133,8 @@ export async function getSegurosResumen(fincaActivaId: string | null, sinFincaSe
 }
 
 /** Pólizas y siniestros de UN cultivo (tarjeta en el detalle del cultivo). */
-export async function getSegurosDeCultivo(cultivoId: string) {
-  const [polizas, siniestros] = await Promise.all([
+export async function getSegurosDeCultivo(cultivoId: string, fincaId: string) {
+  const [polizas, siniestros, disponibles] = await Promise.all([
     db.polizaSeguro.findMany({
       where: { cultivos: { some: { cultivoId } } },
       orderBy: { fechaFin: "desc" },
@@ -145,8 +145,14 @@ export async function getSegurosDeCultivo(cultivoId: string) {
       orderBy: { fechaEvento: "desc" },
       select: { id: true, tipo: true, fechaEvento: true, estado: true, porcentajeDanio: true },
     }),
+    // Pólizas activas de la misma finca que todavía NO cubren este cultivo.
+    db.polizaSeguro.findMany({
+      where: { fincaId, estado: "ACTIVA", cultivos: { none: { cultivoId } } },
+      orderBy: { fechaFin: "desc" },
+      select: { id: true, aseguradora: true, numeroPoliza: true, fechaFin: true },
+    }),
   ]);
-  return { polizas, siniestros };
+  return { polizas, siniestros, disponibles };
 }
 
 /** Todo lo que necesita el expediente de un siniestro (clima, actividad, fotos). */

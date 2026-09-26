@@ -28,6 +28,12 @@ Imprimible / «Guardar como PDF»: finca y cultivo, póliza, evento, **alertas d
 de OpenWeather, no mediciones de estación — el documento lo aclara), actividades del cuaderno de campo (30 días
 previos), fotos y estado del reclamo. 404 si la persona no tiene acceso a la finca.
 
+## Asegurar desde el cultivo
+En el detalle del cultivo, la tarjeta «Seguro de este cultivo» permite **asociar una póliza ya registrada**
+(solo de la misma finca) o crear una nueva con el cultivo preseleccionado, y **quitar** el vínculo. La lista de
+Cultivos muestra la insignia «🛡️ Asegurado» cuando hay una póliza vigente. Si la finca activa no tiene cultivos,
+el formulario de póliza lo explica (con el nombre de la finca) y enlaza a Cultivos.
+
 ## Integraciones
 Alertas (aviso «tu seguro cubre este riesgo» + atajo a registrar siniestro), detalle del cultivo (tarjeta de seguro),
 Finanzas (prima como gasto), modo simple (salida a modo completo, ver `paridad-modo-simple.md`).

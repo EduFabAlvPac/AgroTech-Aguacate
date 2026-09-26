@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { Button, Input, Textarea } from "@/components/ui";
 import { RIESGO_LABELS } from "@/types";
 import toast from "react-hot-toast";
@@ -12,6 +13,8 @@ import { isoDia, numOrNull } from "@/components/seguros/seguros-util";
 interface Props {
   cultivos: CultivoOpcion[];
   poliza?: PolizaVista | null;
+  /** Nombre de la finca activa, para explicar por qué no hay cultivos que elegir. */
+  fincaNombre?: string;
   /** Cultivo que llega preseleccionado (desde el detalle del cultivo). */
   cultivoInicial?: string | null;
   onDone: () => void;
@@ -19,7 +22,7 @@ interface Props {
 
 const RIESGOS = Object.keys(RIESGO_LABELS);
 
-export function PolizaForm({ cultivos, poliza, cultivoInicial, onDone }: Props) {
+export function PolizaForm({ cultivos, poliza, cultivoInicial, fincaNombre, onDone }: Props) {
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState({
     aseguradora: poliza?.aseguradora ?? "",
@@ -102,7 +105,14 @@ export function PolizaForm({ cultivos, poliza, cultivoInicial, onDone }: Props) 
       <fieldset>
         <legend className="text-[12px] font-medium text-[var(--text-secondary)] mb-2">Cultivos asegurados</legend>
         {cultivos.length === 0 ? (
-          <p className="text-[12px] text-[var(--text-muted)]">Primero crea un cultivo en Cultivos para poder asociarle un seguro.</p>
+          <div role="status" className="rounded-[var(--radius-md)] border border-amber-300 bg-amber-50 p-3 text-[12px] text-[#8A5E20] space-y-1">
+            <p>
+              {fincaNombre ? <>La finca activa <b>«{fincaNombre}»</b> todavía no tiene cultivos.</> : "La finca activa todavía no tiene cultivos."} Una póliza se asocia a los cultivos de una finca.
+            </p>
+            <p>
+              Crea el cultivo en <Link href="/dashboard/cultivos" className="underline font-medium">Cultivos</Link>, o si el cultivo está en otra finca cambia la finca activa desde el selector del menú lateral y vuelve aquí.
+            </p>
+          </div>
         ) : (
           <div className="space-y-1.5 max-h-44 overflow-y-auto rounded-[var(--radius-md)] border border-[var(--border-default)] p-2">
             {cultivos.map((c) => (
@@ -140,7 +150,7 @@ export function PolizaForm({ cultivos, poliza, cultivoInicial, onDone }: Props) 
 
       <div className="flex justify-end gap-2 pt-1">
         <Button variant="secondary" onClick={onDone} disabled={pending}>Cancelar</Button>
-        <Button onClick={enviar} loading={pending}>{poliza ? "Guardar cambios" : "Registrar póliza"}</Button>
+        <Button onClick={enviar} loading={pending} disabled={cultivos.length === 0}>{poliza ? "Guardar cambios" : "Registrar póliza"}</Button>
       </div>
     </div>
   );
