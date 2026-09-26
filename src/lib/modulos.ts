@@ -16,7 +16,8 @@ export type ModuloKey =
   | "finanzas"
   | "asistente"
   | "alertas"
-  | "compradores";
+  | "compradores"
+  | "seguros";
 
 // "Inversionistas" NO está aquí a propósito: es una decisión de producto
 // explícita (Fase 3 — "solo gestión del dueño, sin login de inversionista
@@ -32,6 +33,7 @@ export const MODULOS_DASHBOARD: { key: ModuloKey; label: string; href: string }[
   { key: "asistente", label: "Asistente IA", href: "/dashboard/asistente" },
   { key: "alertas", label: "Alertas", href: "/dashboard/alertas" },
   { key: "compradores", label: "Compradores", href: "/dashboard/compradores" },
+  { key: "seguros", label: "Seguros", href: "/dashboard/seguros" },
 ];
 
 /**

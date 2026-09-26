@@ -15,7 +15,7 @@ cambio no está terminado hasta cumplir todo esto**, y el PR debe decirlo.
    sin permiso, otra organización, rol de solo lectura, organización suspendida.
    Verificar el resultado **en la base de datos**, no solo en pantalla (un botón
    que "cambia la pantalla" sin persistir fue el bug de "marcar todas").
-4. **`npm run qa:smoke`** (recorre 23 pantallas × escritorio y celular y falla ante
+4. **`npm run qa:smoke`** (recorre 24 pantallas × escritorio y celular y falla ante
    errores de consola, excepciones, HTTP ≥ 400 o páginas de error). Debe dar ✅.
 5. **Probar las rutas de fallo:** cada botón que muta debe mostrar el **motivo
    real** cuando algo lo impide (nunca "Error interno" / "Error al…" pelado).

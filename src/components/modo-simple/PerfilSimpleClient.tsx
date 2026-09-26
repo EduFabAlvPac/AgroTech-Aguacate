@@ -15,7 +15,7 @@ interface PerfilSimpleClientProps {
   user: { name: string | null; email: string; telefono: string | null; vistaPreferida: VistaPreferida } | null;
   /** Fase 5 de ADR-006 — qué salidas a modo completo mostrar. Mismos guards
    * que ya usan las páginas reales de cada sección (ver configuracion/page.tsx). */
-  accesos?: { esOwner: boolean; esSuperAdmin: boolean; verCompradores: boolean };
+  accesos?: { esOwner: boolean; esSuperAdmin: boolean; verCompradores: boolean; verSeguros?: boolean };
   /** Multi-organización — el selector solo aparece con 2 o más. */
   organizaciones?: OrganizacionOption[];
   organizacionActivaId?: string | null;
@@ -153,6 +153,9 @@ export function PerfilSimpleClient({ user, accesos, organizaciones = [], organiz
         />
         {accesos?.verCompradores && (
           <SalidaModoCompleto href="/dashboard/compradores" titulo="Compradores" descripcion="Gestiona cooperativas y exportadores" />
+        )}
+        {accesos?.verSeguros && (
+          <SalidaModoCompleto href="/dashboard/seguros" titulo="Seguros" descripcion="Pólizas de tus cultivos y siniestros" />
         )}
         {accesos?.esOwner && (
           <SalidaModoCompleto href="/dashboard/equipo" titulo="Equipo" descripcion="Invita colaboradores y administra roles" />

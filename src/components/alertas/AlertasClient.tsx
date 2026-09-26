@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useEffect, useTransition } from "react";
-import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X, CalendarClock } from "lucide-react";
+import { AlertTriangle, CloudRain, Thermometer, Wind, Eye, Cloud, CloudLightning, RefreshCw, X, CalendarClock, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
+import { riesgoDesdeAlerta } from "@/lib/seguros";
+import { RIESGO_LABELS } from "@/types";
 import toast from "react-hot-toast";
 import type { AlertaClimatica, TipoAlerta, Severidad } from "@prisma/client";
 import Link from "next/link";
@@ -43,9 +45,13 @@ const TIPO_LABELS: Record<TipoAlerta, string> = {
 
 interface AlertasClientProps {
   alertas: AlertaClimatica[];
+  /** Riesgos cubiertos por pólizas vigentes de la finca activa (Seguros). Vacío si no hay o no aplica. */
+  riesgosCubiertos?: string[];
+  /** Instante del servidor: decide si el evento ya empezó sin desfasar la hidratación. */
+  ahoraISO?: string;
 }
 
-export function AlertasClient({ alertas: initial }: AlertasClientProps) {
+export function AlertasClient({ alertas: initial, riesgosCubiertos = [], ahoraISO }: AlertasClientProps) {
   const router = useRouter();
   const [alertas, setAlertas] = useState(initial);
   const [filter, setFilter] = useState<"todas" | "activas" | "leidas">("todas");
@@ -314,6 +320,27 @@ export function AlertasClient({ alertas: initial }: AlertasClientProps) {
                         )}
                       </div>
                     )}
+
+                    {/* Seguro: si una póliza vigente cubre este riesgo, atajo para documentar el siniestro */}
+                    {(() => {
+                      const riesgo = riesgoDesdeAlerta(alerta.tipo);
+                      if (!riesgo || !riesgosCubiertos.includes(riesgo)) return null;
+                      const yaOcurrio = ahoraISO ? new Date(alerta.fechaInicio).getTime() <= new Date(ahoraISO).getTime() : false;
+                      return (
+                        <div className="mb-3 flex items-center gap-2 flex-wrap rounded-[var(--radius-md)] bg-agro-50 px-3 py-2 text-[12px] text-agro-800">
+                          <ShieldCheck size={14} className="flex-shrink-0" />
+                          <span>Tienes un seguro vigente que cubre «{RIESGO_LABELS[riesgo]}».</span>
+                          {yaOcurrio && (
+                            <Link
+                              href={`/dashboard/seguros?accion=siniestro&tipo=${riesgo}&fecha=${new Date(alerta.fechaInicio).toLocaleDateString("en-CA", { timeZone: "America/Bogota" })}` as never}
+                              className="font-semibold underline"
+                            >
+                              Si te afectó, registra el siniestro →
+                            </Link>
+                          )}
+                        </div>
+                      );
+                    })()}
 
                     {/* Footer */}
                     <div className="flex items-center justify-between">

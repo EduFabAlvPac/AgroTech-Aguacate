@@ -27,4 +27,10 @@ describe("motivoBloqueoBorrado", () => {
     const m = motivoBloqueoBorrado("cultivo", "X", { ingresos: 3, jornales: 1, inversiones: 1 })!;
     expect(m).toContain("3 ingresos, 1 jornal, 1 inversión de un inversionista");
   });
+
+  it("bloquea por siniestros de seguro (evidencia de un reclamo)", () => {
+    const m = motivoBloqueoBorrado("cultivo", "Café", { ...vacio, siniestros: 2 })!;
+    expect(m).toContain("2 siniestros de seguro");
+    expect(m).toContain("Seguros");
+  });
 });

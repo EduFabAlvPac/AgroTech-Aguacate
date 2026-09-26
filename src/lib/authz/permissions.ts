@@ -72,7 +72,11 @@ export type Recurso =
   | "alerta"
   | "comprador"
   | "fichaTecnica"
-  | "enlaceCompartido";
+  | "enlaceCompartido"
+  // Seguros agrícolas: la póliza (dato financiero, solo gestión) y el siniestro
+  // (un colaborador de campo debe poder REPORTARLO, no editar la póliza).
+  | "seguro"
+  | "siniestro";
 
 /** Código de permiso, ej. "lote:update" (mismo formato que el ejemplo del ADR). */
 export type Permiso = `${Recurso}:${Accion}`;
@@ -257,6 +261,14 @@ export const MATRIZ: Record<Recurso, Record<Rol, Celda>> = {
   enlaceCompartido: {
     SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
     FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: NADA, INVESTOR: NADA, BUYER: NADA,
+  },
+  seguro: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: R, INVESTOR: NADA, BUYER: NADA,
+  },
+  siniestro: {
+    SUPER_ADMIN: CRUD, PLATFORM_SUPPORT: NADA, ORG_OWNER: CRUD, ORG_ADMIN: NADA,
+    FARM_OWNER: CRUD, FARM_ADMIN: CRUD, FARM_COLLABORATOR: CR, INVESTOR: NADA, BUYER: NADA,
   },
 };
 

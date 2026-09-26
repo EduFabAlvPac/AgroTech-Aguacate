@@ -7,6 +7,11 @@ import { redirect, notFound } from "next/navigation";
 import { resolverModoApp } from "@/lib/modo-app";
 import { getCultivoDetalle } from "@/lib/data/cultivos";
 import { computeCultivoTimeline } from "@/lib/data/dashboard";
+import { SegurosCultivoCard } from "@/components/seguros/SegurosCultivoCard";
+import { getSegurosDeCultivo } from "@/lib/data/seguros";
+import { getContextoUsuario } from "@/lib/organizacion-activa";
+import { tieneModulo } from "@/lib/modulos";
+import { puedeEnFinca } from "@/lib/authz";
 import { CultivoDetalleSimpleClient } from "@/components/modo-simple/CultivoDetalleSimpleClient";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +47,17 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
     return <CultivoDetalleSimpleClient cultivo={cultivo as any} timeline={timeline} />;
   }
 
+  // Tarjeta de seguros: solo si el módulo está habilitado en la organización activa.
+  const ctx = await getContextoUsuario(session.user.id, !!session.user.esSuperAdmin);
+  const verSeguros = tieneModulo(ctx.modulosPermitidos, "seguros") && (await puedeEnFinca(session, "seguro", "read", cultivo.lote.fincaId));
+  const [segurosCultivo, puedeAsociar, puedeReportar] = verSeguros
+    ? await Promise.all([
+        getSegurosDeCultivo(id),
+        puedeEnFinca(session, "seguro", "create", cultivo.lote.fincaId),
+        puedeEnFinca(session, "siniestro", "create", cultivo.lote.fincaId),
+      ])
+    : [null, false, false];
+
   return (
     <>
       <Header
@@ -50,6 +66,11 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
       />
       <main className="page-scroll">
         <CultivoDetail cultivo={cultivo as any} />
+        {segurosCultivo && (
+          <div className="mt-5">
+            <SegurosCultivoCard cultivoId={id} datos={segurosCultivo} puedeAsociar={puedeAsociar} puedeReportar={puedeReportar} />
+          </div>
+        )}
       </main>
     </>
   );

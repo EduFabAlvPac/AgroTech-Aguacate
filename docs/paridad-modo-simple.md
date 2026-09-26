@@ -58,6 +58,10 @@
 | Ver activas, marcar leída | ✅ | ✅ (`AlertasPanel`, últimas) | Exclusión ya decidida (Fase 2), con vista parcial |
 | Marcar vencida, descartar, generar, historial completo | ✅ `/dashboard/alertas` | ❌ | Exclusión con salida (Fase 5) — `/dashboard/alertas` |
 
+## Seguros (pólizas y siniestros)
+
+100% modo completo — **exclusión con salida**. Formularios largos (riesgos, cultivos, vigencia, fotos) y un expediente imprimible que no caben en el marco angosto de modo simple. Salida desde Perfil → "Más funciones (modo completo)", condicionada a `tieneModulo("seguros")`. El aviso "tu seguro cubre este riesgo" vive en Alertas y la tarjeta "Seguro de este cultivo" en el detalle del cultivo (modo completo). Módulo `seguros` delegable por colaborador (por defecto solo dueño/administrador; el colaborador de campo puede *reportar* siniestros si el dueño le habilita el módulo).
+
 ## Compradores / Equipo / Fichas técnicas
 
 100% modo completo. Exclusión ya decidida (Fase 2). Salida agregada en Fase 5 desde Perfil → "Más funciones (modo completo)", condicionada a los mismos guards que ya usan sus páginas reales (`tieneModulo("compradores")`, `esOwner`, `esSuperAdmin`).

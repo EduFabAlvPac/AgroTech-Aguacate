@@ -21,7 +21,7 @@ const PASSWORD = arg("password", "agro2026");
 
 const RUTAS = [
   "/dashboard", "/dashboard/cultivos", "/dashboard/mapa", "/dashboard/finanzas", "/dashboard/inversionistas",
-  "/dashboard/asistente", "/dashboard/alertas", "/dashboard/compradores", "/dashboard/equipo",
+  "/dashboard/asistente", "/dashboard/alertas", "/dashboard/compradores", "/dashboard/seguros", "/dashboard/equipo",
   "/dashboard/configuracion?tab=profile", "/dashboard/configuracion?tab=finca", "/dashboard/configuracion?tab=organizacion",
   "/dashboard/configuracion?tab=seguridad", "/dashboard/configuracion?tab=alertas", "/dashboard/configuracion?tab=privacidad",
   "/dashboard/admin/fichas-tecnicas", "/dashboard/admin/precios-mercado", "/dashboard/admin/productos-tienda",

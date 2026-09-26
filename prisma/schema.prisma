@@ -419,6 +419,8 @@ model Finca {
   accesos      FincaAcceso[]
   alertas      AlertaClimatica[]
   compradores  Comprador[]
+  polizas      PolizaSeguro[]
+  siniestros   Siniestro[]
   // ADR-011: membresías con scope de esta finca (roles FARM_*) e invitaciones
   // pendientes a ella. `accesos` (FincaAcceso) sigue vigente hasta el Sprint 3.
   membresias   Membresia[]
@@ -760,6 +762,8 @@ model Cultivo {
   inversiones InversionCultivo[]
   alertas     AlertaClimatica[]
   enlaces     EnlaceCompartido[]
+  polizas     PolizaCultivo[]
+  siniestros  Siniestro[]
 
   @@map("cultivos")
 }
@@ -1634,4 +1638,108 @@ model Impersonacion {
   @@index([targetUserId, estado])
   @@index([soporteUserId, estado])
   @@map("impersonaciones")
+}
+
+// ─── SEGUROS AGRÍCOLAS / SINIESTROS ──────────────────────────────────────────
+// El productor REGISTRA la póliza que contrató con una aseguradora (GermIA no
+// vende ni intermedia seguros) y la asocia a uno o varios cultivos; cuando
+// ocurre un evento registra el siniestro sobre el cultivo y arma el expediente.
+// `creadoPorId`/`gastoId` son texto plano SIN clave foránea a propósito: no deben
+// bloquear la eliminación de una cuenta ni de un gasto.
+
+enum RiesgoAsegurado {
+  SEQUIA
+  EXCESO_LLUVIA
+  HELADA
+  GRANIZO
+  VIENTOS_FUERTES
+  INUNDACION
+  PLAGAS_ENFERMEDADES
+  INCENDIO
+  OTRO
+}
+
+enum EstadoPoliza {
+  ACTIVA
+  CANCELADA
+}
+
+enum EstadoSiniestro {
+  REGISTRADO
+  REPORTADO_ASEGURADORA
+  EN_REVISION
+  APROBADO
+  PAGADO
+  RECHAZADO
+}
+
+model PolizaSeguro {
+  id            String            @id @default(cuid())
+  fincaId       String
+  finca         Finca             @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  aseguradora   String
+  numeroPoliza  String?
+  riesgos       RiesgoAsegurado[]
+  sumaAsegurada Float?
+  prima         Float?
+  deduciblePct  Float?
+  fechaInicio   DateTime
+  fechaFin      DateTime
+  estado        EstadoPoliza      @default(ACTIVA)
+  contacto      String?
+  notas         String?
+  gastoId       String?
+  creadoPorId   String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  cultivos   PolizaCultivo[]
+  siniestros Siniestro[]
+
+  @@index([fincaId])
+  @@map("polizas_seguro")
+}
+
+model PolizaCultivo {
+  polizaId  String
+  poliza    PolizaSeguro @relation(fields: [polizaId], references: [id], onDelete: Cascade)
+  cultivoId String
+  cultivo   Cultivo      @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+
+  @@id([polizaId, cultivoId])
+  @@index([cultivoId])
+  @@map("polizas_cultivo")
+}
+
+model Siniestro {
+  id                      String          @id @default(cuid())
+  fincaId                 String
+  finca                   Finca           @relation(fields: [fincaId], references: [id], onDelete: Cascade)
+  // Cascade en la BD (un Restrict rompería el borrado en cascada de una finca
+  // entera, según el orden de las cascadas). La protección real es la guarda de
+  // borrado de cultivo/lote (src/lib/borrado-guardas.ts): un cultivo con
+  // siniestros NO se puede borrar, es evidencia de un reclamo.
+  cultivoId               String
+  cultivo                 Cultivo         @relation(fields: [cultivoId], references: [id], onDelete: Cascade)
+  polizaId                String?
+  poliza                  PolizaSeguro?   @relation(fields: [polizaId], references: [id], onDelete: SetNull)
+  tipo                    RiesgoAsegurado
+  fechaEvento             DateTime
+  descripcion             String
+  areaAfectadaHa          Float?
+  porcentajeDanio         Int?
+  perdidaEstimada         Float?
+  estado                  EstadoSiniestro @default(REGISTRADO)
+  numeroReclamo           String?
+  fechaReporteAseguradora DateTime?
+  montoIndemnizado        Float?
+  imagenes                String[]
+  notas                   String?
+  creadoPorId             String?
+  createdAt               DateTime        @default(now())
+  updatedAt               DateTime        @updatedAt
+
+  @@index([fincaId])
+  @@index([cultivoId])
+  @@map("siniestros")
 }
