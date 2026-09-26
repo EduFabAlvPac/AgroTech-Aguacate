@@ -44,6 +44,7 @@ export default async function ConfiguracionPage() {
       esOwner: ctx.esOwner,
       esSuperAdmin: !!session.user.esSuperAdmin,
       verCompradores: tieneModulo(ctx.modulosPermitidos, "compradores"),
+      verSeguros: tieneModulo(ctx.modulosPermitidos, "seguros"),
     };
     const organizaciones = ctx.organizaciones.map((o) => ({
       id: o.organizacionId, nombre: o.organizacion.nombre, tipo: o.organizacion.tipo, esTrial: o.organizacion.esTrial, rol: o.rol,

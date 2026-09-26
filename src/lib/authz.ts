@@ -259,3 +259,18 @@ export async function requireAccess(
     }
   }
 }
+
+/**
+ * ¿Puede esta sesión hacer `accion` sobre `recurso` en esa finca? Para decidir
+ * qué botones mostrar (no reemplaza a `requireAccess` al ejecutar). Incluye el
+ * modo solo lectura de una organización con prueba vencida o suspendida.
+ */
+export async function puedeEnFinca(session: AuthzSession | null | undefined, recurso: Recurso, accion: Accion, fincaId: string): Promise<boolean> {
+  try {
+    await requireAccess(session, recurso, accion, { fincaId });
+    return true;
+  } catch (error) {
+    if (error instanceof AuthzError) return false;
+    throw error;
+  }
+}

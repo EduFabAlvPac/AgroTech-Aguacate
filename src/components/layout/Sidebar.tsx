@@ -46,6 +46,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard/asistente",    icon: Bot,             label: "Asistente IA", modulo: "asistente" },
   { href: "/dashboard/alertas",      icon: CloudLightning,  label: "Alertas", modulo: "alertas" },
   { href: "/dashboard/compradores",  icon: Users,           label: "Compradores", modulo: "compradores" },
+  { href: "/dashboard/seguros",      icon: ShieldCheck,     label: "Seguros", modulo: "seguros" },
 ];
 
 interface SidebarProps {

@@ -257,3 +257,30 @@ export const CATEGORIA_PRODUCTO_LABELS: Record<CategoriaProducto, string> = {
   NUTRICION_VEGETAL: "Nutrición Vegetal",
   RIEGO_MAQUINARIA: "Riego & Maquinaria",
 };
+
+// ─── Seguros agrícolas ────────────────────────────────────────────────────────
+export const RIESGO_LABELS: Record<string, string> = {
+  SEQUIA: "Sequía",
+  EXCESO_LLUVIA: "Exceso de lluvias",
+  HELADA: "Heladas",
+  GRANIZO: "Granizo",
+  VIENTOS_FUERTES: "Vientos fuertes",
+  INUNDACION: "Inundación",
+  PLAGAS_ENFERMEDADES: "Plagas y enfermedades",
+  INCENDIO: "Incendio",
+  OTRO: "Otro",
+};
+
+export const ESTADO_POLIZA_LABELS: Record<string, string> = {
+  ACTIVA: "Activa",
+  CANCELADA: "Cancelada",
+};
+
+export const ESTADO_SINIESTRO_LABELS: Record<string, string> = {
+  REGISTRADO: "Registrado",
+  REPORTADO_ASEGURADORA: "Reportado a la aseguradora",
+  EN_REVISION: "En revisión",
+  APROBADO: "Aprobado",
+  PAGADO: "Pagado",
+  RECHAZADO: "Rechazado",
+};

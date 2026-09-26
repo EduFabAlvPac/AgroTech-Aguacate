@@ -20,6 +20,8 @@ export interface DependenciasCultivo {
   ingresos: number;
   jornales: number;
   inversiones: number;
+  /** Siniestros de seguro registrados: son evidencia de un reclamo. */
+  siniestros?: number;
 }
 
 function plural(n: number, s: string, p: string): string {
@@ -36,32 +38,36 @@ export function motivoBloqueoBorrado(
   if (dep.ingresos > 0) partes.push(plural(dep.ingresos, "ingreso", "ingresos"));
   if (dep.jornales > 0) partes.push(plural(dep.jornales, "jornal", "jornales"));
   if (dep.inversiones > 0) partes.push(plural(dep.inversiones, "inversión de un inversionista", "inversiones de inversionistas"));
+  if ((dep.siniestros ?? 0) > 0) partes.push(plural(dep.siniestros!, "siniestro de seguro", "siniestros de seguro"));
   if (partes.length === 0) return null;
 
   const pasos: string[] = [];
   if (dep.ingresos > 0 || dep.jornales > 0) pasos.push("los ingresos y jornales desde Finanzas");
   if (dep.inversiones > 0) pasos.push("las inversiones desde Inversionistas");
+  if ((dep.siniestros ?? 0) > 0) pasos.push("los siniestros desde Seguros");
   return `No se puede eliminar ${que === "lote" ? "el lote" : "el cultivo"} «${nombre}» porque tiene ${partes.join(", ")}. Si lo borras, ese historial financiero se perdería. Elimina primero ${pasos.join(" y ")} y vuelve a intentarlo.`;
 }
 
 export async function motivoBloqueoBorradoCultivo(cultivoId: string, nombre: string): Promise<string | null> {
-  const [ingresos, jornales, inversiones] = await Promise.all([
+  const [ingresos, jornales, inversiones, siniestros] = await Promise.all([
     db.ingreso.count({ where: { cultivoId } }),
     db.jornal.count({ where: { cultivoId } }),
     db.inversionCultivo.count({ where: { cultivoId } }),
+    db.siniestro.count({ where: { cultivoId } }),
   ]);
-  return motivoBloqueoBorrado("cultivo", nombre, { ingresos, jornales, inversiones });
+  return motivoBloqueoBorrado("cultivo", nombre, { ingresos, jornales, inversiones, siniestros });
 }
 
 /** Un lote arrastra a sus cultivos (cascada): cuenta lo de todos ellos + jornales del propio lote. */
 export async function motivoBloqueoBorradoLote(loteId: string, nombre: string): Promise<string | null> {
   const enLote = { cultivo: { loteId } };
-  const [ingresos, jornales, inversiones] = await Promise.all([
+  const [ingresos, jornales, inversiones, siniestros] = await Promise.all([
     db.ingreso.count({ where: enLote }),
     db.jornal.count({ where: { OR: [{ loteId }, enLote] } }),
     db.inversionCultivo.count({ where: enLote }),
+    db.siniestro.count({ where: enLote }),
   ]);
-  return motivoBloqueoBorrado("lote", nombre, { ingresos, jornales, inversiones });
+  return motivoBloqueoBorrado("lote", nombre, { ingresos, jornales, inversiones, siniestros });
 }
 
 /** Deja rastro de un borrado en la auditoría de la organización de la finca. */

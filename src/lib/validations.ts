@@ -299,3 +299,51 @@ export const vincularCampesinoSchema = z.object({
   telefono: z.string().trim().min(7, "Escribe tu número de celular").max(20),
   codigo: z.string().trim().min(6, "El código tiene 6 números").max(12),
 });
+
+
+// ─── Seguros agrícolas ────────────────────────────────────────────────────────
+const RIESGOS = ["SEQUIA", "EXCESO_LLUVIA", "HELADA", "GRANIZO", "VIENTOS_FUERTES", "INUNDACION", "PLAGAS_ENFERMEDADES", "INCENDIO", "OTRO"] as const;
+const ESTADOS_SINIESTRO = ["REGISTRADO", "REPORTADO_ASEGURADORA", "EN_REVISION", "APROBADO", "PAGADO", "RECHAZADO"] as const;
+
+const montoOpc = z.number().finite().min(0, "No puede ser negativo").max(100_000_000_000, "Valor demasiado alto").nullish();
+const textoOpc = (max: number) => z.string().trim().max(max, `Máximo ${max} caracteres`).nullish();
+
+export const polizaSchema = z
+  .object({
+    aseguradora: z.string().trim().min(2, "Escribe el nombre de la aseguradora").max(120),
+    numeroPoliza: textoOpc(60),
+    riesgos: z.array(z.enum(RIESGOS)).min(1, "Elige al menos un riesgo cubierto"),
+    cultivoIds: z.array(z.string().min(1)).min(1, "Elige al menos un cultivo asegurado").max(200),
+    sumaAsegurada: montoOpc,
+    prima: montoOpc,
+    deduciblePct: z.number().finite().min(0, "Entre 0 y 100").max(100, "Entre 0 y 100").nullish(),
+    fechaInicio: z.coerce.date({ message: "Fecha de inicio inválida" }),
+    fechaFin: z.coerce.date({ message: "Fecha de fin inválida" }),
+    contacto: textoOpc(200),
+    notas: textoOpc(1000),
+    registrarPrimaComoGasto: z.boolean().optional(),
+  })
+  .refine((v) => v.fechaFin >= v.fechaInicio, { message: "La vigencia termina antes de empezar", path: ["fechaFin"] });
+
+export const siniestroSchema = z.object({
+  cultivoId: z.string().min(1, "Elige el cultivo afectado"),
+  polizaId: z.string().min(1).nullish(),
+  tipo: z.enum(RIESGOS, { message: "Elige el tipo de evento" }),
+  fechaEvento: z.coerce
+    .date({ message: "Fecha del evento inválida" })
+    .refine((d) => d.getTime() <= Date.now() + 86_400_000, "La fecha del evento no puede ser futura"),
+  descripcion: z.string().trim().min(10, "Describe lo ocurrido (mínimo 10 caracteres)").max(2000),
+  areaAfectadaHa: z.number().finite().min(0).max(100_000).nullish(),
+  porcentajeDanio: z.number().int("Debe ser entero").min(0, "Entre 0 y 100").max(100, "Entre 0 y 100").nullish(),
+  perdidaEstimada: montoOpc,
+  imagenes: z.array(z.string().max(1_500_000, "Una foto es demasiado pesada")).max(6, "Máximo 6 fotos").default([]),
+  notas: textoOpc(1000),
+});
+
+export const siniestroSeguimientoSchema = z.object({
+  estado: z.enum(ESTADOS_SINIESTRO),
+  numeroReclamo: textoOpc(60),
+  fechaReporteAseguradora: z.coerce.date().nullish(),
+  montoIndemnizado: montoOpc,
+  notas: textoOpc(1000),
+});

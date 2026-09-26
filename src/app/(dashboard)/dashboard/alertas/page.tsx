@@ -7,6 +7,8 @@ import { tieneModulo } from "@/lib/modulos";
 import { getContextoUsuario } from "@/lib/organizacion-activa";
 import { resolverFincaActiva, SIN_FINCA_SENTINEL } from "@/lib/finca-activa";
 import { getAlertas } from "@/lib/data/alertas";
+import { db } from "@/lib/db";
+import { puedeEnFinca } from "@/lib/authz";
 
 export const metadata = { title: "Alertas climáticas" };
 export const dynamic = "force-dynamic";
@@ -24,6 +26,17 @@ export default async function AlertasPage() {
   const { fincaActivaId } = await resolverFincaActiva(session);
   const alertas = await getAlertas(fincaActivaId, SIN_FINCA_SENTINEL);
 
+  // Seguros: riesgos que cubre alguna póliza vigente de la finca activa.
+  const ahora = new Date();
+  let riesgosCubiertos: string[] = [];
+  if (fincaActivaId && tieneModulo(ctx.modulosPermitidos, "seguros") && (await puedeEnFinca(session, "seguro", "read", fincaActivaId))) {
+    const vigentes = await db.polizaSeguro.findMany({
+      where: { fincaId: fincaActivaId, estado: "ACTIVA", fechaInicio: { lte: ahora }, fechaFin: { gte: ahora } },
+      select: { riesgos: true },
+    });
+    riesgosCubiertos = [...new Set(vigentes.flatMap((p) => p.riesgos))];
+  }
+
   return (
     <>
       <Header
@@ -31,7 +44,7 @@ export default async function AlertasPage() {
         subtitle="Monitoreo de condiciones críticas para tu cultivo"
       />
       <main className="page-scroll">
-        <AlertasClient alertas={alertas as any} />
+        <AlertasClient alertas={alertas as any} riesgosCubiertos={riesgosCubiertos} ahoraISO={ahora.toISOString()} />
       </main>
     </>
   );
