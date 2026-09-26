@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { loteUpdateWithGeoSchema, geoJsonPolygonSchema } from "@/lib/validations";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { motivoBloqueoBorradoLote, motivoBloqueoBorradoCultivo, auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 // Ya no filtra por userId — la autorización real la hace requireAccess()
 // contra el fincaId del lote (Fase 2). Sigue sirviendo para saber si existe
@@ -11,7 +13,7 @@ import { requireAccess, AuthzError } from "@/lib/authz";
 async function fetchLoteConFinca(loteId: string) {
   return db.lote.findUnique({
     where: { id: loteId },
-    select: { id: true, fincaId: true },
+    select: { id: true, fincaId: true, nombre: true },
   });
 }
 
@@ -156,7 +158,11 @@ export async function DELETE(
       );
     }
 
+    const bloqueo = await motivoBloqueoBorradoLote(id, existente.nombre);
+    if (bloqueo) return NextResponse.json({ error: bloqueo }, { status: 409 });
+
     await db.lote.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "lote.eliminar", recurso: "Lote", recursoId: id, fincaId: existente.fincaId, detalle: { nombre: existente.nombre } });
 
     return NextResponse.json({ data: { message: "Lote eliminado" } });
   } catch (error) {

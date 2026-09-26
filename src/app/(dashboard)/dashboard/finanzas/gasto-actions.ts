@@ -24,6 +24,8 @@ import { requireAccess, AuthzError } from "@/lib/authz";
 import { resolverFincaActiva } from "@/lib/finca-activa";
 import { gastoFormSchema } from "@/lib/validations";
 import type { CategoriaGasto, Cultivo, Gasto, Lote, TipoGasto, Prisma } from "@prisma/client";
+import { auditarBorrado } from "@/lib/borrado-guardas";
+import { mensajeErrorBorrado } from "@/lib/finca-borrado";
 
 const gastoInclude = { cultivo: { include: { lote: true } }, lote: true };
 
@@ -201,11 +203,12 @@ export async function eliminarGasto(_prev: EliminarGastoState, gastoId: string):
   if (!session?.user?.id) return { error: "No autorizado" };
 
   try {
-    const existente = await db.gasto.findUnique({ where: { id: gastoId }, select: { fincaId: true } });
+    const existente = await db.gasto.findUnique({ where: { id: gastoId }, select: { fincaId: true, concepto: true, monto: true } });
     if (!existente) return { error: "Gasto no encontrado" };
     await requireAccess(session, "gasto", "delete", { fincaId: existente.fincaId });
 
     await db.gasto.delete({ where: { id: gastoId } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "gasto.eliminar", recurso: "Gasto", recursoId: gastoId, fincaId: existente.fincaId, detalle: { concepto: existente.concepto, monto: existente.monto } });
 
     revalidatePath("/dashboard/finanzas");
     revalidatePath("/dashboard");
@@ -213,6 +216,6 @@ export async function eliminarGasto(_prev: EliminarGastoState, gastoId: string):
   } catch (error) {
     if (error instanceof AuthzError) return { error: error.message };
     console.error("[eliminarGasto]", error);
-    return { error: "Error al eliminar el gasto" };
+    return { error: mensajeErrorBorrado(error) ?? "No se pudo eliminar el gasto. Inténtalo de nuevo." };
   }
 }

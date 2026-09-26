@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
+import { auditarBorrado } from "@/lib/borrado-guardas";
 
 // PUT /api/gastos/[id]
 export async function PUT(req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,11 +56,12 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const session = await getServerSession(authOptions);
     if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-    const existente = await db.gasto.findUnique({ where: { id }, select: { fincaId: true } });
+    const existente = await db.gasto.findUnique({ where: { id }, select: { fincaId: true, concepto: true, monto: true } });
     if (!existente) return NextResponse.json({ error: "Gasto no encontrado" }, { status: 404 });
     await requireAccess(session, "gasto", "delete", { fincaId: existente.fincaId });
 
     await db.gasto.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "gasto.eliminar", recurso: "Gasto", recursoId: id, fincaId: existente.fincaId, detalle: { concepto: existente.concepto, monto: existente.monto } });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
