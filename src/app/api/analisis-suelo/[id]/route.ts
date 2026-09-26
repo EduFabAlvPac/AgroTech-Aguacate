@@ -4,11 +4,13 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { analisisSueloFormSchema } from "@/lib/validations";
+import { datosAnalisis, resolverAtribucion, AnalisisSueloError } from "@/lib/analisis-suelo-datos";
+import { auditarBorrado } from "@/lib/borrado-guardas";
 
 async function fetchAnalisisConFinca(id: string) {
   return db.analisisSuelo.findUnique({
     where: { id },
-    select: { id: true, lote: { select: { fincaId: true } } },
+    select: { id: true, loteId: true, cultivoId: true, etapa: true, lote: { select: { fincaId: true } } },
   });
 }
 
@@ -29,25 +31,16 @@ export async function PUT(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
     }
 
+    const atribucion = await resolverAtribucion(existente.loteId, parsed.data.cultivoId, { cultivoId: existente.cultivoId, etapa: existente.etapa });
     const analisis = await db.analisisSuelo.update({
       where: { id },
-      data: {
-        fechaMuestreo: new Date(parsed.data.fechaMuestreo),
-        ph: parsed.data.ph,
-        materiaOrganica: parsed.data.materiaOrganica,
-        nitrogeno: parsed.data.nitrogeno,
-        fosforo: parsed.data.fosforo,
-        potasio: parsed.data.potasio,
-        textura: parsed.data.textura || null,
-        conductividad: parsed.data.conductividad,
-        laboratorio: parsed.data.laboratorio || null,
-        notas: parsed.data.notas || null,
-      },
+      data: { ...datosAnalisis(parsed.data), ...atribucion },
     });
 
     return NextResponse.json({ data: analisis });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AnalisisSueloError) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error("[PUT /api/analisis-suelo/[id]]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -65,6 +58,7 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     await requireAccess(session, "analisisSuelo", "delete", { fincaId: existente.lote.fincaId });
 
     await db.analisisSuelo.delete({ where: { id } });
+    await auditarBorrado({ actorId: session.user.id, actorEmail: session.user.email, accion: "analisis_suelo.eliminar", recurso: "AnalisisSuelo", recursoId: id, fincaId: existente.lote.fincaId });
     return NextResponse.json({ data: { deleted: true } });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });

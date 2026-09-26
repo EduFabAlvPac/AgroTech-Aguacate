@@ -30,7 +30,7 @@
 | Registrar actividad de bitácora (con foto, sync financiero) | ✅ `registro-actions.ts` | ✅ (Fase 5) [`RegistrarActividadModal`](../src/components/modo-simple/RegistrarActividadModal.tsx) | **Paridad completa** — agregado en Fase 5 (gap #1), 1 foto en vez de hasta 5 |
 | Ver detalle/historial del cultivo | ✅ `/dashboard/cultivos/[id]` | ✅ (Fase 5) [`CultivoDetalleSimpleClient`](../src/components/modo-simple/CultivoDetalleSimpleClient.tsx) | **Paridad completa** — agregado en Fase 5 (gap #2), sin las tablas de gastos/ingresos (ya cubiertas en Finanzas) |
 | Crear/editar lote (con polígono) | ✅ `lote-actions.ts` + Leaflet.draw | ❌ | **Exclusión con salida** (Fase 5) — Mapa, `/dashboard/mapa` |
-| Registrar análisis de suelo | ✅ | ❌ | Exclusión con salida (Fase 5) — vía Mapa |
+| Registrar análisis de suelo | ✅ | ❌ | Exclusión con salida (Fase 5) — vía Mapa. Extendido: atribución a cultivo/etapa, parámetros de laboratorio, evolución y fotos del informe (`docs/ANALISIS-SUELO.md`) — mismas condiciones, sin cambio de clasificación |
 | Diagnóstico por foto (RF15) | ✅ | ✅ (con selector de cultivo) | Paridad completa |
 
 ## Finanzas

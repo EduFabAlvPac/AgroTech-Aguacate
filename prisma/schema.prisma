@@ -479,6 +479,35 @@ model AnalisisSuelo {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  // ── Ciclo de vida del cultivo (PR «suelo por cultivo») ──────────────────
+  // Un lote puede alojar varios cultivos a lo largo de los años y un cultivo
+  // se analiza varias veces en su ciclo: el análisis sigue perteneciendo al
+  // LOTE (loteId, requerido — el suelo es del lote) pero puede atribuirse a un
+  // cultivo y a la etapa en que se muestreó. SetNull: borrar el cultivo no
+  // borra el análisis, queda como historial del lote.
+  cultivoId     String?
+  cultivo       Cultivo?      @relation(fields: [cultivoId], references: [id], onDelete: SetNull)
+  etapa         EtapaCultivo? // etapa del cultivo al muestrear (foto del momento)
+  profundidadCm Int?
+
+  // ── Parámetros habituales de un informe de laboratorio ──────────────────
+  // Unidades como en los informes colombianos: bases e Al en meq/100g,
+  // S y micronutrientes en ppm (mg/kg).
+  calcio    Float? // meq/100g
+  magnesio  Float? // meq/100g
+  sodio     Float? // meq/100g
+  aluminio  Float? // meq/100g (acidez intercambiable)
+  cic       Float? // meq/100g (capacidad de intercambio catiónico)
+  azufre    Float? // ppm
+  boro      Float? // ppm
+  hierro    Float? // ppm
+  manganeso Float? // ppm
+  zinc      Float? // ppm
+  cobre     Float? // ppm
+  // Fotos del informe del laboratorio (comprimidas, como las de los registros).
+  imagenes  String[] @default([])
+
+  @@index([cultivoId])
   @@map("analisis_suelo")
 }
 
@@ -755,15 +784,16 @@ model Cultivo {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
-  registros   RegistroCultivo[]
-  gastos      Gasto[]
-  ingresos    Ingreso[]
-  jornales    Jornal[]
-  inversiones InversionCultivo[]
-  alertas     AlertaClimatica[]
-  enlaces     EnlaceCompartido[]
-  polizas     PolizaCultivo[]
-  siniestros  Siniestro[]
+  registros     RegistroCultivo[]
+  gastos        Gasto[]
+  ingresos      Ingreso[]
+  jornales      Jornal[]
+  inversiones   InversionCultivo[]
+  alertas       AlertaClimatica[]
+  enlaces       EnlaceCompartido[]
+  polizas       PolizaCultivo[]
+  siniestros    Siniestro[]
+  analisisSuelo AnalisisSuelo[]
 
   @@map("cultivos")
 }
