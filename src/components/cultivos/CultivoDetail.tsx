@@ -215,7 +215,11 @@ export function CultivoDetail({ cultivo }: CultivoDetailProps) {
       </div>
 
       {/* Soil analysis (RF3) */}
-      <AnalisisSueloSection loteId={cultivo.lote.id} analisisInicial={cultivo.lote.analisisSuelo} />
+      <AnalisisSueloSection
+        loteId={cultivo.lote.id}
+        analisisInicial={cultivo.lote.analisisSuelo}
+        cultivo={{ id: cultivo.id, nombre: `${cultivo.especie} ${cultivo.variedad}`, etapa: cultivo.etapa }}
+      />
 
       {/* Recent expenses */}
       {cultivo.gastos.length > 0 && (

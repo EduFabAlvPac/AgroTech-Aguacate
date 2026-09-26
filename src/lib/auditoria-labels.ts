@@ -32,6 +32,7 @@ export const ETIQUETAS_ACCION: Record<string, string> = {
   "gasto.eliminar": "🗑️ Gasto eliminado",
   "ingreso.eliminar": "🗑️ Ingreso eliminado",
   "comprador.eliminar": "🗑️ Comprador eliminado",
+  "analisis_suelo.eliminar": "🗑️ Análisis de suelo eliminado",
   "poliza.crear": "🛡️ Póliza de seguro registrada",
   "poliza.editar": "🛡️ Póliza de seguro editada",
   "poliza.cancelar": "🛡️ Póliza de seguro cancelada",

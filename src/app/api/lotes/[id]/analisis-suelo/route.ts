@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { requireAccess, AuthzError } from "@/lib/authz";
 import { analisisSueloFormSchema } from "@/lib/validations";
+import { datosAnalisis, resolverAtribucion, AnalisisSueloError } from "@/lib/analisis-suelo-datos";
 
 // GET /api/lotes/[id]/analisis-suelo — historial de análisis de suelo del lote (RF3)
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -46,25 +47,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: parsed.error.issues[0]?.message ?? "Datos inválidos" }, { status: 400 });
     }
 
+    const atribucion = await resolverAtribucion(loteId, parsed.data.cultivoId);
     const analisis = await db.analisisSuelo.create({
-      data: {
-        loteId,
-        fechaMuestreo: new Date(parsed.data.fechaMuestreo),
-        ph: parsed.data.ph,
-        materiaOrganica: parsed.data.materiaOrganica,
-        nitrogeno: parsed.data.nitrogeno,
-        fosforo: parsed.data.fosforo,
-        potasio: parsed.data.potasio,
-        textura: parsed.data.textura || undefined,
-        conductividad: parsed.data.conductividad,
-        laboratorio: parsed.data.laboratorio || undefined,
-        notas: parsed.data.notas || undefined,
-      },
+      data: { ...datosAnalisis(parsed.data), loteId, ...atribucion },
     });
 
     return NextResponse.json({ data: analisis }, { status: 201 });
   } catch (error) {
     if (error instanceof AuthzError) return NextResponse.json({ error: error.message }, { status: error.status });
+    if (error instanceof AnalisisSueloError) return NextResponse.json({ error: error.message }, { status: 400 });
     console.error("[POST /api/lotes/[id]/analisis-suelo]", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

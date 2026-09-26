@@ -188,17 +188,37 @@ export type CompradorFormData = z.infer<typeof compradorFormSchema>;
 
 // ── Análisis de suelo (RF3) ─────────────────────────────────────────────────
 
+const medida = (max: number) =>
+  z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").max(max, "Valor fuera de rango").nullish();
+
 export const analisisSueloFormSchema = z.object({
   fechaMuestreo: z.string().min(1, "La fecha de muestreo es requerida"),
-  ph: z.number({ invalid_type_error: "El pH debe ser un número" }).min(0).max(14, "El pH debe estar entre 0 y 14").optional(),
-  materiaOrganica: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
-  nitrogeno: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
-  fosforo: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
-  potasio: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativo").optional(),
-  textura: z.string().optional() as z.ZodType<TexturaSuelo | "" | undefined>,
-  conductividad: z.number({ invalid_type_error: "Debe ser un número" }).nonnegative("No puede ser negativa").optional(),
-  laboratorio: z.string().max(200, "Máximo 200 caracteres").optional(),
-  notas: z.string().max(1000, "Las notas no pueden superar los 1000 caracteres").optional(),
+  ph: z.number({ invalid_type_error: "El pH debe ser un número" }).min(0).max(14, "El pH debe estar entre 0 y 14").nullish(),
+  materiaOrganica: medida(100),
+  nitrogeno: medida(100),
+  fosforo: medida(5000),
+  potasio: medida(100),
+  textura: z.string().nullish() as z.ZodType<TexturaSuelo | "" | null | undefined>,
+  conductividad: medida(100),
+  laboratorio: z.string().max(200, "Máximo 200 caracteres").nullish(),
+  notas: z.string().max(1000, "Las notas no pueden superar los 1000 caracteres").nullish(),
+  // Ciclo de vida del cultivo: a qué cultivo se atribuye (opcional) y a qué profundidad se muestreó.
+  cultivoId: z.string().min(1).nullish(),
+  profundidadCm: z.number({ invalid_type_error: "Debe ser un número" }).int("Debe ser un número entero").min(1, "Mínimo 1 cm").max(300, "Máximo 300 cm").nullish(),
+  // Parámetros habituales de un informe de laboratorio (meq/100g y ppm).
+  calcio: medida(200),
+  magnesio: medida(100),
+  sodio: medida(100),
+  aluminio: medida(100),
+  cic: medida(200),
+  azufre: medida(5000),
+  boro: medida(500),
+  hierro: medida(5000),
+  manganeso: medida(5000),
+  zinc: medida(1000),
+  cobre: medida(1000),
+  // Fotos del informe (comprimidas en el navegador).
+  imagenes: z.array(z.string().max(1_500_000, "Una foto es demasiado pesada")).max(4, "Máximo 4 fotos").nullish(),
 });
 
 export type AnalisisSueloFormData = z.infer<typeof analisisSueloFormSchema>;
