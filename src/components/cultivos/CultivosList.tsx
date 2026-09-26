@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Plus, Sprout, ClipboardList, DollarSign, Pencil, Trash2, MapPin, Sparkles, Share2 } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Button, Modal, Input, EmptyState } from "@/components/ui";
 import { RegistroForm } from "@/components/cultivos/RegistroForm";
@@ -451,6 +452,9 @@ export function CultivosList({ finca }: CultivosListProps) {
                               <span className="text-[14px] font-semibold text-[var(--text-primary)]">
                                 {cultivo.especie} {cultivo.variedad}
                               </span>
+                              {(cultivo as { polizas?: unknown[] }).polizas?.length ? (
+                                <Link href={`/dashboard/cultivos/${cultivo.id}`} className="badge badge-success text-[10px]" title="Tiene un seguro vigente">🛡️ Asegurado</Link>
+                              ) : null}
                               <EtapaSelect
                                 cultivoId={cultivo.id}
                                 etapa={cultivo.etapa}

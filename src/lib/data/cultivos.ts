@@ -17,6 +17,8 @@ export type CultivoConDatos = Cultivo & {
   // getCultivos (CultivosList.tsx, modo completo) ignoran el campo extra,
   // cero cambio de comportamiento para ellos.
   especieCultivo: Pick<EspecieCultivo, "cicloMesesPrimeraCosecha" | "produccionKgArbolAnual"> | null;
+  // Pólizas de seguro VIGENTES hoy que cubren este cultivo (insignia "Asegurado").
+  polizas: { polizaId: string }[];
 };
 export type LoteConCultivos = Lote & { cultivos: CultivoConDatos[] };
 export type FincaConLotes = (Finca & { lotes: LoteConCultivos[] }) | null;
@@ -64,6 +66,10 @@ export async function getCultivos(fincaActivaId: string | null): Promise<FincaCo
               registros: { orderBy: { fecha: "desc" }, take: 3 },
               _count: { select: { registros: true, gastos: true } },
               especieCultivo: { select: { cicloMesesPrimeraCosecha: true, produccionKgArbolAnual: true } },
+              polizas: {
+                where: { poliza: { estado: "ACTIVA", fechaInicio: { lte: new Date() }, fechaFin: { gte: new Date() } } },
+                select: { polizaId: true },
+              },
             },
           },
         },

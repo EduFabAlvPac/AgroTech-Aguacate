@@ -24,6 +24,7 @@ interface Props {
   /** Instante del servidor (ISO): todos los cálculos de vigencia usan ESTE valor, no `new Date()`, para hidratar igual. */
   ahoraISO: string;
   hoy: string;
+  fincaNombre?: string;
   puedeGestionarPolizas: boolean;
   puedeReportarSiniestro: boolean;
   puedeEliminar: boolean;
@@ -48,7 +49,7 @@ const ESTADO_SINIESTRO_CLS: Record<string, string> = {
   RECHAZADO: "badge-danger",
 };
 
-export function SegurosClient({ resumen, ahoraISO, hoy, puedeGestionarPolizas, puedeReportarSiniestro, puedeEliminar, prefill }: Props) {
+export function SegurosClient({ resumen, ahoraISO, hoy, fincaNombre, puedeGestionarPolizas, puedeReportarSiniestro, puedeEliminar, prefill }: Props) {
   const router = useRouter();
   const ahora = new Date(ahoraISO);
   const [tab, setTab] = useState<"polizas" | "siniestros">(prefill?.accion === "siniestro" ? "siniestros" : "polizas");
@@ -243,7 +244,7 @@ export function SegurosClient({ resumen, ahoraISO, hoy, puedeGestionarPolizas, p
       )}
 
       <Modal isOpen={polizaModal.abierto} onClose={cerrar} title={polizaModal.poliza ? "Editar póliza" : "Registrar póliza"} size="lg">
-        {polizaModal.abierto && <PolizaForm cultivos={cultivos} poliza={polizaModal.poliza} cultivoInicial={prefill?.cultivoId} onDone={cerrar} />}
+        {polizaModal.abierto && <PolizaForm cultivos={cultivos} poliza={polizaModal.poliza} cultivoInicial={prefill?.cultivoId} fincaNombre={fincaNombre} onDone={cerrar} />}
       </Modal>
 
       <Modal isOpen={siniestroModal} onClose={cerrar} title="Registrar siniestro" size="lg">

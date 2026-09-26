@@ -208,6 +208,51 @@ export async function eliminarPoliza(polizaId: string): Promise<SeguroActionStat
   }
 }
 
+/** Asocia una póliza YA registrada a un cultivo (desde el detalle del cultivo). Misma finca obligatoria. */
+export async function asociarPolizaACultivo(polizaId: string, cultivoId: string): Promise<SeguroActionState> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "No autorizado" };
+  try {
+    const [poliza, cultivo] = await Promise.all([
+      db.polizaSeguro.findUnique({ where: { id: polizaId }, select: { fincaId: true, aseguradora: true, estado: true } }),
+      db.cultivo.findUnique({ where: { id: cultivoId }, select: { lote: { select: { fincaId: true } } } }),
+    ]);
+    if (!poliza) return { error: "Póliza no encontrada" };
+    if (!cultivo) return { error: "El cultivo ya no existe. Actualiza la página." };
+    if (poliza.fincaId !== cultivo.lote.fincaId) return { error: "La póliza y el cultivo deben ser de la misma finca." };
+    await requireAccess(session, "seguro", "update", { fincaId: poliza.fincaId });
+    if (poliza.estado === "CANCELADA") return { error: "Esa póliza está cancelada; no se le pueden asociar cultivos." };
+
+    await db.polizaCultivo.upsert({
+      where: { polizaId_cultivoId: { polizaId, cultivoId } },
+      create: { polizaId, cultivoId },
+      update: {},
+    });
+    await auditar(session, "poliza.editar", "PolizaSeguro", polizaId, poliza.fincaId, { aseguradora: poliza.aseguradora, asociaCultivo: cultivoId });
+    revalidar();
+    return { ok: true, id: polizaId };
+  } catch (error) {
+    return manejar("asociarPolizaACultivo", error);
+  }
+}
+
+/** Quita el vínculo póliza↔cultivo (la póliza y sus otros cultivos no se tocan). */
+export async function quitarPolizaDeCultivo(polizaId: string, cultivoId: string): Promise<SeguroActionState> {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.id) return { error: "No autorizado" };
+  try {
+    const poliza = await db.polizaSeguro.findUnique({ where: { id: polizaId }, select: { fincaId: true, aseguradora: true } });
+    if (!poliza) return { error: "Póliza no encontrada" };
+    await requireAccess(session, "seguro", "update", { fincaId: poliza.fincaId });
+    await db.polizaCultivo.deleteMany({ where: { polizaId, cultivoId } });
+    await auditar(session, "poliza.editar", "PolizaSeguro", polizaId, poliza.fincaId, { aseguradora: poliza.aseguradora, quitaCultivo: cultivoId });
+    revalidar();
+    return { ok: true };
+  } catch (error) {
+    return manejar("quitarPolizaDeCultivo", error);
+  }
+}
+
 // ─── Siniestros ──────────────────────────────────────────────────────────────
 
 export async function crearSiniestro(input: unknown): Promise<SeguroActionState> {

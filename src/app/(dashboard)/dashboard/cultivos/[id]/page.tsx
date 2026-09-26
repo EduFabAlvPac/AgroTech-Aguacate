@@ -52,7 +52,7 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
   const verSeguros = tieneModulo(ctx.modulosPermitidos, "seguros") && (await puedeEnFinca(session, "seguro", "read", cultivo.lote.fincaId));
   const [segurosCultivo, puedeAsociar, puedeReportar] = verSeguros
     ? await Promise.all([
-        getSegurosDeCultivo(id),
+        getSegurosDeCultivo(id, cultivo.lote.fincaId),
         puedeEnFinca(session, "seguro", "create", cultivo.lote.fincaId),
         puedeEnFinca(session, "siniestro", "create", cultivo.lote.fincaId),
       ])
@@ -68,7 +68,7 @@ export default async function CultivoDetailPage({ params }: { params: Promise<{ 
         <CultivoDetail cultivo={cultivo as any} />
         {segurosCultivo && (
           <div className="mt-5">
-            <SegurosCultivoCard cultivoId={id} datos={segurosCultivo} puedeAsociar={puedeAsociar} puedeReportar={puedeReportar} />
+            <SegurosCultivoCard cultivoId={id} datos={segurosCultivo} puedeAsociar={puedeAsociar} puedeReportar={puedeReportar} ahoraISO={new Date().toISOString()} />
           </div>
         )}
       </main>
