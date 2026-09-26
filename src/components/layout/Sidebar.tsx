@@ -10,8 +10,6 @@ import {
   Bot,
   CloudLightning,
   Users,
-  Settings,
-  LogOut,
   PanelLeftClose,
   PanelLeftOpen,
   ShieldCheck,
@@ -22,32 +20,31 @@ import {
   ShoppingBag,
   Building2,
 } from "lucide-react";
-import { signOut, useSession } from "next-auth/react";
+import { useSession } from "next-auth/react";
 import { clsx } from "clsx";
 import { useSidebar } from "@/components/providers/SidebarProvider";
-import type { ModuloKey } from "@/lib/modulos";
+import { construirMenu, TITULO_SECCION } from "@/lib/navegacion";
 import { FincaSelector, type FincaOption } from "@/components/layout/FincaSelector";
 import { OrganizacionSelector, type OrganizacionOption } from "@/components/layout/OrganizacionSelector";
 
-interface NavItem {
-  href: string;
-  icon: React.ElementType;
-  label: string;
-  // Referencia a src/lib/modulos.ts — undefined significa "siempre visible"
-  // (Dashboard no es un módulo restringible).
-  modulo?: ModuloKey;
-}
-
-const navItems: NavItem[] = [
-  { href: "/dashboard",              icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/dashboard/cultivos",     icon: Sprout,          label: "Cultivos", modulo: "cultivos" },
-  { href: "/dashboard/mapa",         icon: Map,             label: "Mapa", modulo: "mapa" },
-  { href: "/dashboard/finanzas",     icon: BarChart3,       label: "Finanzas", modulo: "finanzas" },
-  { href: "/dashboard/asistente",    icon: Bot,             label: "Asistente IA", modulo: "asistente" },
-  { href: "/dashboard/alertas",      icon: CloudLightning,  label: "Alertas", modulo: "alertas" },
-  { href: "/dashboard/compradores",  icon: Users,           label: "Compradores", modulo: "compradores" },
-  { href: "/dashboard/seguros",      icon: ShieldCheck,     label: "Seguros", modulo: "seguros" },
-];
+// Ícono de cada ruta. El ORDEN y los permisos viven en src/lib/navegacion.ts.
+const ICONOS: Record<string, React.ElementType> = {
+  "/dashboard": LayoutDashboard,
+  "/dashboard/mapa": Map,
+  "/dashboard/cultivos": Sprout,
+  "/dashboard/alertas": CloudLightning,
+  "/dashboard/asistente": Bot,
+  "/dashboard/seguros": ShieldCheck,
+  "/dashboard/finanzas": BarChart3,
+  "/dashboard/inversionistas": Wallet,
+  "/dashboard/compradores": Users,
+  "/dashboard/equipo": UserPlus,
+  "/dashboard/admin/organizaciones": Building2,
+  "/dashboard/admin/fichas-tecnicas": ShieldCheck,
+  "/dashboard/admin/precios-mercado": LineChart,
+  "/dashboard/admin/productos-tienda": ShoppingBag,
+  "/dashboard/admin/auditoria": History,
+};
 
 interface SidebarProps {
   fincas: FincaOption[];
@@ -80,37 +77,7 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
   // volver a iniciar sesión (mismo patrón que esOwner/esSuperAdmin).
   const modulosPermitidos = modulosProp ?? session?.user?.modulosPermitidos ?? "ALL";
   const esOwner = esOwnerProp ?? !!session?.user?.esOwner;
-  let items: NavItem[] = navItems.filter(
-    (item) => !item.modulo || modulosPermitidos === "ALL" || modulosPermitidos.includes(item.modulo)
-  );
-
-  // Inversionistas: decisión de producto explícita (Fase 3), no delegable a
-  // colaboradores todavía — no pasa por el sistema de módulos, se gatea
-  // directo por esOwner igual que Equipo (ver src/lib/modulos.ts).
-  if (esOwner || session?.user?.esSuperAdmin) {
-    const idx = items.findIndex((i) => i.href === "/dashboard/finanzas");
-    const inversionistas: NavItem = { href: "/dashboard/inversionistas", icon: Wallet, label: "Inversionistas" };
-    items = [...items.slice(0, idx + 1), inversionistas, ...items.slice(idx + 1)];
-  }
-
-  // Panel de administración de fichas técnicas — solo Super Admin; Equipo —
-  // solo dueños de organización (ver CLAUDE.md §2.3). Ambos flags vienen del
-  // JWT, así que un cambio solo se refleja tras cerrar y volver a iniciar sesión.
-  if (esOwner) {
-    items = [...items, { href: "/dashboard/equipo", icon: UserPlus, label: "Equipo" }];
-  }
-  if (session?.user?.esSuperAdmin) {
-    items = [
-      ...items,
-      { href: "/dashboard/admin/fichas-tecnicas", icon: ShieldCheck, label: "Fichas técnicas" },
-      // Contenido del modo Campesino (experiencia separada, /campesino/*) —
-      // mismo criterio de acceso que Fichas técnicas.
-      { href: "/dashboard/admin/precios-mercado", icon: LineChart, label: "Precios de mercado" },
-      { href: "/dashboard/admin/productos-tienda", icon: ShoppingBag, label: "Tienda (insumos)" },
-      { href: "/dashboard/admin/organizaciones", icon: Building2, label: "Organizaciones (todas)" },
-      { href: "/dashboard/admin/auditoria", icon: History, label: "Auditoría" },
-    ];
-  }
+  const items = construirMenu({ esOwner, esSuperAdmin: !!session?.user?.esSuperAdmin, modulosPermitidos });
 
   return (
     <aside
@@ -169,9 +136,21 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
       {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
         <div className="space-y-0.5">
-          {items.map(({ href, icon: Icon, label }) => (
+          {items.map(({ href, label, seccion }, idx) => {
+            const Icon = ICONOS[href] ?? LayoutDashboard;
+            const nuevaSeccion = idx > 0 && seccion !== items[idx - 1].seccion;
+            return (
+            <div key={href}>
+              {nuevaSeccion && (
+                collapsed ? (
+                  <div className="my-2 border-t border-[var(--sidebar-border)]" role="separator" />
+                ) : (
+                  <div className="mt-4 mb-1 px-3 pt-3 border-t border-[var(--sidebar-border)] text-[10px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
+                    {TITULO_SECCION[seccion]}
+                  </div>
+                )
+              )}
             <Link
-              key={href}
               href={href as any}
               title={collapsed ? label : undefined}
               onClick={() => setSidebarOpen(false)}
@@ -199,7 +178,9 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
                 </span>
               )}
             </Link>
-          ))}
+            </div>
+            );
+          })}
         </div>
       </nav>
 
@@ -224,28 +205,6 @@ export function Sidebar({ fincas, fincaActivaId, esOwner: esOwnerProp, modulosPe
           )}
         </button>
 
-        <Link
-          href="/dashboard/configuracion"
-          title={collapsed ? "Configuración" : undefined}
-          className={clsx(
-            "flex items-center gap-3 py-2.5 rounded-[var(--radius-md)] text-[13px] text-[var(--text-secondary)] hover:bg-[var(--nav-hover-bg)] transition-colors",
-            collapsed ? "px-0 justify-center" : "px-3"
-          )}
-        >
-          <Settings size={collapsed ? 20 : 17} className="text-[var(--text-muted)]" />
-          {!collapsed && "Configuración"}
-        </Link>
-        <button
-          onClick={() => signOut({ callbackUrl: "/login" })}
-          title={collapsed ? "Cerrar sesión" : undefined}
-          className={clsx(
-            "w-full flex items-center gap-3 py-2.5 rounded-[var(--radius-md)] text-[13px] text-[var(--text-secondary)] hover:bg-negative-50 hover:text-negative-600 transition-colors",
-            collapsed ? "px-0 justify-center" : "px-3"
-          )}
-        >
-          <LogOut size={collapsed ? 20 : 17} className="text-[var(--text-muted)]" />
-          {!collapsed && "Cerrar sesión"}
-        </button>
       </div>
     </aside>
   );
