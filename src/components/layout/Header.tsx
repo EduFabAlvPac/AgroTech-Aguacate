@@ -7,6 +7,7 @@ import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import Link from "next/link";
 import { useSidebar } from "@/components/providers/SidebarProvider";
+import { UserMenu } from "@/components/layout/UserMenu";
 
 interface HeaderProps {
   title: string;
@@ -92,14 +93,8 @@ export function Header({ title, subtitle }: HeaderProps) {
           )}
         </Link>
 
-        {/* Avatar */}
-        <div className="w-8 h-8 rounded-full bg-agro-50 border border-agro-100 flex items-center justify-center text-[12px] font-semibold text-agro-600">
-          {session?.user?.name
-            ?.split(" ")
-            .map((n) => n[0])
-            .slice(0, 2)
-            .join("") ?? "GI"}
-        </div>
+        {/* Avatar → menú con Configuración y Cerrar sesión */}
+        <UserMenu />
       </div>
     </header>
   );
